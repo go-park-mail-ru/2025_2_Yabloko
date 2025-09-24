@@ -9,36 +9,44 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-// ==================== registerHandler ====================
+// обрабатывает запрос на регистрацию
 func registerHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// читаем JSON из тела запроса
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		// если JSON некорректный - ошибка 400
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON"})
 		return
 	}
 
+	// валидируем поля запроса
 	if err := ValidateRegisterRequest(req); err != nil {
+		// если валидация не пройдена - ошибка 400
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
 
+	// проверяем, существует ли пользователь с таким логином
 	existingUser, err := findUserByLogin(req.Login)
 	if err != nil {
+		// ошибка чтения данных
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Internal server error"})
 		return
 	}
 
 	if existingUser != nil {
+		// если пользователь уже есть - ошибка 409
 		w.WriteHeader(http.StatusConflict)
 		json.NewEncoder(w).Encode(map[string]string{"error": "User already exists"})
 		return
 	}
 
+	// хэшируем пароль
 	passwordHash, err := hashPassword(req.Password)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -46,12 +54,14 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// создаем нового пользователя
 	if err := createUser(req.Login, passwordHash); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create user"})
 		return
 	}
 
+	// возвращаем успешный ответ
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "User created",
@@ -59,23 +69,27 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ==================== loginHandler ====================
+// обрабатывает запрос на вход
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// читаем JSON из тела запроса
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		// некорректный JSON
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON"})
 		return
 	}
 
+	// проверяем данные на валидность
 	if err := ValidateLoginRequest(req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
 
+	// ищем пользователя по логину
 	user, err := findUserByLogin(req.Login)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -83,12 +97,14 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// проверяем пароль
 	if user == nil || !checkPasswordHash(req.Password, user.Password) {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid credentials"})
 		return
 	}
 
+	// создаем JWT токен
 	token, err := generateJWT(user.ID, user.Login)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -96,6 +112,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// устанавливаем cookie с токеном
 	http.SetCookie(w, &http.Cookie{
 		Name:     "jwt_token",
 		Value:    token,
@@ -106,6 +123,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 	})
 
+	// возвращаем успешный ответ
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "Login successful",
@@ -113,10 +131,11 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ==================== refreshTokenHandler ====================
+// refreshTokenHandler обновляет JWT токен
 func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// получаем токен из cookie
 	cookie, err := r.Cookie("jwt_token")
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -124,6 +143,7 @@ func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// парсим токен
 	token, err := jwt.ParseWithClaims(cookie.Value, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
@@ -144,6 +164,7 @@ func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// получаем claims
 	claims, ok := token.Claims.(*Claims)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -151,6 +172,7 @@ func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// проверяем срок жизни токена для refresh
 	if claims.ExpiresAt == nil || time.Since(claims.ExpiresAt.Time) > 7*24*time.Hour {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Token refresh window expired"})
@@ -163,6 +185,7 @@ func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// создаем новый токен
 	newToken, err := generateJWT(claims.UserID, claims.Login)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -170,6 +193,7 @@ func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// устанавливаем новый cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "jwt_token",
 		Value:    newToken,
@@ -180,6 +204,7 @@ func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 	})
 
+	// возвращаем успешный ответ
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "Token refreshed",
@@ -187,10 +212,11 @@ func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ==================== logoutHandler ====================
+// обрабатывает запрос для выхода
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// обнуляем cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "jwt_token",
 		Value:    "",
@@ -201,6 +227,7 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 	})
 
+	// возвращаем успешный ответ
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "Logged out",
