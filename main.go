@@ -46,7 +46,9 @@ func corsMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-
+func healthCheck(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
 func main() {
 	port := fmt.Sprintf(":%s", PORT)
 	mux := http.NewServeMux()
@@ -57,6 +59,7 @@ func main() {
 	mux.HandleFunc("/logout", logger(logoutHandler))
 	// refresh должен быть публичным или с отдельной проверкой
 	mux.HandleFunc("/refresh", logger(refreshTokenHandler))
+	mux.HandleFunc("/healthcheck", healthCheck)
 
 	// protected routes - создаем цепочку middleware
 
