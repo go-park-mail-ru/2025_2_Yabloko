@@ -1,66 +1,57 @@
 package main
 
 import (
+	"apple_backend/handlers"
+	"apple_backend/logger"
+	"apple_backend/middlewares"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
-	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
 	PORT = "8080"
+
+	POSTGRES_USER     = "postgres"
+	POSTGRES_PASSWORD = "admin"
+	POSTGRES_HOST     = "127.0.0.1"
+	POSTGRES_PORT     = 5432
+	DB_NAME           = "postgres"
 )
 
-func logger(fun http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		log.Printf("%s %s %s", r.RemoteAddr, r.Method, r.URL)
-		fun(w, r)
-		log.Printf("%s %s %s duration %s", r.RemoteAddr, r.Method, r.URL, time.Since(start))
-	}
-}
-
-func corsMiddleware(next http.Handler) http.Handler {
-	allowedOrigins := map[string]bool{
-		"http://localhost:3000": true,
-		"http://127.0.0.1:3000": true,
-		// production domains...
-	}
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if origin != "" && allowedOrigins[origin] {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token")
-		} else {
-			// origin отсутствует (обычный запрос) или не разрешён - не выставляем заголовок
-		}
-
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 func main() {
+	dbPath := fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
+		POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT, DB_NAME)
 	port := fmt.Sprintf(":%s", PORT)
+
+	dbPool, err := pgxpool.New(context.Background(), dbPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer dbPool.Close()
+
 	mux := http.NewServeMux()
 
-	// public routes
-	mux.HandleFunc("/login", logger(loginHandler))
-	mux.HandleFunc("/register", logger(registerHandler))
-	mux.HandleFunc("/logout", logger(logoutHandler))
+	// store
+	storeLog := "./log/store.log"
+	storeHandler := handlers.NewStoreHandler(dbPool, storeLog, logger.DEBUG)
+	storeAPI := "/api/v0/stores"
+	mux.HandleFunc(storeAPI, middlewares.LoggerWrapper(storeHandler.GetStores))
+
+	// login
+	authLog := "./log/auth.log"
+	authHandler := handlers.NewAuthHandler(dbPool, authLog, logger.DEBUG)
+	authAPI := "/api/v0/auth"
+	mux.HandleFunc(authAPI+"/signup", middlewares.LoggerWrapper(authHandler.SignupHandler))
+	mux.HandleFunc(authAPI+"/login", middlewares.LoggerWrapper(authHandler.LoginHandler))
+	mux.HandleFunc(authAPI+"/logout", middlewares.LoggerWrapper(authHandler.LogoutHandler))
 	// refresh должен быть публичным или с отдельной проверкой
-	mux.HandleFunc("/refresh", logger(refreshTokenHandler))
+	mux.HandleFunc(authAPI+"/refresh", middlewares.LoggerWrapper(authHandler.SignupHandler))
 
-	// protected routes - создаем цепочку middleware
-
-	handler := corsMiddleware(mux)
+	cors := middlewares.CorsMiddleware(mux)
 	fmt.Println("starting server at " + port)
-	log.Fatal(http.ListenAndServe(port, handler))
+	log.Fatal(http.ListenAndServe(port, cors))
 }
