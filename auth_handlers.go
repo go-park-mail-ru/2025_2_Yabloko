@@ -3,143 +3,176 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 )
 
+// структуры для типизированных ответов
+
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
+
+type MessageResponse struct {
+	Message string `json:"message"`
+	Login   string `json:"login,omitempty"`
+	UserID  string `json:"user_id,omitempty"`
+}
+
+// хелпер для отправки ответов
+func handleResponse(w http.ResponseWriter, statusCode int, response interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Response encoding error: %v", err)
+	}
+}
+
+func handleError(w http.ResponseWriter, statusCode int, errorMsg string, internalErr error) {
+	if internalErr != nil {
+		log.Printf("Error: %s, internal: %v", errorMsg, internalErr)
+	} else {
+		log.Printf("Error: %s", errorMsg)
+	}
+
+	handleResponse(w, statusCode, ErrorResponse{Error: errorMsg})
+}
+
+func handleSuccess(w http.ResponseWriter, statusCode int, message, login, userID string) {
+	response := MessageResponse{
+		Message: message,
+		Login:   login,
+	}
+	if userID != "" {
+		response.UserID = userID
+	}
+	handleResponse(w, statusCode, response)
+}
+
+func createTokenCookie(token string, expires time.Time) *http.Cookie {
+	return &http.Cookie{
+		Name:     "jwt_token",
+		Value:    token,
+		Expires:  expires,
+		HttpOnly: true,
+		Secure:   false, // TODO: set true in production
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/",
+	}
+}
+
+func createExpiredTokenCookie() *http.Cookie {
+	return &http.Cookie{
+		Name:     "jwt_token",
+		Value:    "",
+		Expires:  time.Now().Add(-time.Hour),
+		HttpOnly: true,
+		Secure:   false, // TODO: set true in production
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/",
+	}
+}
+
 // обрабатывает запрос на регистрацию
 func registerHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
 
 	// читаем JSON из тела запроса
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		// если JSON некорректный - ошибка 400
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON"})
+		handleError(w, http.StatusBadRequest, "Invalid JSON", err)
 		return
 	}
 
 	// валидируем поля запроса
 	if err := ValidateRegisterRequest(req); err != nil {
-		// если валидация не пройдена - ошибка 400
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		handleError(w, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
-	// проверяем, существует ли пользователь с таким логином
 	existingUser, err := findUserByLogin(req.Login)
 	if err != nil {
-		// ошибка чтения данных
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Internal server error"})
+		handleError(w, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
 	if existingUser != nil {
-		// если пользователь уже есть - ошибка 409
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]string{"error": "User already exists"})
+		handleError(w, http.StatusConflict, "Пользователь уже существует", nil)
 		return
 	}
 
 	// хэшируем пароль
 	passwordHash, err := hashPassword(req.Password)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to hash password"})
+		handleError(w, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
-	// создаем нового пользователя
 	if err := createUser(req.Login, passwordHash); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create user"})
+		handleError(w, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
-	// возвращаем успешный ответ
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "User created",
-		"login":   req.Login,
-	})
+	user, err := findUserByLogin(req.Login)
+	if err != nil || user == nil {
+		handleError(w, http.StatusInternalServerError, "Internal server error", err)
+		return
+	}
+
+	token, err := generateJWT(user.ID, user.Login)
+	if err != nil {
+		handleError(w, http.StatusInternalServerError, "Internal server error", err)
+		return
+	}
+
+	http.SetCookie(w, createTokenCookie(token, time.Now().Add(24*time.Hour)))
+	handleSuccess(w, http.StatusCreated, "Пользователь создан и автоматически авторизован", req.Login, fmt.Sprintf("%d", user.ID))
 }
 
 // обрабатывает запрос на вход
 func loginHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
 
-	// читаем JSON из тела запроса
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		// некорректный JSON
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON"})
+		handleError(w, http.StatusBadRequest, "Invalid JSON", err)
 		return
 	}
 
-	// проверяем данные на валидность
 	if err := ValidateLoginRequest(req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		handleError(w, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
-	// ищем пользователя по логину
 	user, err := findUserByLogin(req.Login)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Internal server error"})
+		handleError(w, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
-	// проверяем пароль
 	if user == nil || !checkPasswordHash(req.Password, user.Password) {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid credentials"})
+		handleError(w, http.StatusUnauthorized, "Неверный логин или пароль", nil)
 		return
 	}
 
-	// создаем JWT токен
 	token, err := generateJWT(user.ID, user.Login)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate token"})
+		handleError(w, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
-	// устанавливаем cookie с токеном
-	http.SetCookie(w, &http.Cookie{
-		Name:     "jwt_token",
-		Value:    token,
-		Expires:  time.Now().Add(24 * time.Hour),
-		HttpOnly: true,
-		Secure:   false, // локально false
-		SameSite: http.SameSiteNoneMode,
-		Path:     "/",
-	})
-
-	// возвращаем успешный ответ
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "Login successful",
-		"login":   req.Login,
-	})
+	http.SetCookie(w, createTokenCookie(token, time.Now().Add(24*time.Hour)))
+	handleSuccess(w, http.StatusOK, "Успешный вход", req.Login, "")
 }
 
 // refreshTokenHandler обновляет JWT токен
 func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	// получаем токен из cookie
 	cookie, err := r.Cookie("jwt_token")
 	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+		handleError(w, http.StatusUnauthorized, "Authentication required", err)
 		return
 	}
 
@@ -153,63 +186,41 @@ func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 
 	var ve *jwt.ValidationError
 	if err != nil && !(errors.As(err, &ve) && ve.Errors&jwt.ValidationErrorExpired != 0) {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid token"})
+		handleError(w, http.StatusUnauthorized, "Invalid token", err)
 		return
 	}
 
 	if token == nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid token"})
+		handleError(w, http.StatusUnauthorized, "Invalid token", nil)
 		return
 	}
 
 	// получаем claims
 	claims, ok := token.Claims.(*Claims)
 	if !ok {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid token claims"})
+		handleError(w, http.StatusUnauthorized, "Invalid token claims", nil)
 		return
 	}
 
 	// проверяем срок жизни токена для refresh
 	if claims.ExpiresAt == nil || time.Since(claims.ExpiresAt.Time) > 7*24*time.Hour {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Token refresh window expired"})
+		handleError(w, http.StatusUnauthorized, "Token expired", nil)
 		return
 	}
 
 	if claims.IssuedAt == nil || time.Since(claims.IssuedAt.Time) > 30*24*time.Hour {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Token too old to refresh"})
+		handleError(w, http.StatusUnauthorized, "Token too old to refresh", nil)
 		return
 	}
 
-	// создаем новый токен
 	newToken, err := generateJWT(claims.UserID, claims.Login)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate token"})
+		handleError(w, http.StatusInternalServerError, "Internal server error", err)
 		return
 	}
 
-	// устанавливаем новый cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "jwt_token",
-		Value:    newToken,
-		Expires:  time.Now().Add(24 * time.Hour),
-		HttpOnly: true,
-		Secure:   false, // локально false
-		SameSite: http.SameSiteNoneMode,
-		Path:     "/",
-	})
-
-	// возвращаем успешный ответ
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "Token refreshed",
-		"login":   claims.Login,
-	})
+	http.SetCookie(w, createTokenCookie(newToken, time.Now().Add(24*time.Hour)))
+	handleSuccess(w, http.StatusOK, "Токен обновлён", claims.Login, "")
 }
 
 // обрабатывает запрос для выхода
@@ -217,19 +228,6 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// обнуляем cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "jwt_token",
-		Value:    "",
-		Expires:  time.Now().Add(-time.Hour),
-		HttpOnly: true,
-		Secure:   false, // локально false
-		SameSite: http.SameSiteNoneMode,
-		Path:     "/",
-	})
-
-	// возвращаем успешный ответ
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "Logged out",
-	})
+	http.SetCookie(w, createExpiredTokenCookie())
+	handleSuccess(w, http.StatusOK, "Выход выполнен", "", "")
 }
