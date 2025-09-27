@@ -9,7 +9,6 @@ import (
 
 // jwtSecret - секретный ключ для подписи JWT токенов
 // TODO: потом перенести это в environment variables (сделать невидимым для всех)
-var jwtSecret = []byte("secret_key_apple_team")
 
 // generateJWT создает новый JWT токен для пользователя
 func generateJWT(userID int, login string) (string, error) {
@@ -24,7 +23,7 @@ func generateJWT(userID int, login string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtSecret)
+	return token.SignedString(GetConfig().JWTSecret)
 }
 
 func verifyJWT(tokenString string) (*Claims, error) {
@@ -34,7 +33,7 @@ func verifyJWT(tokenString string) (*Claims, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
 		}
-		return jwtSecret, nil
+		return GetConfig().JWTSecret, nil
 
 	})
 

@@ -148,7 +148,7 @@ func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
 		}
-		return jwtSecret, nil
+		return GetConfig().JWTSecret, nil
 	})
 
 	var ve *jwt.ValidationError
