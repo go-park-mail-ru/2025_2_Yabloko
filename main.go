@@ -1,6 +1,7 @@
 package main
 
 import (
+	"apple_backend/db"
 	"apple_backend/handlers"
 	"apple_backend/logger"
 	"apple_backend/middlewares"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -15,23 +17,24 @@ import (
 const (
 	PORT = "8080"
 
-	POSTGRES_USER     = "postgres"
-	POSTGRES_PASSWORD = "admin"
-	POSTGRES_HOST     = "127.0.0.1"
-	POSTGRES_PORT     = 5432
-	DB_NAME           = "postgres"
+	POSTGRES_HOST = "db"
+	POSTGRES_PORT = 5432
 )
 
 func main() {
 	dbPath := fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
-		POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT, DB_NAME)
-	port := fmt.Sprintf(":%s", PORT)
+		os.Getenv("POSTGRES_USER"), os.Getenv("POSTGRES_PASSWORD"),
+		POSTGRES_HOST, POSTGRES_PORT, os.Getenv("POSTGRES_DB"))
+	hostport := fmt.Sprintf("0.0.0.0:%s", PORT)
 
 	dbPool, err := pgxpool.New(context.Background(), dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer dbPool.Close()
+
+	db.FakeTagCity(dbPool)
+	db.FakeStores(dbPool)
 
 	mux := http.NewServeMux()
 
@@ -57,6 +60,6 @@ func main() {
 	mux.HandleFunc("/api/v0/image/", middlewares.AccessLog(authHandler.GetImage))
 
 	cors := middlewares.CorsMiddleware(mux)
-	fmt.Println("starting server at " + port)
-	log.Fatal(http.ListenAndServe(port, cors))
+	fmt.Println("starting server at " + hostport)
+	log.Fatal(http.ListenAndServe(hostport, cors))
 }

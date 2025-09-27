@@ -5,6 +5,7 @@ create table if not exists account (
     hash text not null,
     name text,
     phone text,
+    city_id uuid references city(id),
     address text,
     updated_at timestamptz not null default current_timestamp,
     created_at timestamptz not null default current_timestamp,

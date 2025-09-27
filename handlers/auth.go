@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -155,7 +156,7 @@ func (h *Handler) refreshToken(w http.ResponseWriter, r *http.Request) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
 		}
-		return auth.JwtSecret, nil
+		return os.Getenv("JWT_SECRET"), nil
 	})
 
 	//todo стандартизировать ошибки и вынести в кустом еррорс

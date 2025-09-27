@@ -1,9 +1,10 @@
 -- Write your migrate up statements here
-create table if not exists store (
+create table if not exists store
+(
     id          uuid primary key,
     name        text        not null,
     description text        not null,
-    city_id     uuid        not null, --references city(id)
+    city_id     uuid        not null references city (id),
     address     text        not null,
     card_img    text,
     rating      numeric(2, 1),
@@ -20,6 +21,16 @@ create table if not exists store (
     constraint rating_max check (rating <= 5),
     constraint unique_store unique (name, city_id, address)
 );
+
+create table store_tag
+(
+    store_id   uuid        not null references store (id),
+    tag_id     uuid        not null references tag (id),
+    updated_at timestamptz not null default current_timestamp,
+    created_at timestamptz not null default current_timestamp,
+    constraint unique_pair unique (store_id, tag_id)
+);
 ---- create above / drop below ----
 
 drop table if exists store;
+drop table if exists store_tag;

@@ -63,8 +63,8 @@ func (h *Handler) GetImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// TODO параметризовать путь
-	path := filepath.Join("../images", filename)
+	path := filepath.Join("./images", filename)
 
-	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Content-Type", "image/jpeg")
 	http.ServeFile(w, r, path)
 }
