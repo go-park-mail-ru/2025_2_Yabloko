@@ -2,18 +2,28 @@ package middlewares
 
 import (
 	"apple_backend/auth"
+	log "apple_backend/logger"
 	"context"
-	"log"
+	"fmt"
 	"net/http"
 	"time"
 )
 
-func LoggerWrapper(fun http.HandlerFunc) http.HandlerFunc {
+var logger *log.Logger
+
+func init() {
+	logger = log.NewLogger("", "./log/app.log", log.DEBUG)
+}
+
+func AccessLog(fun http.HandlerFunc) http.HandlerFunc {
+	// TODO посмотреть полезные параметры ответа
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		log.Printf("%s %s %s", r.RemoteAddr, r.Method, r.URL)
+		logger.Info(log.LogInfo{Info: fmt.Sprintf("%s %s %s", r.RemoteAddr, r.Method, r.URL)})
+
 		fun(w, r)
-		log.Printf("%s %s %s duration %s", r.RemoteAddr, r.Method, r.URL, time.Since(start))
+
+		logger.Info(log.LogInfo{Info: fmt.Sprintf("%s %s %s duration %s", r.RemoteAddr, r.Method, r.URL, time.Since(start))})
 	}
 }
 

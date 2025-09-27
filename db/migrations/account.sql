@@ -1,5 +1,5 @@
 -- Write your migrate up statements here
-create table account (
+create table if not exists account (
     id uuid primary key,
     email text not null unique,
     hash text not null,
@@ -19,6 +19,6 @@ create table account (
 
 
 ---- create above / drop below ----
-drop table account;
+drop table if exists account;
 -- Write your migrate down statements here. If this migration is irreversible
 -- Then delete the separator line above.

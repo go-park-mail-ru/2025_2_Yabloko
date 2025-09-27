@@ -1,5 +1,5 @@
 -- Write your migrate up statements here
-create table store (
+create table if not exists store (
     id          uuid primary key,
     name        text        not null,
     description text        not null,
@@ -22,4 +22,4 @@ create table store (
 );
 ---- create above / drop below ----
 
-drop table store;
+drop table if exists store;

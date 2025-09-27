@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -26,13 +27,6 @@ type Logger struct {
 	logger   *log.Logger
 }
 
-type WebLogger interface {
-	Debug(err LogInfo)
-	Info(err LogInfo)
-	Warn(err LogInfo)
-	Error(err LogInfo)
-}
-
 func NewLogger(name string, outPath string, logLevel LogLevel) *Logger {
 	dir, _ := filepath.Split(outPath)
 	err := os.MkdirAll(dir, os.ModePerm)
@@ -51,24 +45,30 @@ func NewLogger(name string, outPath string, logLevel LogLevel) *Logger {
 	}
 }
 
+func NewNilLogger() *Logger {
+	return &Logger{
+		logger: log.New(io.Discard, "", 0),
+	}
+}
+
 func (l *Logger) Error(info LogInfo) {
-	l.logger.Printf("ERROR -- %s: %s %s", info.Info, info.Err, info.Meta)
+	l.logger.Printf("ERROR -- %s: %v %v", info.Info, info.Err, info.Meta)
 }
 
 func (l *Logger) Warn(info LogInfo) {
 	if l.logLevel <= WARN {
-		l.logger.Printf("WARN -- %s: %s %s", info.Info, info.Err, info.Meta)
+		l.logger.Printf("WARN -- %s: %v %v", info.Info, info.Err, info.Meta)
 	}
 }
 
 func (l *Logger) Info(info LogInfo) {
 	if l.logLevel <= INFO {
-		l.logger.Printf("INFO -- %s: %s", info.Info, info.Meta)
+		l.logger.Printf("INFO -- %s: %v", info.Info, info.Meta)
 	}
 }
 
 func (l *Logger) Debug(info LogInfo) {
 	if l.logLevel <= DEBUG {
-		l.logger.Printf("DEBUG -- %s: %s", info.Info, info.Meta)
+		l.logger.Printf("DEBUG -- %s: %v", info.Info, info.Meta)
 	}
 }

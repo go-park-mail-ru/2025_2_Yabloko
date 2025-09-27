@@ -37,19 +37,24 @@ func main() {
 
 	// store
 	storeLog := "./log/store.log"
-	storeHandler := handlers.NewStoreHandler(dbPool, storeLog, logger.DEBUG)
+	storeHandler := handlers.New(dbPool, "STORE", storeLog, logger.DEBUG)
 	storeAPI := "/api/v0/stores"
-	mux.HandleFunc(storeAPI, middlewares.LoggerWrapper(storeHandler.GetStores))
+	mux.HandleFunc(storeAPI, middlewares.AccessLog(storeHandler.GetStores))
 
 	// login
 	authLog := "./log/auth.log"
-	authHandler := handlers.NewAuthHandler(dbPool, authLog, logger.DEBUG)
+	authHandler := handlers.New(dbPool, "AUTH", authLog, logger.DEBUG)
 	authAPI := "/api/v0/auth"
-	mux.HandleFunc(authAPI+"/signup", middlewares.LoggerWrapper(authHandler.SignupHandler))
-	mux.HandleFunc(authAPI+"/login", middlewares.LoggerWrapper(authHandler.LoginHandler))
-	mux.HandleFunc(authAPI+"/logout", middlewares.LoggerWrapper(authHandler.LogoutHandler))
+	mux.HandleFunc(authAPI+"/signup", middlewares.AccessLog(authHandler.Signup))
+	mux.HandleFunc(authAPI+"/login", middlewares.AccessLog(authHandler.Login))
+	mux.HandleFunc(authAPI+"/logout", middlewares.AccessLog(authHandler.Logout))
 	// refresh должен быть публичным или с отдельной проверкой
-	mux.HandleFunc(authAPI+"/refresh", middlewares.LoggerWrapper(authHandler.SignupHandler))
+	mux.HandleFunc(authAPI+"/refresh", middlewares.AccessLog(authHandler.Signup))
+
+	// health
+	mux.HandleFunc("/health", middlewares.AccessLog(authHandler.HealthCheck))
+	// images
+	mux.HandleFunc("/api/v0/image/", middlewares.AccessLog(authHandler.GetImage))
 
 	cors := middlewares.CorsMiddleware(mux)
 	fmt.Println("starting server at " + port)

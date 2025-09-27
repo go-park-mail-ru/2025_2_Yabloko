@@ -1,5 +1,5 @@
 -- Write your migrate up statements here
-create table city (
+create table if not exists city (
     id         uuid primary key,
     name       text        not null unique,
     updated_at timestamptz not null default current_timestamp,
@@ -9,4 +9,4 @@ create table city (
 
 
 ---- create above / drop below ----
-drop table city;
+drop table if exists city;

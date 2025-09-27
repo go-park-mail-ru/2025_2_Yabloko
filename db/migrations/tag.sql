@@ -1,5 +1,5 @@
 -- Write your migrate up statements here
-create table tag (
+create table if not exists tag (
     id uuid primary key,
     name text not null unique,
     updated_at timestamptz not null default current_timestamp,
@@ -16,6 +16,6 @@ create table store_tag (
 );
 
 ---- create above / drop below ----
-drop table store_tag;
+drop table if exists store_tag;
 
-drop table tag;
+drop table if exists tag;
