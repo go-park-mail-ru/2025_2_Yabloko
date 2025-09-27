@@ -126,7 +126,7 @@ func GetUserInfo(dbPool *pgxpool.Pool, email string) (string, string, error) {
 	defer conn.Release()
 
 	var idHash userInfo
-	err = conn.QueryRow(ctxt, getUser, email).Scan(&idHash)
+	err = conn.QueryRow(ctxt, getUser, email).Scan(&idHash.id, &idHash.hash)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			logger.Error(log.LogInfo{Err: custom_errors.NotExistErr, Meta: []string{email}})

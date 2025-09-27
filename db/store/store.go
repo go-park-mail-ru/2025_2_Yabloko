@@ -21,14 +21,14 @@ func init() {
 }
 
 type AppendInfo struct {
-	name        string
-	description string
-	cityId      uuid.UUID
-	address     string
-	cardImg     string
-	rating      float64
-	openAt      time.Time
-	closedAt    time.Time
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	CityId      uuid.UUID `json:"cityId"`
+	Address     string    `json:"address"`
+	CardImg     string    `json:"cardImg"`
+	Rating      float64   `json:"rating"`
+	OpenAt      time.Time `json:"openAt"`
+	ClosedAt    time.Time `json:"closedAt"`
 }
 
 func AppendStore(dbPool *pgxpool.Pool, store AppendInfo) error {
@@ -48,7 +48,9 @@ func AppendStore(dbPool *pgxpool.Pool, store AppendInfo) error {
 		return err
 	}
 
-	_, err = conn.Exec(ctxt, addStore, store)
+	id := uuid.New().String()
+	_, err = conn.Exec(ctxt, addStore, id, store.Name, store.Description, store.CityId, store.Address, store.CardImg,
+		store.Rating, store.OpenAt, store.ClosedAt)
 	if err != nil {
 		if strings.Contains(err.Error(), "SQLSTATE 23505") {
 			logger.Error(log.LogInfo{Err: err, Meta: store})
@@ -82,15 +84,15 @@ type GetRequest struct {
 }
 
 type ResponseInfo struct {
-	Id          string
-	name        string
-	description string
-	city        string
-	address     string
-	cardImg     string
-	rating      float64
-	openAt      time.Time
-	closedAt    time.Time
+	Id          string  `json:"id"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	City        string  `json:"city"`
+	Address     string  `json:"address"`
+	CardImg     string  `json:"card_img"`
+	Rating      float64 `json:"rating"`
+	OpenAt      string  `json:"open_at"`
+	ClosedAt    string  `json:"close_at"`
 }
 
 // todo сортировка и фильтрация
@@ -101,9 +103,9 @@ func GetStores(dbPool *pgxpool.Pool, params GetRequest) ([]ResponseInfo, error) 
 
 	if params.Sorted == "" && params.TagId == "" {
 		if params.LastId == "" {
-			query = getStore
-		} else {
 			query = getStoreFirst
+		} else {
+			query = getStore
 		}
 	}
 
@@ -113,31 +115,47 @@ func GetStores(dbPool *pgxpool.Pool, params GetRequest) ([]ResponseInfo, error) 
 		return nil, err
 	}
 	defer conn.Release()
-
-	rows, err := conn.Query(ctxt, query, params.Limit, params.LastId)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			logger.Error(log.LogInfo{Err: custom_errors.NotExistErr, Meta: params})
-			return nil, custom_errors.NotExistErr
+	//TODO refactor
+	var rows pgx.Rows
+	if params.LastId == "" {
+		rows, err = conn.Query(ctxt, query, params.Limit)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				logger.Error(log.LogInfo{Err: custom_errors.NotExistErr, Meta: params})
+				return nil, custom_errors.NotExistErr
+			}
+			logger.Error(log.LogInfo{Err: err, Meta: params})
+			return nil, err
 		}
-		return nil, err
+	} else {
+		rows, err = conn.Query(ctxt, query, params.Limit, params.LastId)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				logger.Error(log.LogInfo{Err: custom_errors.NotExistErr, Meta: params})
+				return nil, custom_errors.NotExistErr
+			}
+			logger.Error(log.LogInfo{Err: err, Meta: params})
+			return nil, err
+		}
 	}
+
 	defer rows.Close()
 
 	stores := []ResponseInfo{}
 	for rows.Next() {
 		var store ResponseInfo
-		if err := rows.Scan(&store); err != nil {
-			logger.Warn(log.LogInfo{Info: "get user password прервано", Err: err, Meta: params})
+		if err := rows.Scan(&store.Id, &store.Name, &store.Description, &store.City,
+			&store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt); err != nil {
+			logger.Warn(log.LogInfo{Info: "get store прервано", Err: err, Meta: params})
 			return stores, err
 		}
 		stores = append(stores, store)
 	}
 	if err = rows.Err(); err != nil {
-		logger.Warn(log.LogInfo{Info: "get user password завершено с ошибкой", Err: err, Meta: params})
+		logger.Warn(log.LogInfo{Info: "get store завершено с ошибкой", Err: err, Meta: params})
 		return stores, err
 	}
 
-	logger.Debug(log.LogInfo{Info: "get user password завершено", Meta: params})
+	logger.Debug(log.LogInfo{Info: "get store завершено", Meta: params})
 	return stores, nil
 }
