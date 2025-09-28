@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"time"
@@ -7,16 +7,16 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// jwtSecret - секретный ключ для подписи JWT токенов
+// JwtSecret - секретный ключ для подписи JWT токенов
 // TODO: потом перенести это в environment variables (сделать невидимым для всех)
-var jwtSecret = []byte("secret_key_apple_team")
+var JwtSecret = []byte("secret_key_apple_team")
 
-// generateJWT создает новый JWT токен для пользователя
-func generateJWT(userID int, login string) (string, error) {
+// GenerateJWT создает новый JWT токен для пользователя
+func GenerateJWT(userID, email string) (string, error) {
 	expirationTime := time.Now().Add(24 * time.Hour)
 	claims := &Claims{
 		UserID: userID,
-		Login:  login,
+		Email:  email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()), // ← ДОБАВИТЬ
@@ -24,17 +24,17 @@ func generateJWT(userID int, login string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtSecret)
+	return token.SignedString(JwtSecret)
 }
 
-func verifyJWT(tokenString string) (*Claims, error) {
+func VerifyJWT(tokenString string) (*Claims, error) {
 	// парсим и передаем анонимную функцию как инструкцию
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		// проверяем HMAC или нет
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
 		}
-		return jwtSecret, nil
+		return JwtSecret, nil
 
 	})
 
@@ -51,14 +51,14 @@ func verifyJWT(tokenString string) (*Claims, error) {
 }
 
 // создает bcrypt хэш пароля
-func hashPassword(password string) (string, error) {
+func HashPassword(password string) (string, error) {
 	// bcrypt.DefaultCost = 10 (оптимальное значение для баланса безопасности и производительности)
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(bytes), err
 }
 
 // проверяет соответствие пароля и хэша
-func checkPasswordHash(password, hash string) bool {
+func CheckPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }

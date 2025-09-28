@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"regexp"
@@ -17,25 +17,26 @@ func (e *ValidationError) Error() string {
 // валидация для авторизации
 func ValidateLoginRequest(req LoginRequest) error {
 	// проверка на пустые поля
-	if strings.TrimSpace(req.Login) == "" {
+	//TODO пернести ошибки в custom_errors
+	if strings.TrimSpace(req.Email) == "" {
 		return &ValidationError{Message: "Login is required"}
 	}
 	if strings.TrimSpace(req.Password) == "" {
 		return &ValidationError{Message: "Password is required"}
 	}
-
-	// проверка длины логина
-	if len(req.Login) < 3 {
+	//todo на русский ошибки
+	if len(req.Email) < 3 {
 		return &ValidationError{Message: "Login must be at least 3 characters long"}
 	}
-	if len(req.Login) > 50 {
+	if len(req.Email) >= 50 {
 		return &ValidationError{Message: "Login must be less than 50 characters"}
 	}
 
-	// проверка формата логина (только буквы, цифры, подчеркивание)
-	if matched, _ := regexp.MatchString("^[a-zA-Z0-9_]+$", req.Login); !matched {
+	// проверка формата email
+	if matched, _ := regexp.MatchString("^[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\\.[a-zA-Z0-9_-]+$", req.Email); !matched {
 		return &ValidationError{Message: "Login can only contain letters, numbers and underscores"}
 	}
+	//fixme ошибки по email
 
 	return nil
 }
@@ -44,14 +45,14 @@ func ValidateLoginRequest(req LoginRequest) error {
 func ValidateRegisterRequest(req RegisterRequest) error {
 	// валидация логина и базовых проверок
 	if err := ValidateLoginRequest(LoginRequest{
-		Login:    req.Login,
+		Email:    req.Email,
 		Password: req.Password,
 	}); err != nil {
 		return err
 	}
 
 	// дополнительная валидация сложности пароля (только для регистрации)
-	if err := ValidatePassword(req.Login, req.Password); err != nil {
+	if err := ValidatePassword(req.Email, req.Password); err != nil {
 		return err
 	}
 
@@ -63,9 +64,9 @@ func ValidatePassword(login, password string) error {
 	if len(password) < 8 {
 		return &ValidationError{Message: "Password must be at least 8 characters long"}
 	}
-
 	// проверка на наличие разных символов
 	var hasUpper, hasLower, hasNumber, hasSpecial bool
+	//TODO пернести ошибки в custom_errors
 
 	for _, char := range password {
 		switch {
@@ -79,7 +80,7 @@ func ValidatePassword(login, password string) error {
 			hasSpecial = true
 		}
 	}
-
+	//todo на русский ошибки
 	if !hasUpper {
 		return &ValidationError{Message: "Password must contain at least one uppercase letter"}
 	}

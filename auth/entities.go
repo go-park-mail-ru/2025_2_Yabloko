@@ -1,25 +1,25 @@
-package main
+package auth
 
 import "github.com/golang-jwt/jwt/v4"
 
 type User struct {
 	ID       int    `json:"id"`
-	Login    string `json:"login"`
+	Emain    string `json:"email"`
 	Password string `json:"password_hash"`
 }
 
 type LoginRequest struct {
-	Login    string `json:"login"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 type RegisterRequest struct {
-	Login    string `json:"login"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 type Claims struct {
-	UserID int    `json:"user_id"`
-	Login  string `json:"login"`
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
 	jwt.RegisteredClaims
 }
