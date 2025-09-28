@@ -85,9 +85,7 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 
 	token, err := auth.GenerateJWT(id, req.Email)
 	if err != nil {
-		response.Message = "OK без cookie"
-		h.handleResponse(w, http.StatusCreated, response)
-		h.log.Error(logger.LogInfo{Err: err, Info: "не удалось создать jwt"})
+		h.handleError(w, http.StatusInternalServerError, custom_errors.InnerErr, err)
 		return
 	}
 
