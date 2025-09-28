@@ -12,13 +12,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PoolDB interface {
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+	Ping(context.Context) error
+	Acquire(ctx context.Context) (*pgxpool.Conn, error)
+	AcquireAllIdle(ctx context.Context) []*pgxpool.Conn
+	AcquireFunc(ctx context.Context, f func(*pgxpool.Conn) error) error
+	Close()
+	Stat() *pgxpool.Stat
+	Reset()
+	Config() *pgxpool.Config
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-	Ping(ctx context.Context) error
 }
 
 type AppendInfo struct {
@@ -105,21 +114,30 @@ func generateQuery(params GetRequest) (string, []any) {
 	}
 
 	// сортировка
+	allowedSort := map[string]string{
+		"name":     "name",
+		"rating":   "rating",
+		"close_at": "close_at",
+		"open_at":  "open_at",
+	}
+
+	orderBy := " order by id"
 	if params.Sorted != "" {
-		if params.Desc {
-			query += fmt.Sprintf(" order by %s %s", params.Sorted, "desc")
-		} else {
-			query += fmt.Sprintf(" order by %s", params.Sorted)
+		if col, ok := allowedSort[params.Sorted]; ok {
+			dir := "asc"
+			if params.Desc {
+				dir = "desc"
+			}
+			orderBy = fmt.Sprintf(" order by %s %s, id", col, dir)
 		}
 	}
-	query += " order by id"
+	query += orderBy
 
 	query += fmt.Sprintf(" limit $%d", len(args)+1)
 	args = append(args, params.Limit)
 	return query, args
 }
 
-// todo сортировка и фильтрация
 func GetStores(dbPool PoolDB, params GetRequest) ([]ResponseInfo, error) {
 	query, args := generateQuery(params)
 

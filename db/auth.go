@@ -71,7 +71,7 @@ func DeleteUser(dbPool PoolDB, email string) error {
 // GetUserInfo возвращаеь id и hash пароля по email
 func GetUserInfo(dbPool PoolDB, email string) (string, string, error) {
 	getUser := `
-		select hash 
+		select id, hash 
 		from account
 		where email = $1;
 	`

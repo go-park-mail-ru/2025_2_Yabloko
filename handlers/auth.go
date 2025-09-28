@@ -27,7 +27,7 @@ func createTokenCookie(token string, expires time.Time) *http.Cookie {
 		Value:    token,
 		Expires:  expires,
 		HttpOnly: true,
-		Secure:   false, // fixme: set true in production
+		Secure:   true, // fixme: set true in production
 		SameSite: http.SameSiteStrictMode,
 		Path:     "/",
 	}
@@ -39,7 +39,7 @@ func createExpiredTokenCookie() *http.Cookie {
 		Value:    "",
 		Expires:  time.Now().Add(-time.Hour),
 		HttpOnly: true,
-		Secure:   false, // fixme: set true in production
+		Secure:   true, // fixme: set true in production
 		SameSite: http.SameSiteStrictMode,
 		Path:     "/",
 	}
@@ -151,12 +151,7 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// парсим токен
-	token, err := jwt.ParseWithClaims(cookie.Value, &auth.Claims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, jwt.ErrSignatureInvalid
-		}
-		return auth.JwtSecret, nil
-	})
+	token, err := jwt.ParseWithClaims(cookie.Value, &auth.Claims{}, auth.ParseJWT)
 
 	//todo стандартизировать ошибки и вынести в кустом еррорс
 	var ve *jwt.ValidationError
