@@ -142,7 +142,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 // refreshTokenHandler обновляет JWT токен
-func (h *Handler) refreshToken(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	// получаем токен из cookie
 	cookie, err := r.Cookie("jwt_token")
 	if err != nil {
@@ -161,30 +161,30 @@ func (h *Handler) refreshToken(w http.ResponseWriter, r *http.Request) {
 	//todo стандартизировать ошибки и вынести в кустом еррорс
 	var ve *jwt.ValidationError
 	if err != nil && !(errors.As(err, &ve) && ve.Errors&jwt.ValidationErrorExpired != 0) {
-		h.handleError(w, http.StatusUnauthorized, errors.New("Invalid token"), err)
+		h.handleError(w, http.StatusUnauthorized, custom_errors.InvalidTokenErr, err)
 		return
 	}
 
 	if token == nil {
-		h.handleError(w, http.StatusUnauthorized, errors.New("Invalid token"), nil)
+		h.handleError(w, http.StatusUnauthorized, custom_errors.InvalidTokenErr, nil)
 		return
 	}
 
 	// получаем claims
 	claims, ok := token.Claims.(*auth.Claims)
 	if !ok {
-		h.handleError(w, http.StatusUnauthorized, errors.New("Invalid token claims"), nil)
+		h.handleError(w, http.StatusUnauthorized, custom_errors.InvalidTokenClaimsErr, nil)
 		return
 	}
 
 	// проверяем срок жизни токена для refresh
 	if claims.ExpiresAt == nil || time.Since(claims.ExpiresAt.Time) > 7*24*time.Hour {
-		h.handleError(w, http.StatusUnauthorized, errors.New("Token expired"), nil)
+		h.handleError(w, http.StatusUnauthorized, custom_errors.TokenExpiredErr, nil)
 		return
 	}
 
 	if claims.IssuedAt == nil || time.Since(claims.IssuedAt.Time) > 30*24*time.Hour {
-		h.handleError(w, http.StatusUnauthorized, errors.New("Token too old to refresh"), nil)
+		h.handleError(w, http.StatusUnauthorized, custom_errors.TokenTooOldToRefreshErr, nil)
 		return
 	}
 
