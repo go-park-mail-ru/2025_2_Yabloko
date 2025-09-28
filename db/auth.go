@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var logger log.Logger
@@ -20,7 +19,7 @@ func init() {
 }
 
 // AppendUser добавляет пользователя
-func AppendUser(dbPool *pgxpool.Pool, email, hashPassword string) (string, error) {
+func AppendUser(dbPool PoolDB, email, hashPassword string) (string, error) {
 	addUser := `
 		insert into account (id, email, hash)
 		values ($1, $2, $3);
@@ -45,7 +44,7 @@ func AppendUser(dbPool *pgxpool.Pool, email, hashPassword string) (string, error
 }
 
 // DeleteUser удаляет пользователя по email
-func DeleteUser(dbPool *pgxpool.Pool, email string) error {
+func DeleteUser(dbPool PoolDB, email string) error {
 	deleteUser := `
 		delete from account
 		where email = $1;
@@ -70,7 +69,7 @@ func DeleteUser(dbPool *pgxpool.Pool, email string) error {
 }
 
 // GetUserInfo возвращаеь id и hash пароля по email
-func GetUserInfo(dbPool *pgxpool.Pool, email string) (string, string, error) {
+func GetUserInfo(dbPool PoolDB, email string) (string, string, error) {
 	getUser := `
 		select hash 
 		from account

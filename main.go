@@ -8,24 +8,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const (
-	PORT = "8080"
-
-	POSTGRES_USER     = "postgres"
-	POSTGRES_PASSWORD = "admin"
-	POSTGRES_HOST     = "127.0.0.1"
-	POSTGRES_PORT     = 5432
-	DB_NAME           = "postgres"
-)
-
 func main() {
-	dbPath := fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
-		POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT, DB_NAME)
-	port := fmt.Sprintf(":%s", PORT)
+	dbPath := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
+		os.Getenv("POSTGRES_USER"), os.Getenv("POSTGRES_PASSWORD"),
+		"db", os.Getenv("POSTGRES_PORT"), os.Getenv("DB_NAME"))
+	port := fmt.Sprintf(":%s", os.Getenv("APP_PORT"))
 
 	dbPool, err := pgxpool.New(context.Background(), dbPath)
 	if err != nil {

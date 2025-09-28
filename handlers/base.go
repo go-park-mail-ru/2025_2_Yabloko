@@ -2,24 +2,30 @@ package handlers
 
 import (
 	"apple_backend/custom_errors"
+	"apple_backend/db"
 	"apple_backend/logger"
 	"context"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Handler struct {
-	dbPool *pgxpool.Pool
+	dbPool db.PoolDB
 	log    *logger.Logger
 }
 
-func New(dbPool *pgxpool.Pool, routerName, logPath string, logLevel logger.LogLevel) *Handler {
+func New(dbPool db.PoolDB, routerName, logPath string, logLevel logger.LogLevel) *Handler {
+	var log *logger.Logger
+	if routerName != "" && logPath != "" {
+		log = logger.NewLogger(routerName, logPath, logLevel)
+	} else {
+		log = logger.NewNilLogger()
+	}
+
 	return &Handler{
 		dbPool: dbPool,
-		log:    logger.NewLogger(routerName, logPath, logLevel),
+		log:    log,
 	}
 }
 

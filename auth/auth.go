@@ -1,15 +1,18 @@
 package auth
 
 import (
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// JwtSecret - секретный ключ для подписи JWT токенов
-// TODO: потом перенести это в environment variables (сделать невидимым для всех)
-var JwtSecret = []byte("secret_key_apple_team")
+var JwtSecret []byte
+
+func init() {
+	JwtSecret = []byte(os.Getenv("JWT_SECRET"))
+}
 
 // GenerateJWT создает новый JWT токен для пользователя
 func GenerateJWT(userID, email string) (string, error) {
