@@ -239,7 +239,23 @@ func TestGetStoresEmptyDB(t *testing.T) {
 	mockPool, err := pgxmock.NewPool()
 	require.NoError(t, err)
 	defer mockPool.Close()
-
+	//TODO сетапер
+	//TODO структура
+	//type args struct {
+	//// аргументы, входные значения и сетапные моки
+	////
+	//// в данном примере сюда можно было бы добавить setupPool func(pool pgxmock.Pool) {
+	//// вот тут уже AddRows и всякое разное для конкретного тест кейса
+	////
+	//// eще бы сюда пошел request http.Request
+	//// в общем всё, что нужно
+	//}
+	//
+	//type testCase struct {
+	//args args
+	//expectedResult []db.ResponseInfo
+	//expectedErr error
+	//}
 	h := New(mockPool, "", "", 0)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/stores", h.GetStores)

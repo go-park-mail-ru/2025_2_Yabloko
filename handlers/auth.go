@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -28,7 +27,7 @@ func createTokenCookie(token string, expires time.Time) *http.Cookie {
 		Value:    token,
 		Expires:  expires,
 		HttpOnly: true,
-		Secure:   false, // fixme: set true in production
+		Secure:   true, // fixme: set true in production
 		SameSite: http.SameSiteStrictMode,
 		Path:     "/",
 	}
@@ -40,7 +39,7 @@ func createExpiredTokenCookie() *http.Cookie {
 		Value:    "",
 		Expires:  time.Now().Add(-time.Hour),
 		HttpOnly: true,
-		Secure:   false, // fixme: set true in production
+		Secure:   true, // fixme: set true in production
 		SameSite: http.SameSiteStrictMode,
 		Path:     "/",
 	}
@@ -86,9 +85,7 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 
 	token, err := auth.GenerateJWT(id, req.Email)
 	if err != nil {
-		response.Message = "OK без cookie"
-		h.handleResponse(w, http.StatusCreated, response)
-		h.log.Error(logger.LogInfo{Err: err, Info: "не удалось создать jwt"})
+		h.handleError(w, http.StatusInternalServerError, custom_errors.InnerErr, err)
 		return
 	}
 
@@ -143,7 +140,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 // refreshTokenHandler обновляет JWT токен
-func (h *Handler) refreshToken(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	// получаем токен из cookie
 	cookie, err := r.Cookie("jwt_token")
 	if err != nil {
@@ -152,40 +149,35 @@ func (h *Handler) refreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// парсим токен
-	token, err := jwt.ParseWithClaims(cookie.Value, &auth.Claims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, jwt.ErrSignatureInvalid
-		}
-		return os.Getenv("JWT_SECRET"), nil
-	})
+	token, err := jwt.ParseWithClaims(cookie.Value, &auth.Claims{}, auth.ParseJWT)
 
 	//todo стандартизировать ошибки и вынести в кустом еррорс
 	var ve *jwt.ValidationError
 	if err != nil && !(errors.As(err, &ve) && ve.Errors&jwt.ValidationErrorExpired != 0) {
-		h.handleError(w, http.StatusUnauthorized, errors.New("Invalid token"), err)
+		h.handleError(w, http.StatusUnauthorized, custom_errors.InvalidTokenErr, err)
 		return
 	}
 
 	if token == nil {
-		h.handleError(w, http.StatusUnauthorized, errors.New("Invalid token"), nil)
+		h.handleError(w, http.StatusUnauthorized, custom_errors.InvalidTokenErr, nil)
 		return
 	}
 
 	// получаем claims
 	claims, ok := token.Claims.(*auth.Claims)
 	if !ok {
-		h.handleError(w, http.StatusUnauthorized, errors.New("Invalid token claims"), nil)
+		h.handleError(w, http.StatusUnauthorized, custom_errors.InvalidTokenClaimsErr, nil)
 		return
 	}
 
 	// проверяем срок жизни токена для refresh
 	if claims.ExpiresAt == nil || time.Since(claims.ExpiresAt.Time) > 7*24*time.Hour {
-		h.handleError(w, http.StatusUnauthorized, errors.New("Token expired"), nil)
+		h.handleError(w, http.StatusUnauthorized, custom_errors.TokenExpiredErr, nil)
 		return
 	}
 
 	if claims.IssuedAt == nil || time.Since(claims.IssuedAt.Time) > 30*24*time.Hour {
-		h.handleError(w, http.StatusUnauthorized, errors.New("Token too old to refresh"), nil)
+		h.handleError(w, http.StatusUnauthorized, custom_errors.TokenTooOldToRefreshErr, nil)
 		return
 	}
 

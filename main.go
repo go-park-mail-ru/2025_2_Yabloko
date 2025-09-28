@@ -1,7 +1,6 @@
 package main
 
 import (
-	"apple_backend/db"
 	"apple_backend/handlers"
 	"apple_backend/logger"
 	"apple_backend/middlewares"
@@ -18,16 +17,13 @@ func main() {
 	dbPath := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
 		os.Getenv("POSTGRES_USER"), os.Getenv("POSTGRES_PASSWORD"),
 		"db", os.Getenv("POSTGRES_PORT"), os.Getenv("DB_NAME"))
-	hostport := fmt.Sprintf("0.0.0.0:%s", os.Getenv("APP_PORT"))
+	hostPort := fmt.Sprintf("0.0.0.0:%s", os.Getenv("APP_PORT"))
 
 	dbPool, err := pgxpool.New(context.Background(), dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer dbPool.Close()
-
-	db.FakeTagCity(dbPool)
-	db.FakeStores(dbPool)
 
 	mux := http.NewServeMux()
 
@@ -45,7 +41,7 @@ func main() {
 	mux.HandleFunc(authAPI+"/login", middlewares.AccessLog(authHandler.Login))
 	mux.HandleFunc(authAPI+"/logout", middlewares.AccessLog(authHandler.Logout))
 	// refresh должен быть публичным или с отдельной проверкой
-	mux.HandleFunc(authAPI+"/refresh", middlewares.AccessLog(authHandler.Signup))
+	mux.HandleFunc(authAPI+"/refresh", middlewares.AccessLog(authHandler.RefreshToken))
 
 	// health
 	mux.HandleFunc("/health", middlewares.AccessLog(authHandler.HealthCheck))
@@ -53,6 +49,6 @@ func main() {
 	mux.HandleFunc("/api/v0/image/", middlewares.AccessLog(authHandler.GetImage))
 
 	cors := middlewares.CorsMiddleware(mux)
-	fmt.Println("starting server at " + hostport)
-	log.Fatal(http.ListenAndServe(hostport, cors))
+	fmt.Println("starting server at " + hostPort)
+	log.Fatal(http.ListenAndServe(hostPort, cors))
 }
