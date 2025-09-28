@@ -14,18 +14,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const (
-	PORT = "8080"
-
-	POSTGRES_HOST = "db"
-	POSTGRES_PORT = 5432
-)
-
 func main() {
-	dbPath := fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
+	dbPath := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
 		os.Getenv("POSTGRES_USER"), os.Getenv("POSTGRES_PASSWORD"),
-		POSTGRES_HOST, POSTGRES_PORT, os.Getenv("POSTGRES_DB"))
-	hostport := fmt.Sprintf("0.0.0.0:%s", PORT)
+		"db", os.Getenv("POSTGRES_PORT"), os.Getenv("DB_NAME"))
+	hostport := fmt.Sprintf("0.0.0.0:%s", os.Getenv("APP_PORT"))
 
 	dbPool, err := pgxpool.New(context.Background(), dbPath)
 	if err != nil {

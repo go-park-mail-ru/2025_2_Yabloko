@@ -11,8 +11,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+type PoolDB interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Ping(ctx context.Context) error
+}
 
 type AppendInfo struct {
 	Id          uuid.UUID `json:"store_id"`
@@ -26,7 +33,7 @@ type AppendInfo struct {
 	ClosedAt    time.Time `json:"closed_at"`
 }
 
-func AppendStore(dbPool *pgxpool.Pool, store AppendInfo) error {
+func AppendStore(dbPool PoolDB, store AppendInfo) error {
 	addStore := `
 		insert into store (id, name, description, city_id, address, card_img, rating, open_at, closed_at)
 		values ($1, $2, $3, $4, $5, $6, $7, $8, $9);
@@ -66,7 +73,7 @@ type ResponseInfo struct {
 	Id          string  `json:"store_id"`
 	Name        string  `json:"name"`
 	Description string  `json:"description"`
-	City        string  `json:"city"`
+	CityID      string  `json:"cit_id"`
 	Address     string  `json:"address"`
 	CardImg     string  `json:"card_img"`
 	Rating      float64 `json:"rating"`
@@ -113,7 +120,7 @@ func generateQuery(params GetRequest) (string, []any) {
 }
 
 // todo сортировка и фильтрация
-func GetStores(dbPool *pgxpool.Pool, params GetRequest) ([]ResponseInfo, error) {
+func GetStores(dbPool PoolDB, params GetRequest) ([]ResponseInfo, error) {
 	query, args := generateQuery(params)
 
 	logger.Debug(log.LogInfo{Info: "get store", Meta: params})
@@ -134,7 +141,7 @@ func GetStores(dbPool *pgxpool.Pool, params GetRequest) ([]ResponseInfo, error) 
 	for rows.Next() {
 		var store ResponseInfo
 		if err := rows.Scan(&store.Id, &store.Name, &store.Description,
-			&store.City, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt); err != nil {
+			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt); err != nil {
 			logger.Error(log.LogInfo{Info: "get store частично завершено с ошибкой", Err: err, Meta: params})
 			return stores, err
 		}

@@ -1,5 +1,6 @@
 -- Write your migrate up statements here
-create table if not exists city (
+create table if not exists city
+(
     id         uuid primary key,
     name       text        not null unique,
     updated_at timestamptz not null default current_timestamp,

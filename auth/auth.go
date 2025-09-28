@@ -8,6 +8,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var JwtSecret []byte
+
+func init() {
+	JwtSecret = []byte(os.Getenv("JWT_SECRET"))
+}
+
 // GenerateJWT создает новый JWT токен для пользователя
 func GenerateJWT(userID, email string) (string, error) {
 	expirationTime := time.Now().Add(24 * time.Hour)
@@ -21,7 +27,7 @@ func GenerateJWT(userID, email string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(os.Getenv("JWT_SECRET"))
+	return token.SignedString(JwtSecret)
 }
 
 func VerifyJWT(tokenString string) (*Claims, error) {
@@ -31,7 +37,8 @@ func VerifyJWT(tokenString string) (*Claims, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
 		}
-		return os.Getenv("JWT_SECRET"), nil
+		return JwtSecret, nil
+
 	})
 
 	if err != nil {
