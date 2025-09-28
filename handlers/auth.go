@@ -27,8 +27,8 @@ func createTokenCookie(token string, expires time.Time) *http.Cookie {
 		Value:    token,
 		Expires:  expires,
 		HttpOnly: true,
-		Secure:   true, // fixme: set true in production
-		SameSite: http.SameSiteStrictMode,
+		Secure:   false, // fixme: set true in production
+		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 	}
 }
@@ -39,8 +39,8 @@ func createExpiredTokenCookie() *http.Cookie {
 		Value:    "",
 		Expires:  time.Now().Add(-time.Hour),
 		HttpOnly: true,
-		Secure:   true, // fixme: set true in production
-		SameSite: http.SameSiteStrictMode,
+		Secure:   false, // fixme: set true in production
+		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 	}
 }
