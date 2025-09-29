@@ -11,8 +11,24 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+type PoolDB interface {
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+	Ping(context.Context) error
+	Acquire(ctx context.Context) (*pgxpool.Conn, error)
+	AcquireAllIdle(ctx context.Context) []*pgxpool.Conn
+	AcquireFunc(ctx context.Context, f func(*pgxpool.Conn) error) error
+	Close()
+	Stat() *pgxpool.Stat
+	Reset()
+	Config() *pgxpool.Config
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
 
 type AppendInfo struct {
 	Id          uuid.UUID `json:"store_id"`
@@ -26,7 +42,8 @@ type AppendInfo struct {
 	ClosedAt    time.Time `json:"closed_at"`
 }
 
-func AppendStore(dbPool *pgxpool.Pool, store AppendInfo) error {
+
+func AppendStore(dbPool PoolDB, store AppendInfo) error {
 	addStore := `
 		insert into store (id, name, description, city_id, address, card_img, rating, open_at, closed_at)
 		values ($1, $2, $3, $4, $5, $6, $7, $8, $9);
@@ -66,7 +83,7 @@ type ResponseInfo struct {
 	Id          string  `json:"store_id"`
 	Name        string  `json:"name"`
 	Description string  `json:"description"`
-	City        string  `json:"city"`
+	CityID      string  `json:"cit_id"`
 	Address     string  `json:"address"`
 	CardImg     string  `json:"card_img"`
 	Rating      float64 `json:"rating"`
@@ -98,22 +115,34 @@ func generateQuery(params GetRequest) (string, []any) {
 	}
 
 	// сортировка
+	allowedSort := map[string]string{
+		"name":     "name",
+		"rating":   "rating",
+		"close_at": "close_at",
+		"open_at":  "open_at",
+	}
+
+	orderBy := " order by id"
 	if params.Sorted != "" {
-		if params.Desc {
-			query += fmt.Sprintf(" order by %s %s", params.Sorted, "desc")
-		} else {
-			query += fmt.Sprintf(" order by %s", params.Sorted)
+		if col, ok := allowedSort[params.Sorted]; ok {
+			dir := "asc"
+			if params.Desc {
+				dir = "desc"
+			}
+			orderBy = fmt.Sprintf(" order by $%d %s, id", len(args)+1, dir)
+			args = append(args, col)
 		}
 	}
-	query += " order by id"
+	query += orderBy
+
 
 	query += fmt.Sprintf(" limit $%d", len(args)+1)
 	args = append(args, params.Limit)
 	return query, args
 }
 
-// todo сортировка и фильтрация
-func GetStores(dbPool *pgxpool.Pool, params GetRequest) ([]ResponseInfo, error) {
+
+func GetStores(dbPool PoolDB, params GetRequest) ([]ResponseInfo, error) {
 	query, args := generateQuery(params)
 
 	logger.Debug(log.LogInfo{Info: "get store", Meta: params})
@@ -134,7 +163,8 @@ func GetStores(dbPool *pgxpool.Pool, params GetRequest) ([]ResponseInfo, error) 
 	for rows.Next() {
 		var store ResponseInfo
 		if err := rows.Scan(&store.Id, &store.Name, &store.Description,
-			&store.City, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt); err != nil {
+			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt); err != nil {
+
 			logger.Error(log.LogInfo{Info: "get store частично завершено с ошибкой", Err: err, Meta: params})
 			return stores, err
 		}

@@ -28,7 +28,8 @@ func AccessLog(fun http.HandlerFunc) http.HandlerFunc {
 }
 
 // authMiddleware проверяет JWT токен для защищенных routes
-func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		// извлекаем JWT токен из cookie
 		cookie, err := r.Cookie("jwt_token")
@@ -57,23 +58,14 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func CorsMiddleware(next http.Handler) http.Handler {
-	allowedOrigins := map[string]bool{
-		"http://localhost:3000": true,
-		"http://127.0.0.1:3000": true,
-		// production domains...
-	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if origin != "" && allowedOrigins[origin] {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token")
-		} else {
-			// origin отсутствует (обычный запрос) или не разрешён - не выставляем заголовок
-		}
+
+		w.Header().Set("Access-Control-Allow-Origin", "http://90.156.218.233")
+		w.Header().Set("Vary", "Origin")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token")
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)

@@ -5,7 +5,10 @@ import (
 	"apple_backend/db"
 	"apple_backend/logger"
 	"encoding/json"
+	"errors"
 	"net/http"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func (h *Handler) GetStores(w http.ResponseWriter, r *http.Request) {
@@ -29,6 +32,9 @@ func (h *Handler) GetStores(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if len(stores) > 0 {
 			h.log.Warn(logger.LogInfo{Info: "GetStores ответ с ошибкой", Err: err, Meta: req})
+		} else if errors.Is(err, pgx.ErrNoRows) {
+			h.log.Info(logger.LogInfo{Info: "GetStores пустой ответ", Err: err, Meta: req})
+
 		} else {
 			h.handleError(w, http.StatusInternalServerError, custom_errors.InnerErr, err)
 			return

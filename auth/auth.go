@@ -1,15 +1,19 @@
 package auth
 
 import (
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// JwtSecret - секретный ключ для подписи JWT токенов
-// TODO: потом перенести это в environment variables (сделать невидимым для всех)
-var JwtSecret = []byte("secret_key_apple_team")
+
+var jwtSecret []byte
+
+func init() {
+	jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+}
 
 // GenerateJWT создает новый JWT токен для пользователя
 func GenerateJWT(userID, email string) (string, error) {
@@ -24,7 +28,8 @@ func GenerateJWT(userID, email string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(JwtSecret)
+	return token.SignedString(jwtSecret)
+
 }
 
 func VerifyJWT(tokenString string) (*Claims, error) {
@@ -34,7 +39,8 @@ func VerifyJWT(tokenString string) (*Claims, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
 		}
-		return JwtSecret, nil
+		return jwtSecret, nil
+
 
 	})
 
@@ -47,6 +53,14 @@ func VerifyJWT(tokenString string) (*Claims, error) {
 	}
 
 	return nil, jwt.ErrSignatureInvalid
+
+}
+
+func ParseJWT(token *jwt.Token) (interface{}, error) {
+	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		return nil, jwt.ErrSignatureInvalid
+	}
+	return jwtSecret, nil
 
 }
 

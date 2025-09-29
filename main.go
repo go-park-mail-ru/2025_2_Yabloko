@@ -8,24 +8,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const (
-	PORT = "8080"
-
-	POSTGRES_USER     = "postgres"
-	POSTGRES_PASSWORD = "admin"
-	POSTGRES_HOST     = "127.0.0.1"
-	POSTGRES_PORT     = 5432
-	DB_NAME           = "postgres"
-)
-
 func main() {
-	dbPath := fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
-		POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT, DB_NAME)
-	port := fmt.Sprintf(":%s", PORT)
+	dbPath := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
+		os.Getenv("POSTGRES_USER"), os.Getenv("POSTGRES_PASSWORD"),
+		"db", os.Getenv("POSTGRES_PORT"), os.Getenv("DB_NAME"))
+	hostPort := fmt.Sprintf("0.0.0.0:%s", os.Getenv("APP_PORT"))
 
 	dbPool, err := pgxpool.New(context.Background(), dbPath)
 	if err != nil {
@@ -49,7 +41,8 @@ func main() {
 	mux.HandleFunc(authAPI+"/login", middlewares.AccessLog(authHandler.Login))
 	mux.HandleFunc(authAPI+"/logout", middlewares.AccessLog(authHandler.Logout))
 	// refresh должен быть публичным или с отдельной проверкой
-	mux.HandleFunc(authAPI+"/refresh", middlewares.AccessLog(authHandler.Signup))
+	mux.HandleFunc(authAPI+"/refresh", middlewares.AccessLog(authHandler.RefreshToken))
+
 
 	// health
 	mux.HandleFunc("/health", middlewares.AccessLog(authHandler.HealthCheck))
@@ -57,6 +50,6 @@ func main() {
 	mux.HandleFunc("/api/v0/image/", middlewares.AccessLog(authHandler.GetImage))
 
 	cors := middlewares.CorsMiddleware(mux)
-	fmt.Println("starting server at " + port)
-	log.Fatal(http.ListenAndServe(port, cors))
+	fmt.Println("starting server at " + hostPort)
+	log.Fatal(http.ListenAndServe(hostPort, cors))
 }
