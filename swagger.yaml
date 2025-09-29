@@ -90,6 +90,8 @@ paths:
       summary: Обновление JWT токена
       tags:
         - Authentication
+      security:
+        - cookieAuth: []
       responses:
         '200':
           description: Токен успешно обновлен
