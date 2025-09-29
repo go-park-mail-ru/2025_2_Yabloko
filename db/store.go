@@ -128,7 +128,8 @@ func generateQuery(params GetRequest) (string, []any) {
 			if params.Desc {
 				dir = "desc"
 			}
-			orderBy = fmt.Sprintf(" order by %s %s, id", col, dir)
+			orderBy = fmt.Sprintf(" order by $%d %s, id", len(args)+1, dir)
+			args = append(args, col)
 		}
 	}
 	query += orderBy
