@@ -1,0 +1,312 @@
+openapi: 3.0.0
+info:
+  title: Yabloko Backend API
+  version: 1.0.0
+  description: API для приложения Yabloko - управление магазинами и аутентификация
+
+servers:
+  - url: http://90.156.218.233:8080
+    description: Development server
+
+paths:
+  /api/v0/auth/signup:
+    post:
+      summary: Регистрация нового пользователя
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Успешная регистрация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "jwt_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; Expires=Fri, 30 Sep 2025 12:00:00 GMT; HttpOnly; Path=/; SameSite=Strict"
+        '400':
+          description: Неверный JSON
+        '409':
+          description: Пользователь уже существует
+        '500':
+          description: Внутренняя ошибка сервера
+
+  /api/v0/auth/login:
+    post:
+      summary: Вход пользователя в систему
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "jwt_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; Expires=Fri, 30 Sep 2025 12:00:00 GMT; HttpOnly; Path=/; SameSite=Strict"
+        '400':
+          description: Неверный JSON
+        '401':
+          description: Неверный email или пароль
+        '500':
+          description: Внутренняя ошибка сервера
+
+  /api/v0/auth/logout:
+    post:
+      summary: Выход пользователя из системы
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: Успешный выход
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "jwt_token=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Path=/; SameSite=Strict"
+        '500':
+          description: Внутренняя ошибка сервера
+
+  /api/v0/auth/refresh:
+    post:
+      summary: Обновление JWT токена
+      tags:
+        - Authentication
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Токен успешно обновлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "jwt_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; Expires=Fri, 30 Sep 2025 12:00:00 GMT; HttpOnly; Path=/; SameSite=Strict"
+        '401':
+          description: Невалидный или просроченный токен
+        '500':
+          description: Внутренняя ошибка сервера
+
+  /api/v0/stores:
+    post:
+      summary: Получение списка магазинов
+      tags:
+        - Stores
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetStoresRequest'
+      responses:
+        '200':
+          description: Список магазинов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StoreResponse'
+        '400':
+          description: Неверный JSON или параметры
+        '405':
+          description: Метод не разрешен
+        '500':
+          description: Внутренняя ошибка сервера
+
+  /health:
+    get:
+      summary: Проверка здоровья сервиса
+      tags:
+        - System
+      responses:
+        '200':
+          description: Сервис работает
+        '500':
+          description: Проблемы с сервисом
+
+  /api/v0/image/{image_id}:
+    get:
+      summary: Получение изображения
+      tags:
+        - System
+      parameters:
+        - name: image_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Изображение
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Изображение не найдено
+
+components:
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          example: "password123"
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          example: "password123"
+
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "OK"
+        email:
+          type: string
+          example: "user@example.com"
+        user_id:
+          type: string
+          example: "123"
+
+    GetStoresRequest:
+      type: object
+      required:
+        - limit
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          example: 12
+        last_id:
+          type: string
+          description: ID последнего магазина для пагинации
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        tag_id:
+          type: string
+          description: ID тега для фильтрации
+          example: "tag_123"
+        sorted:
+          type: string
+          description: Поле для сортировки (любое поле из StoreResponse)
+          example: "rating"
+        desc:
+          type: boolean
+          description: Сортировка по убыванию
+          default: false
+
+    StoreResponse:
+      type: object
+      properties:
+        store_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "Вкусно и точка"
+        description:
+          type: string
+          example: "Совсем не мак. Вот вообще."
+        city:
+          type: string
+          example: "Москва"
+        address:
+          type: string
+          example: "ул. 2 Бауманская, д. 1"
+        card_img:
+          type: string
+          example: "store_image.jpg"
+        rating:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 5
+          example: 4.5
+        open_at:
+          type: string
+          format: time
+          example: "09:00"
+        close_at:
+          type: string
+          format: time
+          example: "21:00"
+
+  responses:
+    UnauthorizedError:
+      description: Ошибка аутентификации
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "некорректные данные"
+
+    ValidationError:
+      description: Ошибка валидации
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "неверные параметры запроса"
+
+    InternalServerError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "неизвестная ошибка сервера"
