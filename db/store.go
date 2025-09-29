@@ -42,6 +42,7 @@ type AppendInfo struct {
 	ClosedAt    time.Time `json:"closed_at"`
 }
 
+
 func AppendStore(dbPool PoolDB, store AppendInfo) error {
 	addStore := `
 		insert into store (id, name, description, city_id, address, card_img, rating, open_at, closed_at)
@@ -134,10 +135,12 @@ func generateQuery(params GetRequest) (string, []any) {
 	}
 	query += orderBy
 
+
 	query += fmt.Sprintf(" limit $%d", len(args)+1)
 	args = append(args, params.Limit)
 	return query, args
 }
+
 
 func GetStores(dbPool PoolDB, params GetRequest) ([]ResponseInfo, error) {
 	query, args := generateQuery(params)
@@ -161,6 +164,7 @@ func GetStores(dbPool PoolDB, params GetRequest) ([]ResponseInfo, error) {
 		var store ResponseInfo
 		if err := rows.Scan(&store.Id, &store.Name, &store.Description,
 			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt); err != nil {
+
 			logger.Error(log.LogInfo{Info: "get store частично завершено с ошибкой", Err: err, Meta: params})
 			return stores, err
 		}

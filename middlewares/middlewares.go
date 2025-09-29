@@ -29,6 +29,7 @@ func AccessLog(fun http.HandlerFunc) http.HandlerFunc {
 
 // authMiddleware проверяет JWT токен для защищенных routes
 func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		// извлекаем JWT токен из cookie
 		cookie, err := r.Cookie("jwt_token")

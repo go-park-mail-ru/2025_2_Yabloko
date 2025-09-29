@@ -43,6 +43,7 @@ func main() {
 	// refresh должен быть публичным или с отдельной проверкой
 	mux.HandleFunc(authAPI+"/refresh", middlewares.AccessLog(authHandler.RefreshToken))
 
+
 	// health
 	mux.HandleFunc("/health", middlewares.AccessLog(authHandler.HealthCheck))
 	// images

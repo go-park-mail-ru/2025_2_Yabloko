@@ -8,6 +8,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+
 var jwtSecret []byte
 
 func init() {
@@ -28,6 +29,7 @@ func GenerateJWT(userID, email string) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtSecret)
+
 }
 
 func VerifyJWT(tokenString string) (*Claims, error) {
@@ -38,6 +40,7 @@ func VerifyJWT(tokenString string) (*Claims, error) {
 			return nil, jwt.ErrSignatureInvalid
 		}
 		return jwtSecret, nil
+
 
 	})
 
@@ -50,6 +53,7 @@ func VerifyJWT(tokenString string) (*Claims, error) {
 	}
 
 	return nil, jwt.ErrSignatureInvalid
+
 }
 
 func ParseJWT(token *jwt.Token) (interface{}, error) {
@@ -57,6 +61,7 @@ func ParseJWT(token *jwt.Token) (interface{}, error) {
 		return nil, jwt.ErrSignatureInvalid
 	}
 	return jwtSecret, nil
+
 }
 
 // создает bcrypt хэш пароля

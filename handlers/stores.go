@@ -34,6 +34,7 @@ func (h *Handler) GetStores(w http.ResponseWriter, r *http.Request) {
 			h.log.Warn(logger.LogInfo{Info: "GetStores ответ с ошибкой", Err: err, Meta: req})
 		} else if errors.Is(err, pgx.ErrNoRows) {
 			h.log.Info(logger.LogInfo{Info: "GetStores пустой ответ", Err: err, Meta: req})
+
 		} else {
 			h.handleError(w, http.StatusInternalServerError, custom_errors.InnerErr, err)
 			return

@@ -141,6 +141,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 // refreshTokenHandler обновляет JWT токен
 func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
+
 	// получаем токен из cookie
 	cookie, err := r.Cookie("jwt_token")
 	if err != nil {
@@ -151,10 +152,10 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	// парсим токен
 	token, err := jwt.ParseWithClaims(cookie.Value, &auth.Claims{}, auth.ParseJWT)
 
-	//todo стандартизировать ошибки и вынести в кустом еррорс
 	var ve *jwt.ValidationError
 	if err != nil && !(errors.As(err, &ve) && ve.Errors&jwt.ValidationErrorExpired != 0) {
 		h.handleError(w, http.StatusUnauthorized, custom_errors.InvalidTokenErr, err)
+
 		return
 	}
 

@@ -9,6 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 )
 
 var logger log.Logger
@@ -20,6 +22,7 @@ func init() {
 
 // AppendUser добавляет пользователя
 func AppendUser(dbPool PoolDB, email, hashPassword string) (string, error) {
+
 	addUser := `
 		insert into account (id, email, hash)
 		values ($1, $2, $3);
@@ -45,6 +48,7 @@ func AppendUser(dbPool PoolDB, email, hashPassword string) (string, error) {
 
 // DeleteUser удаляет пользователя по email
 func DeleteUser(dbPool PoolDB, email string) error {
+
 	deleteUser := `
 		delete from account
 		where email = $1;

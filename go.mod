@@ -9,6 +9,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/pashagolub/pgxmock/v4 v4.8.0
 	github.com/stretchr/testify v1.9.0
+
 	golang.org/x/crypto v0.42.0
 )
 
