@@ -8,22 +8,43 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/require"
 )
 
+type storeArgs struct {
+	params    db.GetRequest
+	setupPool func(pool pgxmock.PgxPoolIface)
+	request   *http.Request
+}
+
+type storeTestCase struct {
+	name           string
+	args           storeArgs
+	expectedResult []db.ResponseInfo
+	responseCode   int
+}
+
+// parseJSON ТОЛЬКО ДЛЯ ТЕСТОВ
+func parseJSON(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
 func TestGetStoresLimit(t *testing.T) {
 	mockPool, err := pgxmock.NewPool()
 	require.NoError(t, err)
 	defer mockPool.Close()
 
-	h := New(mockPool, "", "", 0)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/stores", h.GetStores)
+	h := NewHandler(mockPool, "", "", 0)
+	router := NewStoresRouter(h)
 
 	storesData := [][]any{
 		{
@@ -34,8 +55,8 @@ func TestGetStoresLimit(t *testing.T) {
 			"ул. Тверская, 12",
 			"/stores/1.jpg",
 			4.5,
-			time.Date(0, 1, 1, 10, 0, 0, 0, time.Local).String(),
-			time.Date(0, 1, 1, 23, 0, 0, 0, time.Local).String(),
+			"10:00",
+			"23:00",
 		},
 		{
 			uuid.MustParse("00000000-0000-0000-0000-000000000002").String(),
@@ -45,8 +66,8 @@ func TestGetStoresLimit(t *testing.T) {
 			"Невский пр., 45",
 			"/stores/2.jpg",
 			4.3,
-			time.Date(0, 1, 1, 10, 0, 0, 0, time.Local).String(),
-			time.Date(0, 1, 1, 23, 0, 0, 0, time.Local).String(),
+			"10:00",
+			"23:00",
 		},
 		{
 			uuid.MustParse("00000000-0000-0000-0000-000000000003").String(),
@@ -56,89 +77,172 @@ func TestGetStoresLimit(t *testing.T) {
 			"ул. Ленина, 78",
 			"/stores/3.jpg",
 			4.6,
-			time.Date(0, 1, 1, 10, 0, 0, 0, time.Local).String(),
-			time.Date(0, 1, 1, 23, 0, 0, 0, time.Local).String(),
+			"10:00",
+			"23:00",
 		},
 	}
 
 	expected := []db.ResponseInfo{
 		{
-			uuid.MustParse("00000000-0000-0000-0000-000000000001").String(),
-			"Суши Мастер",
-			"Современный японский ресторан с широким выбором суши и роллов.",
-			uuid.MustParse("00000000-0000-0000-0000-000000000011").String(),
-			"ул. Тверская, 12",
-			"/stores/1.jpg",
-			4.5,
-			time.Date(0, 1, 1, 10, 0, 0, 0, time.Local).String(),
-			time.Date(0, 1, 1, 23, 0, 0, 0, time.Local).String(),
+			ID:          "00000000-0000-0000-0000-000000000001",
+			Name:        "Суши Мастер",
+			Description: "Современный японский ресторан с широким выбором суши и роллов.",
+			CityID:      "00000000-0000-0000-0000-000000000011",
+			Address:     "ул. Тверская, 12",
+			CardImg:     "/stores/1.jpg",
+			Rating:      4.5,
+			OpenAt:      "10:00",
+			ClosedAt:    "23:00",
 		},
 		{
-			uuid.MustParse("00000000-0000-0000-0000-000000000002").String(),
-			"Sushi House",
-			"Аутентичные японские суши и сашими, свежие ингредиенты каждый день.",
-			uuid.MustParse("00000000-0000-0000-0000-000000000012").String(),
-			"Невский пр., 45",
-			"/stores/2.jpg",
-			4.3,
-			time.Date(0, 1, 1, 10, 0, 0, 0, time.Local).String(),
-			time.Date(0, 1, 1, 23, 0, 0, 0, time.Local).String(),
+			ID:          "00000000-0000-0000-0000-000000000002",
+			Name:        "Sushi House",
+			Description: "Аутентичные японские суши и сашими, свежие ингредиенты каждый день.",
+			CityID:      "00000000-0000-0000-0000-000000000012",
+			Address:     "Невский пр., 45",
+			CardImg:     "/stores/2.jpg",
+			Rating:      4.3,
+			OpenAt:      "10:00",
+			ClosedAt:    "23:00",
 		},
 		{
-			uuid.MustParse("00000000-0000-0000-0000-000000000003").String(),
-			"Pizza Roma",
-			"Итальянская пицца на тонком тесте, приготовленная в дровяной печи.",
-			uuid.MustParse("00000000-0000-0000-0000-000000000013").String(),
-			"ул. Ленина, 78",
-			"/stores/3.jpg",
-			4.6,
-			time.Date(0, 1, 1, 10, 0, 0, 0, time.Local).String(),
-			time.Date(0, 1, 1, 23, 0, 0, 0, time.Local).String(),
+			ID:          "00000000-0000-0000-0000-000000000003",
+			Name:        "Pizza Roma",
+			Description: "Итальянская пицца на тонком тесте, приготовленная в дровяной печи.",
+			CityID:      "00000000-0000-0000-0000-000000000013",
+			Address:     "ул. Ленина, 78",
+			CardImg:     "/stores/3.jpg",
+			Rating:      4.6,
+			OpenAt:      "10:00",
+			ClosedAt:    "23:00",
 		},
 	}
 
-	limits := []int{1, 2, 3}
-	for _, limit := range limits {
-		t.Run(fmt.Sprintf("Limit=%d", limit), func(t *testing.T) {
-			rows := pgxmock.NewRows([]string{
-				"id", "name", "description", "city_id", "address", "card_img",
-				"rating", "open_at", "closed_at",
-			})
-			for _, store := range storesData[:limit] {
-				rows.AddRow(store...)
-			}
+	cases := []storeTestCase{
+		{
+			name: "Limit=1",
+			args: storeArgs{
+				params: db.GetRequest{Limit: 1},
+				setupPool: func(pool pgxmock.PgxPoolIface) {
+					rows := pgxmock.NewRows([]string{
+						"id", "name", "description", "city_id", "address", "card_img",
+						"rating", "open_at", "closed_at",
+					}).AddRow(storesData[0]...)
 
-			query := `
-				select id, name, description, city_id, address, card_img, rating, open_at, closed_at 
-				from store
-				order by id
-				limit \$1
-			`
-			mockPool.ExpectQuery(query).
-				WithArgs(limit).
-				WillReturnRows(rows)
+					pool.ExpectQuery(regexp.QuoteMeta(`
+						select id, name, description, city_id, address, card_img, rating, open_at, closed_at 
+						from store
+						order by id
+						limit $1
+					`)).
+						WithArgs(1).
+						WillReturnRows(rows)
+				},
+				request: httptest.NewRequest(http.MethodPost, "/stores",
+					bytes.NewBuffer(parseJSON(db.GetRequest{Limit: 1}))),
+			},
+			expectedResult: expected[:1],
+			responseCode:   http.StatusOK,
+		},
+		{
+			name: "Limit=2",
+			args: storeArgs{
+				params: db.GetRequest{Limit: 2},
+				setupPool: func(pool pgxmock.PgxPoolIface) {
+					rows := pgxmock.NewRows([]string{
+						"id", "name", "description", "city_id", "address", "card_img",
+						"rating", "open_at", "closed_at",
+					}).AddRow(storesData[0]...).AddRow(storesData[1]...)
 
-			body, _ := json.Marshal(db.GetRequest{Limit: limit})
-			req := httptest.NewRequest(http.MethodPost, "/stores", bytes.NewBuffer(body))
+					pool.ExpectQuery(regexp.QuoteMeta(`
+						select id, name, description, city_id, address, card_img, rating, open_at, closed_at 
+						from store
+						order by id
+						limit $1
+					`)).
+						WithArgs(2).
+						WillReturnRows(rows)
+				},
+				request: httptest.NewRequest(http.MethodPost, "/stores",
+					bytes.NewBuffer(parseJSON(db.GetRequest{Limit: 2}))),
+			},
+			expectedResult: expected[:2],
+			responseCode:   http.StatusOK,
+		},
+		{
+			name: "Limit=3",
+			args: storeArgs{
+				params: db.GetRequest{Limit: 3},
+				setupPool: func(pool pgxmock.PgxPoolIface) {
+					rows := pgxmock.NewRows([]string{
+						"id", "name", "description", "city_id", "address", "card_img",
+						"rating", "open_at", "closed_at",
+					}).AddRow(storesData[0]...).AddRow(storesData[1]...).AddRow(storesData[2]...)
+
+					pool.ExpectQuery(regexp.QuoteMeta(`
+						select id, name, description, city_id, address, card_img, rating, open_at, closed_at 
+						from store
+						order by id
+						limit $1
+					`)).
+						WithArgs(3).
+						WillReturnRows(rows)
+				},
+				request: httptest.NewRequest(http.MethodPost, "/stores",
+					bytes.NewBuffer(parseJSON(db.GetRequest{Limit: 3}))),
+			},
+			expectedResult: expected[:3],
+			responseCode:   http.StatusOK,
+		},
+		{
+			name: "Limit=4",
+			args: storeArgs{
+				params: db.GetRequest{Limit: 4},
+				setupPool: func(pool pgxmock.PgxPoolIface) {
+					rows := pgxmock.NewRows([]string{
+						"id", "name", "description", "city_id", "address", "card_img",
+						"rating", "open_at", "closed_at",
+					}).AddRow(storesData[0]...).AddRow(storesData[1]...).AddRow(storesData[2]...)
+
+					pool.ExpectQuery(regexp.QuoteMeta(`
+						select id, name, description, city_id, address, card_img, rating, open_at, closed_at 
+						from store
+						order by id
+						limit $1
+					`)).
+						WithArgs(4).
+						WillReturnRows(rows)
+				},
+				request: httptest.NewRequest(http.MethodPost, "/stores",
+					bytes.NewBuffer(parseJSON(db.GetRequest{Limit: 4}))),
+			},
+			expectedResult: expected[:3],
+			responseCode:   http.StatusOK,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.args.setupPool(mockPool)
+
 			w := httptest.NewRecorder()
+			router.ServeHTTP(w, tt.args.request)
 
-			mux.ServeHTTP(w, req)
+			require.Equal(t, tt.responseCode, w.Code)
 
-			expectedJSON, _ := json.Marshal(expected[:limit])
-			require.Equal(t, http.StatusOK, w.Code)
+			expectedJSON, _ := json.Marshal(tt.expectedResult)
 			require.JSONEq(t, string(expectedJSON), w.Body.String())
 		})
 	}
 }
 
-func TestGetStoresLimitWithID(t *testing.T) {
+func TestGetStoresLimitLastID(t *testing.T) {
 	mockPool, err := pgxmock.NewPool()
 	require.NoError(t, err)
 	defer mockPool.Close()
 
-	h := New(mockPool, "", "", 0)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/stores", h.GetStores)
+	h := NewHandler(mockPool, "", "", 0)
+	router := NewStoresRouter(h)
 
 	storesData := [][]any{
 		{
@@ -149,8 +253,8 @@ func TestGetStoresLimitWithID(t *testing.T) {
 			"ул. Тверская, 12",
 			"/stores/1.jpg",
 			4.5,
-			time.Date(0, 1, 1, 10, 0, 0, 0, time.Local).String(),
-			time.Date(0, 1, 1, 23, 0, 0, 0, time.Local).String(),
+			"10:00",
+			"23:00",
 		},
 		{
 			uuid.MustParse("00000000-0000-0000-0000-000000000002").String(),
@@ -160,8 +264,8 @@ func TestGetStoresLimitWithID(t *testing.T) {
 			"Невский пр., 45",
 			"/stores/2.jpg",
 			4.3,
-			time.Date(0, 1, 1, 10, 0, 0, 0, time.Local).String(),
-			time.Date(0, 1, 1, 23, 0, 0, 0, time.Local).String(),
+			"10:00",
+			"23:00",
 		},
 		{
 			uuid.MustParse("00000000-0000-0000-0000-000000000003").String(),
@@ -171,113 +275,104 @@ func TestGetStoresLimitWithID(t *testing.T) {
 			"ул. Ленина, 78",
 			"/stores/3.jpg",
 			4.6,
-			time.Date(0, 1, 1, 10, 0, 0, 0, time.Local).String(),
-			time.Date(0, 1, 1, 23, 0, 0, 0, time.Local).String(),
+			"10:00",
+			"23:00",
 		},
 	}
 
 	expected := []db.ResponseInfo{
 		{
-			uuid.MustParse("00000000-0000-0000-0000-000000000002").String(),
-			"Sushi House",
-			"Аутентичные японские суши и сашими, свежие ингредиенты каждый день.",
-			uuid.MustParse("00000000-0000-0000-0000-000000000012").String(),
-			"Невский пр., 45",
-			"/stores/2.jpg",
-			4.3,
-			time.Date(0, 1, 1, 10, 0, 0, 0, time.Local).String(),
-			time.Date(0, 1, 1, 23, 0, 0, 0, time.Local).String(),
+			ID:          "00000000-0000-0000-0000-000000000002",
+			Name:        "Sushi House",
+			Description: "Аутентичные японские суши и сашими, свежие ингредиенты каждый день.",
+			CityID:      "00000000-0000-0000-0000-000000000012",
+			Address:     "Невский пр., 45",
+			CardImg:     "/stores/2.jpg",
+			Rating:      4.3,
+			OpenAt:      "10:00",
+			ClosedAt:    "23:00",
 		},
 		{
-			uuid.MustParse("00000000-0000-0000-0000-000000000003").String(),
-			"Pizza Roma",
-			"Итальянская пицца на тонком тесте, приготовленная в дровяной печи.",
-			uuid.MustParse("00000000-0000-0000-0000-000000000013").String(),
-			"ул. Ленина, 78",
-			"/stores/3.jpg",
-			4.6,
-			time.Date(0, 1, 1, 10, 0, 0, 0, time.Local).String(),
-			time.Date(0, 1, 1, 23, 0, 0, 0, time.Local).String(),
+			ID:          "00000000-0000-0000-0000-000000000003",
+			Name:        "Pizza Roma",
+			Description: "Итальянская пицца на тонком тесте, приготовленная в дровяной печи.",
+			CityID:      "00000000-0000-0000-0000-000000000013",
+			Address:     "ул. Ленина, 78",
+			CardImg:     "/stores/3.jpg",
+			Rating:      4.6,
+			OpenAt:      "10:00",
+			ClosedAt:    "23:00",
 		},
 	}
-	requestBody := db.GetRequest{
-		Limit:  3,
-		LastId: "00000000-0000-0000-0000-000000000001"}
 
-	rows := pgxmock.NewRows([]string{
-		"id", "name", "description", "city_id", "address", "card_img",
-		"rating", "open_at", "closed_at",
-	})
-	for _, store := range storesData[1:] {
-		rows.AddRow(store...)
+	cases := []storeTestCase{
+		{
+			name: "Limit=1 with ID1",
+			args: storeArgs{
+				params: db.GetRequest{Limit: 1, LastId: "00000000-0000-0000-0000-000000000001"},
+				setupPool: func(pool pgxmock.PgxPoolIface) {
+					rows := pgxmock.NewRows([]string{
+						"id", "name", "description", "city_id", "address", "card_img",
+						"rating", "open_at", "closed_at",
+					}).AddRow(storesData[1]...)
+
+					pool.ExpectQuery(regexp.QuoteMeta(`
+						select id, name, description, city_id, address, card_img, rating, open_at, closed_at 
+						from store
+						where id > $1
+						order by id
+						limit $2
+					`)).
+						WithArgs("00000000-0000-0000-0000-000000000001", 1).
+						WillReturnRows(rows)
+				},
+				request: httptest.NewRequest(http.MethodPost, "/stores",
+					bytes.NewBuffer(parseJSON(db.GetRequest{Limit: 1, LastId: "00000000-0000-0000-0000-000000000001"}))),
+			},
+			expectedResult: []db.ResponseInfo{expected[0]},
+			responseCode:   http.StatusOK,
+		},
+		{
+			name: "Limit=1 with ID3",
+			args: storeArgs{
+				params: db.GetRequest{Limit: 1, LastId: "00000000-0000-0000-0000-000000000003"},
+				setupPool: func(pool pgxmock.PgxPoolIface) {
+					rows := pgxmock.NewRows([]string{
+						"id", "name", "description", "city_id", "address", "card_img",
+						"rating", "open_at", "closed_at",
+					})
+
+					pool.ExpectQuery(regexp.QuoteMeta(`
+						select id, name, description, city_id, address, card_img, rating, open_at, closed_at 
+						from store
+						where id > $1
+						order by id
+						limit $2
+					`)).
+						WithArgs("00000000-0000-0000-0000-000000000003", 1).
+						WillReturnRows(rows)
+				},
+				request: httptest.NewRequest(http.MethodPost, "/stores",
+					bytes.NewBuffer(parseJSON(db.GetRequest{Limit: 1, LastId: "00000000-0000-0000-0000-000000000003"}))),
+			},
+			expectedResult: []db.ResponseInfo{},
+			responseCode:   http.StatusOK,
+		},
 	}
 
-	query := `
-				select id, name, description, city_id, address, card_img, rating, open_at, closed_at 
-				from store
-				where id > \$1
-				order by id
-				limit \$2
-			`
-	mockPool.ExpectQuery(query).
-		WithArgs(requestBody.LastId, requestBody.Limit).
-		WillReturnRows(rows)
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.args.setupPool(mockPool)
 
-	body, _ := json.Marshal(requestBody)
-	req := httptest.NewRequest(http.MethodPost, "/stores", bytes.NewBuffer(body))
-	w := httptest.NewRecorder()
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, tt.args.request)
 
-	mux.ServeHTTP(w, req)
+			require.Equal(t, tt.responseCode, w.Code)
 
-	expectedJSON, _ := json.Marshal(expected)
-	require.Equal(t, http.StatusOK, w.Code)
-	require.JSONEq(t, string(expectedJSON), w.Body.String())
-
-}
-
-func TestGetStoresEmptyDB(t *testing.T) {
-	mockPool, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mockPool.Close()
-	//TODO сетапер
-	//TODO структура
-	//type args struct {
-	//// аргументы, входные значения и сетапные моки
-	////
-	//// в данном примере сюда можно было бы добавить setupPool func(pool pgxmock.Pool) {
-	//// вот тут уже AddRows и всякое разное для конкретного тест кейса
-	////
-	//// eще бы сюда пошел request http.Request
-	//// в общем всё, что нужно
-	//}
-	//
-	//type testCase struct {
-	//args args
-	//expectedResult []db.ResponseInfo
-	//expectedErr error
-	//}
-	h := New(mockPool, "", "", 0)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/stores", h.GetStores)
-
-	query := `
-				select id, name, description, city_id, address, card_img, rating, open_at, closed_at 
-				from store
-				order by id
-				limit \$1
-			`
-	mockPool.ExpectQuery(query).
-		WithArgs(3).
-		WillReturnRows(pgxmock.NewRows([]string{}))
-
-	body, _ := json.Marshal(db.GetRequest{Limit: 3})
-	req := httptest.NewRequest(http.MethodPost, "/stores", bytes.NewBuffer(body))
-	w := httptest.NewRecorder()
-
-	mux.ServeHTTP(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	require.JSONEq(t, "[]", w.Body.String())
+			expectedJSON, _ := json.Marshal(tt.expectedResult)
+			require.JSONEq(t, string(expectedJSON), w.Body.String())
+		})
+	}
 }
 
 func TestGetStoresNegativeLimit(t *testing.T) {
@@ -285,11 +380,29 @@ func TestGetStoresNegativeLimit(t *testing.T) {
 	require.NoError(t, err)
 	defer mockPool.Close()
 
-	h := New(mockPool, "", "", 0)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/stores", h.GetStores)
+	h := NewHandler(mockPool, "", "", 0)
+	mux := NewStoresRouter(h)
 
 	body, _ := json.Marshal(db.GetRequest{Limit: -1})
+	req := httptest.NewRequest(http.MethodPost, "/stores", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	expectedJSON := fmt.Sprintf(`{"error": "%s"}`, custom_errors.InvalidJSONErr.Error())
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.JSONEq(t, expectedJSON, w.Body.String())
+}
+
+func TestGetStoresWrongSort(t *testing.T) {
+	mockPool, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockPool.Close()
+
+	h := NewHandler(mockPool, "", "", 0)
+	mux := NewStoresRouter(h)
+
+	body, _ := json.Marshal(db.GetRequest{Limit: 10, Sorted: "id -- drop table"})
 	req := httptest.NewRequest(http.MethodPost, "/stores", bytes.NewBuffer(body))
 	w := httptest.NewRecorder()
 

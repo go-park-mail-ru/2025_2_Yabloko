@@ -42,7 +42,6 @@ type AppendInfo struct {
 	ClosedAt    time.Time `json:"closed_at"`
 }
 
-
 func AppendStore(dbPool PoolDB, store AppendInfo) error {
 	addStore := `
 		insert into store (id, name, description, city_id, address, card_img, rating, open_at, closed_at)
@@ -80,7 +79,7 @@ type GetRequest struct {
 }
 
 type ResponseInfo struct {
-	Id          string  `json:"store_id"`
+	ID          string  `json:"store_id"`
 	Name        string  `json:"name"`
 	Description string  `json:"description"`
 	CityID      string  `json:"cit_id"`
@@ -115,32 +114,21 @@ func generateQuery(params GetRequest) (string, []any) {
 	}
 
 	// сортировка
-	allowedSort := map[string]string{
-		"name":     "name",
-		"rating":   "rating",
-		"close_at": "close_at",
-		"open_at":  "open_at",
-	}
-
 	orderBy := " order by id"
 	if params.Sorted != "" {
-		if col, ok := allowedSort[params.Sorted]; ok {
-			dir := "asc"
-			if params.Desc {
-				dir = "desc"
-			}
-			orderBy = fmt.Sprintf(" order by $%d %s, id", len(args)+1, dir)
-			args = append(args, col)
+		dir := "asc"
+		if params.Desc {
+			dir = "desc"
 		}
+		orderBy = fmt.Sprintf(" order by $%d %s, id", len(args)+1, dir)
+		args = append(args, params.Sorted)
 	}
 	query += orderBy
-
 
 	query += fmt.Sprintf(" limit $%d", len(args)+1)
 	args = append(args, params.Limit)
 	return query, args
 }
-
 
 func GetStores(dbPool PoolDB, params GetRequest) ([]ResponseInfo, error) {
 	query, args := generateQuery(params)
@@ -162,7 +150,7 @@ func GetStores(dbPool PoolDB, params GetRequest) ([]ResponseInfo, error) {
 	stores := []ResponseInfo{}
 	for rows.Next() {
 		var store ResponseInfo
-		if err := rows.Scan(&store.Id, &store.Name, &store.Description,
+		if err := rows.Scan(&store.ID, &store.Name, &store.Description,
 			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt); err != nil {
 
 			logger.Error(log.LogInfo{Info: "get store частично завершено с ошибкой", Err: err, Meta: params})
