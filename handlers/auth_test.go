@@ -175,25 +175,27 @@ func TestSignup(t *testing.T) {
 		wantCookie bool
 		wantBody   interface{}
 	}{
-		// fixme
-		//{
-		//	name:    "Success",
-		//	reqBody: validReq,
-		//	setupPool: func(pool pgxmock.PgxPoolIface) {
-		//		pool.ExpectExec(regexp.QuoteMeta(`
-		//			insert into account (id, email, hash)
-		//			values ($1, $2, $3)
-		//		`)).
-		//			WithArgs(pgxmock.AnyArg(), validReq.Email, pgxmock.AnyArg()).
-		//			WillReturnResult(pgxmock.NewResult("", 1))
-		//	},
-		//	wantStatus: http.StatusOK,
-		//	wantCookie: true,
-		//	wantBody: AuthResponse{
-		//		Message: "OK",
-		//		Email:   validReq.Email,
-		//	},
-		//},
+		{
+			name:    "Success",
+			reqBody: validReq,
+			setupPool: func(pool pgxmock.PgxPoolIface) {
+				// мокируем вставку пользователя в БД
+				pool.ExpectExec(regexp.QuoteMeta(`
+			insert into account (id, email, hash)
+			values ($1, $2, $3)
+		`)).
+					WithArgs(pgxmock.AnyArg(), validReq.Email, pgxmock.AnyArg()).
+					WillReturnResult(pgxmock.NewResult("", 1))
+			},
+			wantStatus: http.StatusOK,
+			wantCookie: true,
+			wantBody: AuthResponse{
+				Message: "OK",
+				Email:   validReq.Email,
+				UserID:  "any",
+			},
+		},
+
 		{
 			name:       "Invalid JSON",
 			reqBody:    "not-a-json",
@@ -229,7 +231,6 @@ func TestSignup(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-
 			pool, err := pgxmock.NewPool()
 			require.NoError(t, err)
 			defer pool.Close()
@@ -259,7 +260,13 @@ func TestSignup(t *testing.T) {
 				requireNoJWTCookie(t, w.Result().Cookies())
 			}
 
-			if tt.wantBody != nil {
+			if resp, ok := tt.wantBody.(AuthResponse); ok {
+				var got AuthResponse
+				json.Unmarshal(w.Body.Bytes(), &got)
+				require.Equal(t, resp.Message, got.Message)
+				require.Equal(t, resp.Email, got.Email)
+				require.NotEmpty(t, got.UserID) // проверяем, что UserID сгенерирован
+			} else if tt.wantBody != nil {
 				expectedJSON, _ := json.Marshal(tt.wantBody)
 				require.JSONEq(t, string(expectedJSON), w.Body.String())
 			}
