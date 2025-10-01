@@ -11,6 +11,14 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+func NewStoresRouter(h *Handler) http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/stores", h.GetStores)
+
+	return mux
+}
+
 func (h *Handler) GetStores(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.handleError(w, http.StatusMethodNotAllowed, custom_errors.HTTPMethodErr, nil)
@@ -22,10 +30,24 @@ func (h *Handler) GetStores(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, http.StatusBadRequest, custom_errors.InvalidJSONErr, err)
 		return
 	}
-	//todo validate params
+
 	if req.Limit <= 0 {
 		h.handleError(w, http.StatusBadRequest, custom_errors.InvalidJSONErr, nil)
 		return
+	}
+
+	if req.Sorted != "" {
+		allowedSort := map[string]struct{}{
+			"name":     {},
+			"rating":   {},
+			"close_at": {},
+			"open_at":  {},
+		}
+		_, ok := allowedSort[req.Sorted]
+		if !ok {
+			h.handleError(w, http.StatusBadRequest, custom_errors.InvalidJSONErr, nil)
+			return
+		}
 	}
 
 	stores, err := db.GetStores(h.dbPool, req)
@@ -34,7 +56,6 @@ func (h *Handler) GetStores(w http.ResponseWriter, r *http.Request) {
 			h.log.Warn(logger.LogInfo{Info: "GetStores ответ с ошибкой", Err: err, Meta: req})
 		} else if errors.Is(err, pgx.ErrNoRows) {
 			h.log.Info(logger.LogInfo{Info: "GetStores пустой ответ", Err: err, Meta: req})
-
 		} else {
 			h.handleError(w, http.StatusInternalServerError, custom_errors.InnerErr, err)
 			return

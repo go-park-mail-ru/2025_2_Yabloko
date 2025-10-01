@@ -45,6 +45,17 @@ func createExpiredTokenCookie() *http.Cookie {
 	}
 }
 
+func NewAuthRouter(h *Handler) http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/login", h.Login)
+	mux.HandleFunc("/signup", h.Signup)
+	mux.HandleFunc("/logout", h.Logout)
+	mux.HandleFunc("/refresh", h.RefreshToken)
+
+	return mux
+}
+
 // обрабатывает запрос на регистрацию
 func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 
