@@ -1,5 +1,4 @@
 #!/bin/sh
-
 set -e
 
 until tern migrate -c ./db/migrations/tern.conf -m ./db/migrations; do
@@ -8,5 +7,7 @@ until tern migrate -c ./db/migrations/tern.conf -m ./db/migrations; do
 done
 
 go test ./... -coverpkg=./... -v
-
+go test ./... -coverpkg=./... -coverprofile=coverage.out
+echo "=== TOTAL COVERAGE ==="
+go tool cover -func=coverage.out | grep total
 exec go run .

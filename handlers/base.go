@@ -4,18 +4,41 @@ import (
 	"apple_backend/custom_errors"
 	"apple_backend/db"
 	"apple_backend/logger"
+	"apple_backend/middlewares"
 	"context"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func NewMainRouter(dbPool *pgxpool.Pool) http.Handler {
+	mux := http.NewServeMux()
+
+	// store
+	storeHandler := NewHandler(dbPool, "STORE", "./log/store.log", logger.DEBUG)
+	mux.Handle("/api/v0/stores", NewStoresRouter(storeHandler))
+
+	// auth
+	authHandler := NewHandler(dbPool, "AUTH", "./log/auth.log", logger.DEBUG)
+	mux.Handle("/api/v0/auth/", http.StripPrefix("/api/v0/auth", NewAuthRouter(authHandler)))
+
+	// health
+	mux.HandleFunc("/health", middlewares.AccessLog(authHandler.HealthCheck))
+
+	// images
+	mux.HandleFunc("/api/v0/image/", middlewares.AccessLog(authHandler.GetImage))
+
+	return middlewares.CorsMiddleware(mux)
+}
 
 type Handler struct {
 	dbPool db.PoolDB
 	log    *logger.Logger
 }
 
-func New(dbPool db.PoolDB, routerName, logPath string, logLevel logger.LogLevel) *Handler {
+func NewHandler(dbPool db.PoolDB, routerName, logPath string, logLevel logger.LogLevel) *Handler {
 	var log *logger.Logger
 	if routerName != "" && logPath != "" {
 		log = logger.NewLogger(routerName, logPath, logLevel)
@@ -46,10 +69,10 @@ func (h *Handler) handleError(w http.ResponseWriter, statusCode int, userError e
 		h.log.Error(logger.LogInfo{Err: userError})
 	}
 
-	h.handleResponse(w, statusCode, errResponse{Err: userError.Error()})
+	h.handleResponse(w, statusCode, ErrResponse{Err: userError.Error()})
 }
 
-type errResponse struct {
+type ErrResponse struct {
 	Err string `json:"error"`
 }
 
