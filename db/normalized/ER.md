@@ -28,6 +28,7 @@ erDiagram
     }
 
     friend {
+        uuid id PK
         uuid account_1_id FK
         uuid account_2_id FK
     }
@@ -66,6 +67,7 @@ erDiagram
     }
     
     store_tag {
+        uuid id PK
         uuid store_id FK
         uuid tag_id FK
     }
@@ -76,6 +78,7 @@ erDiagram
     }
     
     store_category {
+        uuid id PK
         uuid store_id FK
         uuid category_id FK
     }
@@ -97,16 +100,32 @@ erDiagram
     promotion {
         uuid id PK
         text name
-        text type
-        numeric value
+        numeric relative_discount
+        numeric absolute_discount
+        timestamptz start_at
+        timestamptz end_at
+    }
+    
+    promocode {
+        uuid id PK
         text code
-        timestamptz start_time
-        timestamptz end_time
+        numeric relative_discount
+        numeric absolute_discount
+        uuid user_id FK
+        timestamptz start_at
+        timestamptz end_at
     }
     
     promotion_item {
+        uuid id PK
         uuid item_id FK
         uuid promotion_id FK
+    }
+    
+    promocode_item {
+        uuid id PK
+        uuid item_id FK
+        uuid promocode_id FK
     }
     
     type {
@@ -115,8 +134,17 @@ erDiagram
     }
     
     item_type {
+        uuid id PK
         uuid item_id FK
         uuid type_id FK
+    }
+    
+    review {
+        uuid id PK
+        uuid user_id FK
+        uuid store_id FK
+        numeric rating
+        text comment
     }
 
     city ||--o{ account : city_id
@@ -126,6 +154,8 @@ erDiagram
     account ||--o{ friend : account_2_id
     account ||--o{ cart : user_id
     account ||--o{ order : user_id
+    account ||--o{ promocode : user_id
+    account ||--o{ review : user_id
 
     cart ||--o{ cart_item : cart_id
     store_item ||--o{ cart_item : store_item_id
@@ -137,9 +167,11 @@ erDiagram
     store ||--o{ store_item : store_id
     store ||--o{ store_tag : store_id
     store ||--o{ store_category : store_id
+    store ||--o{ review : store_id
 
     item ||--o{ store_item : item_id
     item ||--o{ promotion_item : item_id
+    item ||--o{ promocode_item : item_id
     item ||--o{ item_type : item_id
 
     tag ||--o{ store_tag : tag_id
