@@ -5,11 +5,17 @@ import (
 	"context"
 )
 
-type StoreUsecase struct {
-	repo domain.StoreRepository
+type StoreRepository interface {
+	GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.Store, error)
+	GetStore(ctx context.Context, id string) (*domain.Store, error)
+	CreateStore(ctx context.Context, store *domain.Store) error
 }
 
-func NewStoreUsecase(repo domain.StoreRepository) *StoreUsecase {
+type StoreUsecase struct {
+	repo StoreRepository
+}
+
+func NewStoreUsecase(repo StoreRepository) *StoreUsecase {
 	return &StoreUsecase{repo: repo}
 }
 

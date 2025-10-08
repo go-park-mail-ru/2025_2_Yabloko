@@ -1,7 +1,5 @@
 package domain
 
-import "context"
-
 type Store struct {
 	ID          string
 	Name        string
@@ -20,10 +18,4 @@ type StoreFilter struct {
 	Tag    string
 	Sorted string
 	Desc   bool
-}
-
-type StoreRepository interface {
-	GetStores(ctx context.Context, filter *StoreFilter) ([]*Store, error)
-	GetStore(ctx context.Context, id string) (*Store, error)
-	CreateStore(ctx context.Context, store *Store) error
 }

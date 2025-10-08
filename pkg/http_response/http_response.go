@@ -2,14 +2,14 @@ package http_response
 
 import (
 	"apple_backend/pkg/logger"
+	"apple_backend/pkg/trace"
 	"context"
 	"encoding/json"
 	"net/http"
 )
 
 type ErrResponse struct {
-	Err       string `json:"error"`
-	RequestID string `json:"request_id"`
+	Err string `json:"error"`
 }
 
 type ResponseSender struct {
@@ -20,8 +20,9 @@ func NewResponseSender(log *logger.Logger) *ResponseSender {
 	return &ResponseSender{log: log}
 }
 
+// универсальная отправка http ответа
 func (rs *ResponseSender) Send(ctx context.Context, w http.ResponseWriter, statusCode int, data interface{}) {
-	requestID := logger.GetRequestID(ctx)
+	requestID := trace.GetRequestID(ctx)
 
 	w.Header().Set("Content-Type", "application/json")
 	if requestID != "" {
@@ -31,21 +32,13 @@ func (rs *ResponseSender) Send(ctx context.Context, w http.ResponseWriter, statu
 	w.WriteHeader(statusCode)
 
 	if data != nil {
-		switch v := data.(type) {
-		case map[string]interface{}:
-			v["request_id"] = requestID
-		case map[string]string:
-			v["request_id"] = requestID
-		}
-
 		json.NewEncoder(w).Encode(data)
 	}
 }
 
+// универсальная отправка http ошибки
 func (rs *ResponseSender) Error(ctx context.Context, w http.ResponseWriter, statusCode int,
 	errMessage string, userErr error, internalErr error) {
-	requestID := logger.GetRequestID(ctx)
-
 	if internalErr != nil {
 		rs.log.Error(ctx, errMessage, map[string]interface{}{"userErr": userErr, "internalErr": internalErr})
 	} else {
@@ -53,8 +46,7 @@ func (rs *ResponseSender) Error(ctx context.Context, w http.ResponseWriter, stat
 	}
 
 	resp := ErrResponse{
-		Err:       userErr.Error(),
-		RequestID: requestID,
+		Err: userErr.Error(),
 	}
 
 	rs.Send(ctx, w, statusCode, resp)

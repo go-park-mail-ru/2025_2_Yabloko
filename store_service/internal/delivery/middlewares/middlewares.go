@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"apple_backend/pkg/logger"
+	"apple_backend/pkg/trace"
 	"net/http"
 	"time"
 
@@ -15,7 +16,7 @@ func AccessLog(log *logger.Logger, next http.Handler) http.Handler {
 			reqID = uuid.NewString()
 		}
 
-		ctx := logger.SetRequestID(r.Context(), reqID)
+		ctx := trace.SetRequestID(r.Context(), reqID)
 		r = r.WithContext(ctx)
 		w.Header().Set("X-Request-ID", reqID)
 

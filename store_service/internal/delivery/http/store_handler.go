@@ -3,10 +3,12 @@ package http
 import (
 	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
-	"apple_backend/pkg/middlewares"
+	"apple_backend/store_service/internal/delivery/middlewares"
+	"apple_backend/store_service/internal/delivery/transport"
 	"apple_backend/store_service/internal/domain"
 	"apple_backend/store_service/internal/repository"
 	"apple_backend/store_service/internal/usecase"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,12 +16,18 @@ import (
 	"github.com/google/uuid"
 )
 
+type StoreUsecaseInterface interface {
+	GetStore(ctx context.Context, id string) (*domain.Store, error)
+	GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.Store, error)
+	CreateStore(ctx context.Context, name, description, cityID, address, cardImg, openAt, closedAt string, rating float64) error
+}
+
 type StoreHandler struct {
-	uc *usecase.StoreUsecase
+	uc StoreUsecaseInterface
 	rs *http_response.ResponseSender
 }
 
-func NewStoreHandler(uc *usecase.StoreUsecase, log *logger.Logger) *StoreHandler {
+func NewStoreHandler(uc StoreUsecaseInterface, log *logger.Logger) *StoreHandler {
 	return &StoreHandler{
 		uc: uc,
 		rs: http_response.NewResponseSender(log),
@@ -87,7 +95,8 @@ func (h *StoreHandler) GetStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.rs.Send(r.Context(), w, http.StatusOK, store)
+	responseStore := transport.ToStoreResponse(store)
+	h.rs.Send(r.Context(), w, http.StatusOK, responseStore)
 }
 
 func (h *StoreHandler) GetStores(w http.ResponseWriter, r *http.Request) {
@@ -112,5 +121,6 @@ func (h *StoreHandler) GetStores(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.rs.Send(r.Context(), w, http.StatusOK, stores)
+	responseStores := transport.ToStoreResponses(stores)
+	h.rs.Send(r.Context(), w, http.StatusOK, responseStores)
 }

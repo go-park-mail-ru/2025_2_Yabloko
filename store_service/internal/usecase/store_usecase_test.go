@@ -2,7 +2,7 @@ package usecase
 
 import (
 	"apple_backend/store_service/internal/domain"
-	"apple_backend/store_service/internal/domain/mock"
+	"apple_backend/store_service/internal/usecase/mock"
 	"context"
 	"errors"
 	"testing"
