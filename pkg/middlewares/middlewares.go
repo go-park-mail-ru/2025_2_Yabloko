@@ -1,9 +1,7 @@
 package middlewares
 
 import (
-	"apple_backend/auth"
 	"apple_backend/pkg/logger"
-	"context"
 	"net/http"
 	"time"
 
@@ -38,36 +36,36 @@ func AccessLog(log *logger.Logger, next http.Handler) http.Handler {
 	})
 }
 
-// fixme clean arch
+// fixme clean arch request to auth serv
 // authMiddleware проверяет JWT токен для защищенных routes
-func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		// извлекаем JWT токен из cookie
-		cookie, err := r.Cookie("jwt_token")
-		if err != nil {
-			http.Error(w, `{"error": "Authentication required"}`, http.StatusUnauthorized)
-			return
-		}
-
-		// проверяем валидность токена
-		claims, err := auth.VerifyJWT(cookie.Value)
-		if err != nil {
-			http.Error(w, `{"error": "Invalid token"}`, http.StatusUnauthorized)
-			return
-		}
-
-		// добавляем информацию о пользователе в контекст запроса
-		// это позволит последующим обработчикам знать кто делает запрос
-		ctx := r.Context()
-		ctx = context.WithValue(ctx, "userID", claims.UserID)
-		ctx = context.WithValue(ctx, "login", claims.Email)
-		r = r.WithContext(ctx)
-
-		// 4. Передаем запрос следующему обработчику
-		next.ServeHTTP(w, r)
-	}
-}
+//func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+//
+//	return func(w http.ResponseWriter, r *http.Request) {
+//		// извлекаем JWT токен из cookie
+//		cookie, err := r.Cookie("jwt_token")
+//		if err != nil {
+//			http.Error(w, `{"error": "Authentication required"}`, http.StatusUnauthorized)
+//			return
+//		}
+//
+//		// проверяем валидность токена
+//		claims, err := auth.VerifyJWT(cookie.Value)
+//		if err != nil {
+//			http.Error(w, `{"error": "Invalid token"}`, http.StatusUnauthorized)
+//			return
+//		}
+//
+//		// добавляем информацию о пользователе в контекст запроса
+//		// это позволит последующим обработчикам знать кто делает запрос
+//		ctx := r.Context()
+//		ctx = context.WithValue(ctx, "userID", claims.UserID)
+//		ctx = context.WithValue(ctx, "login", claims.Email)
+//		r = r.WithContext(ctx)
+//
+//		// 4. Передаем запрос следующему обработчику
+//		next.ServeHTTP(w, r)
+//	}
+//}
 
 func CorsMiddleware(next http.Handler) http.Handler {
 

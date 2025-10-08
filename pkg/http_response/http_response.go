@@ -21,7 +21,7 @@ func NewResponseSender(log *logger.Logger) *ResponseSender {
 }
 
 func (rs *ResponseSender) Send(ctx context.Context, w http.ResponseWriter, statusCode int, data interface{}) {
-	requestID := logger.RequestIDFromCtx(ctx)
+	requestID := logger.GetRequestID(ctx)
 
 	w.Header().Set("Content-Type", "application/json")
 	if requestID != "" {
@@ -43,13 +43,13 @@ func (rs *ResponseSender) Send(ctx context.Context, w http.ResponseWriter, statu
 }
 
 func (rs *ResponseSender) Error(ctx context.Context, w http.ResponseWriter, statusCode int,
-	userErr error, internalErr error) {
-	requestID := logger.RequestIDFromCtx(ctx)
+	errMessage string, userErr error, internalErr error) {
+	requestID := logger.GetRequestID(ctx)
 
 	if internalErr != nil {
-		rs.log.Error(ctx, "Internal error", map[string]interface{}{"userErr": userErr, "internalErr": internalErr})
+		rs.log.Error(ctx, errMessage, map[string]interface{}{"userErr": userErr, "internalErr": internalErr})
 	} else {
-		rs.log.Error(ctx, "User error", map[string]interface{}{"userErr": userErr})
+		rs.log.Warn(ctx, errMessage, map[string]interface{}{"userErr": userErr})
 	}
 
 	resp := ErrResponse{

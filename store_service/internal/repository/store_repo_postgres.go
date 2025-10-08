@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"apple_backend/custom_errors"
+	"apple_backend/pkg/logger"
 	"apple_backend/store_service/internal/domain"
 	"context"
 	"errors"
@@ -13,11 +13,15 @@ import (
 )
 
 type StoreRepoPostgres struct {
-	db PgxIface
+	db  PgxIface
+	log *logger.Logger
 }
 
-func NewStoreRepoPostgres(db PgxIface) *StoreRepoPostgres {
-	return &StoreRepoPostgres{db: db}
+func NewStoreRepoPostgres(db PgxIface, log *logger.Logger) *StoreRepoPostgres {
+	return &StoreRepoPostgres{
+		db:  db,
+		log: log,
+	}
 }
 
 func generateQuery(filter *domain.StoreFilter) (string, []any) {
@@ -60,19 +64,13 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 	return query, args
 }
 
-func (r *StoreRepoPostgres) GetStores(filter *domain.StoreFilter) ([]*domain.Store, error) {
+func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.Store, error) {
+	r.log.Debug(ctx, "GetStores начало обработки", map[string]interface{}{})
 	query, args := generateQuery(filter)
 
-	//logger.Debug(log.LogInfo{Info: "get store", Meta: filter})
-	ctxt := context.Background()
-
-	rows, err := r.db.Query(ctxt, query, args...)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			//logger.Warn(log.LogInfo{Err: custom_errors.NotExistErr, Meta: filter})
-			return nil, custom_errors.NotExistErr
-		}
-		//logger.Error(log.LogInfo{Err: err, Meta: filter})
+		r.log.Error(ctx, "GetStores ошибка бд", map[string]interface{}{"err": err, "filter": filter})
 		return nil, err
 	}
 	defer rows.Close()
@@ -83,67 +81,71 @@ func (r *StoreRepoPostgres) GetStores(filter *domain.StoreFilter) ([]*domain.Sto
 		err = rows.Scan(&store.ID, &store.Name, &store.Description,
 			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt)
 		if err != nil {
-			//logger.Error(log.LogInfo{Info: "get store частично завершено с ошибкой", Err: err, Meta: filter})
-			return stores, err
+			r.log.Error(ctx, "GetStores ошибка при декодировании данных",
+				map[string]interface{}{"err": err, "rows": rows})
+			return nil, err
 		}
 		stores = append(stores, &store)
 	}
+
 	if err = rows.Err(); err != nil {
-		//logger.Error(log.LogInfo{Info: "get store завершено с ошибкой", Err: err, Meta: filter})
-		return stores, err
+		r.log.Error(ctx, "GetStores ошибка после чтения строк",
+			map[string]interface{}{"err": err, "filter": filter})
+		return nil, err
 	}
 
-	//logger.Debug(log.LogInfo{Info: "get store завершено", Meta: filter})
+	if len(stores) == 0 {
+		r.log.Debug(ctx, "GetStores пустой ответ", map[string]interface{}{"filter": filter})
+		return nil, domain.ErrStoreNotFound
+	}
+
+	r.log.Debug(ctx, "GetStores завершено успешно", map[string]interface{}{})
 	return stores, nil
 }
 
-func (r *StoreRepoPostgres) GetStore(id string) (*domain.Store, error) {
+func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.Store, error) {
 	query := `
 		select id, name, description, city_id, address, card_img, rating, open_at, closed_at 
 		from store
 		where id = $1
 	`
-
-	//logger.Debug(log.LogInfo{Info: "get store", Meta: filter})
-	ctxt := context.Background()
+	r.log.Debug(ctx, "GetStore начало обработки", map[string]interface{}{})
 
 	store := &domain.Store{}
-	err := r.db.QueryRow(ctxt, query, id).Scan(&store.ID, &store.Name, &store.Description,
+	err := r.db.QueryRow(ctx, query, id).Scan(&store.ID, &store.Name, &store.Description,
 		&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			//logger.Warn(log.LogInfo{Err: custom_errors.NotExistErr, Meta: filter})
-			return nil, custom_errors.NotExistErr
+			r.log.Warn(ctx, "GetStore пустой ответ бд", map[string]interface{}{"err": err, "id": id})
+			return nil, domain.ErrStoreNotFound
 		}
-		//logger.Error(log.LogInfo{Err: err, Meta: filter})
+		r.log.Error(ctx, "GetStore ошибка бд", map[string]interface{}{"err": err, "id": id})
 		return nil, err
 	}
 
-	//logger.Debug(log.LogInfo{Info: "get store завершено", Meta: filter})
+	r.log.Debug(ctx, "GetStore завершено успешно", map[string]interface{}{})
 	return store, nil
 }
 
-func (r *StoreRepoPostgres) CreateStore(store *domain.Store) error {
+func (r *StoreRepoPostgres) CreateStore(ctx context.Context, store *domain.Store) error {
 	addStore := `
 		insert into store (id, name, description, city_id, address, card_img, rating, open_at, closed_at)
 		values ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 	`
-
-	//logger.Debug(log.LogInfo{Info: "create store", Meta: store})
-	ctxt := context.Background()
+	r.log.Debug(ctx, "CreateStore начало обработки", map[string]interface{}{})
 
 	store.ID = uuid.New().String()
-	_, err := r.db.Exec(ctxt, addStore, store.ID, store.Name, store.Description,
+	_, err := r.db.Exec(ctx, addStore, store.ID, store.Name, store.Description,
 		store.CityID, store.Address, store.CardImg, store.Rating, store.OpenAt, store.ClosedAt)
 	if err != nil {
 		if strings.Contains(err.Error(), "SQLSTATE 23505") {
-			//logger.Warn(log.LogInfo{Err: err, Meta: store})
-			return custom_errors.AlreadyExistErr
+			r.log.Warn(ctx, "CreateStore unique ограничение", map[string]interface{}{"err": err})
+			return domain.ErrStoreExist
 		}
-		//logger.Error(log.LogInfo{Err: err, Info: "create store ошибка в процессе запроса", Meta: store})
+		r.log.Error(ctx, "CreateStore ошибка бд", map[string]interface{}{"err": err, "store": store})
 		return err
 	}
 
-	//logger.Debug(log.LogInfo{Info: "create store завершено", Meta: store})
+	r.log.Debug(ctx, "CreateStore завершено успешно", map[string]interface{}{})
 	return nil
 }

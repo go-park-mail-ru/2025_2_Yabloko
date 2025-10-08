@@ -12,8 +12,8 @@ type ctxKey string
 
 const RequestIDKey ctxKey = "request_id"
 
-// RequestIDFromCtx извлечение Request ID из контекста
-func RequestIDFromCtx(ctx context.Context) string {
+// GetRequestID извлечение Request ID из контекста
+func GetRequestID(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
@@ -70,7 +70,7 @@ func NewNilLogger() *Logger {
 func (l *Logger) log(ctx context.Context, level slog.Level, msg string, meta map[string]interface{}) {
 	attrs := []slog.Attr{}
 	if ctx != nil {
-		if reqID := RequestIDFromCtx(ctx); reqID != "" {
+		if reqID := GetRequestID(ctx); reqID != "" {
 			attrs = append(attrs, slog.String("request_id", reqID))
 		}
 	}
