@@ -2,10 +2,9 @@
 create table if not exists tag
 (
     id         uuid primary key,
-    name       text        not null unique,
+    name       text        not null unique check (length(name) <= 50),
     updated_at timestamptz not null default current_timestamp,
-    created_at timestamptz not null default current_timestamp,
-    constraint name_length check (length(name) <= 50)
+    created_at timestamptz not null default current_timestamp
 );
 
 ---- create above / drop below ----

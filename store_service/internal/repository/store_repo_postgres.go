@@ -96,7 +96,7 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 
 	if len(stores) == 0 {
 		r.log.Debug(ctx, "GetStores пустой ответ", map[string]interface{}{"filter": filter})
-		return nil, domain.ErrStoreNotFound
+		return nil, domain.ErrRowsNotFound
 	}
 
 	r.log.Debug(ctx, "GetStores завершено успешно", map[string]interface{}{})
@@ -117,7 +117,7 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.St
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			r.log.Warn(ctx, "GetStore пустой ответ бд", map[string]interface{}{"err": err, "id": id})
-			return nil, domain.ErrStoreNotFound
+			return nil, domain.ErrRowsNotFound
 		}
 		r.log.Error(ctx, "GetStore ошибка бд", map[string]interface{}{"err": err, "id": id})
 		return nil, err
@@ -127,10 +127,11 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.St
 	return store, nil
 }
 
+// CreateStore не используется
 func (r *StoreRepoPostgres) CreateStore(ctx context.Context, store *domain.Store) error {
 	addStore := `
 		insert into store (id, name, description, city_id, address, card_img, rating, open_at, closed_at)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	r.log.Debug(ctx, "CreateStore начало обработки", map[string]interface{}{})
 

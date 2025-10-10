@@ -1,5 +1,5 @@
 -- Write your migrate up statements here
-create table if not exists city
+create table if not exists type
 (
     id         uuid primary key,
     name       text        not null unique check (length(name) <= 50),
@@ -8,4 +8,4 @@ create table if not exists city
 );
 
 ---- create above / drop below ----
-drop table if exists city;
+drop table if exists type;

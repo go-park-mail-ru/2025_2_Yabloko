@@ -7,6 +7,6 @@ var (
 	ErrInternalServer = errors.New("неизвестная ошибка сервера")
 	ErrHTTPMethod     = errors.New("метод недоступен")
 
-	ErrStoreNotFound = errors.New("магазин не найден")
-	ErrStoreExist    = errors.New("магазин уже существует")
+	ErrRowsNotFound = errors.New("не найдено записей")
+	ErrStoreExist   = errors.New("магазин уже существует")
 )

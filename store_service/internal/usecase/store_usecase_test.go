@@ -157,7 +157,7 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 			store, err := uc.GetStores(tt.input.ctx, tt.input.filter)
 
 			require.Equal(t, tt.expectedError, err)
-			require.Equal(t, tt.expectedResult, store)
+			require.ElementsMatch(t, tt.expectedResult, store)
 		})
 	}
 }

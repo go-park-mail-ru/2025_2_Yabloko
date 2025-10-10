@@ -8,6 +8,7 @@ import (
 type StoreRepository interface {
 	GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.Store, error)
 	GetStore(ctx context.Context, id string) (*domain.Store, error)
+	// CreateStore не используется на фронте
 	CreateStore(ctx context.Context, store *domain.Store) error
 }
 
@@ -19,7 +20,8 @@ func NewStoreUsecase(repo StoreRepository) *StoreUsecase {
 	return &StoreUsecase{repo: repo}
 }
 
-func (uc *StoreUsecase) CreateStore(ctx context.Context, name, description, cityID, address, cardImg, openAt, closedAt string,
+func (uc *StoreUsecase) CreateStore(ctx context.Context,
+	name, description, cityID, address, cardImg, openAt, closedAt string,
 	rating float64) error {
 	store := &domain.Store{
 		Name:        name,
