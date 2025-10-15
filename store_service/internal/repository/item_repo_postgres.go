@@ -78,38 +78,23 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, id string) ([]*domain.I
 	}
 	defer rows.Close()
 
-	itemsMap := map[string]*domain.Item{}
+	var items []*domain.Item
 	for rows.Next() {
-		var (
-			itemID      string
-			name        string
-			price       float64
-			description string
-			cardImg     string
-			typeID      string
+		item := &domain.Item{}
+		err = rows.Scan(
+			&item.ID,
+			&item.Name,
+			&item.Price,
+			&item.Description,
+			&item.CardImg,
+			&item.TypeID,
 		)
-
-		err = rows.Scan(&itemID, &name, &price, &description, &cardImg, &typeID)
 		if err != nil {
 			r.log.Error(ctx, "GetItems ошибка при декодировании данных",
 				map[string]interface{}{"err": err, "rows": rows})
 			return nil, err
 		}
-
-		// TODO может быть это нужно вынести в usecase?
-		// если есть запись по этому товару
-		if item, ok := itemsMap[itemID]; ok {
-			item.TypesID = append(item.TypesID, typeID)
-		} else {
-			itemsMap[itemID] = &domain.Item{
-				ID:          itemID,
-				Name:        name,
-				Price:       price,
-				Description: description,
-				CardImg:     cardImg,
-				TypesID:     []string{typeID},
-			}
-		}
+		items = append(items, item)
 	}
 
 	if err = rows.Err(); err != nil {
@@ -118,16 +103,11 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, id string) ([]*domain.I
 		return nil, err
 	}
 
-	if len(itemsMap) == 0 {
+	if len(items) == 0 {
 		r.log.Debug(ctx, "GetItems пустой ответ", map[string]interface{}{"id": id})
 		return nil, domain.ErrRowsNotFound
 	}
 
-	itemsList := make([]*domain.Item, 0, len(itemsMap))
-	for _, item := range itemsMap {
-		itemsList = append(itemsList, item)
-	}
-
 	r.log.Debug(ctx, "GetItems завершено успешно", map[string]interface{}{})
-	return itemsList, nil
+	return items, nil
 }

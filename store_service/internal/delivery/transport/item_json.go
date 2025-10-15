@@ -32,7 +32,7 @@ func ToItemTypesResponse(itemTypes []*domain.ItemType) []*ItemType {
 	return responses
 }
 
-func toItemResponse(item *domain.Item) *Item {
+func toItemResponse(item *domain.ItemAgg) *Item {
 	return &Item{
 		ID:          item.ID,
 		Name:        item.Name,
@@ -43,7 +43,7 @@ func toItemResponse(item *domain.Item) *Item {
 	}
 }
 
-func ToItemsResponse(items []*domain.Item) []*Item {
+func ToItemsResponse(items []*domain.ItemAgg) []*Item {
 	responses := make([]*Item, 0, len(items))
 	for _, item := range items {
 		responses = append(responses, toItemResponse(item))

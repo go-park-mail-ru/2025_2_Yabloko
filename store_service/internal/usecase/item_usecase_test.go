@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"apple_backend/custom_errors"
 	"apple_backend/store_service/internal/domain"
 	"apple_backend/store_service/internal/usecase/mock"
 	"context"
@@ -20,33 +21,127 @@ func TestItemUsecase_GetItems(t *testing.T) {
 	type testCase struct {
 		name           string
 		input          args
-		expectedResult []*domain.Item
+		repoResponse   []*domain.Item
+		repoError      error
+		expectedResult []*domain.ItemAgg
 		expectedError  error
 	}
 
+	uid1 := "00000000-0000-0000-0000-000000000001"
+	name1 := "name1"
+	description1 := "description1"
+	price1 := 1.0
+	cardImg1 := "card_img1"
+
+	uid2 := "00000000-0000-0000-0000-000000000002"
+	name2 := "name2"
+	description2 := "description2"
+	price2 := 2.0
+	cardImg2 := "card_img2"
+
 	tests := []testCase{
 		{
-			name: "GetItems успешный вызов",
+			name: "GetItems успешный вызов без необходимости аггрегаций",
 			input: args{
 				ctx: context.Background(),
-				id:  "00000000-0000-0000-0000-000000000001",
+				id:  uid1,
 			},
-			expectedResult: []*domain.Item{
+			repoResponse: []*domain.Item{
 				{
-					ID:          "00000000-0000-0000-0000-000000000001",
-					Name:        "name",
-					Price:       9.99,
-					Description: "description",
-					CardImg:     "card_img",
-					TypesID:     []string{"00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002"},
+					ID:          uid1,
+					Name:        name1,
+					Price:       price1,
+					Description: description1,
+					CardImg:     cardImg1,
+					TypeID:      uid1,
 				},
 				{
-					ID:          "00000000-0000-0000-0000-000000000002",
-					Name:        "name",
-					Price:       2.50,
-					Description: "description",
-					CardImg:     "card_img",
-					TypesID:     []string{"00000000-0000-0000-0000-000000000003"},
+					ID:          uid2,
+					Name:        name2,
+					Price:       price2,
+					Description: description2,
+					CardImg:     cardImg2,
+					TypeID:      uid2,
+				},
+			},
+			repoError: nil,
+			expectedResult: []*domain.ItemAgg{
+				{
+					ID:          uid1,
+					Name:        name1,
+					Price:       price1,
+					Description: description1,
+					CardImg:     cardImg1,
+					TypesID:     []string{uid1},
+				},
+				{
+					ID:          uid2,
+					Name:        name2,
+					Price:       price2,
+					Description: description2,
+					CardImg:     cardImg2,
+					TypesID:     []string{uid2},
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			name: "GetItems успешный вызов без необходимости аггрегаций",
+			input: args{
+				ctx: context.Background(),
+				id:  uid1,
+			},
+			repoResponse: []*domain.Item{
+				{
+					ID:          uid1,
+					Name:        name1,
+					Price:       price1,
+					Description: description1,
+					CardImg:     cardImg1,
+					TypeID:      uid1,
+				},
+				{
+					ID:          uid2,
+					Name:        name2,
+					Price:       price2,
+					Description: description2,
+					CardImg:     cardImg2,
+					TypeID:      uid2,
+				},
+				{
+					ID:          uid1,
+					Name:        name1,
+					Price:       price1,
+					Description: description1,
+					CardImg:     cardImg1,
+					TypeID:      uid2,
+				},
+				{
+					ID:          uid2,
+					Name:        name2,
+					Price:       price2,
+					Description: description2,
+					CardImg:     cardImg2,
+					TypeID:      uid1,
+				},
+			},
+			repoError: nil,
+			expectedResult: []*domain.ItemAgg{
+				{
+					ID:          uid1,
+					Name:        name1,
+					Price:       price1,
+					Description: description1,
+					CardImg:     cardImg1,
+					TypesID:     []string{uid1, uid2},
+				},
+				{
+					ID:          uid2,
+					Name:        name2,
+					Price:       price2,
+					Description: description2,
+					CardImg:     cardImg2,
+					TypesID:     []string{uid2, uid1},
 				},
 			},
 			expectedError: nil,
@@ -55,10 +150,12 @@ func TestItemUsecase_GetItems(t *testing.T) {
 			name: "GetItems ошибка выполнения",
 			input: args{
 				ctx: context.Background(),
-				id:  "00000000-0000-0000-0000-000000000001",
+				id:  uid1,
 			},
+			repoResponse:   nil,
+			repoError:      custom_errors.InnerErr,
 			expectedResult: nil,
-			expectedError:  errors.New("custom error"),
+			expectedError:  custom_errors.InnerErr,
 		},
 	}
 
@@ -74,7 +171,7 @@ func TestItemUsecase_GetItems(t *testing.T) {
 
 			mockRepo.EXPECT().
 				GetItems(tt.input.ctx, tt.input.id).
-				Return(tt.expectedResult, tt.expectedError)
+				Return(tt.repoResponse, tt.repoError)
 
 			result, err := uc.GetItems(tt.input.ctx, tt.input.id)
 

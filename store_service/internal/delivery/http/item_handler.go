@@ -16,7 +16,7 @@ import (
 
 type ItemUsecaseInterface interface {
 	GetItemTypes(ctx context.Context, id string) ([]*domain.ItemType, error)
-	GetItems(ctx context.Context, id string) ([]*domain.Item, error)
+	GetItems(ctx context.Context, id string) ([]*domain.ItemAgg, error)
 }
 
 type ItemHandler struct {

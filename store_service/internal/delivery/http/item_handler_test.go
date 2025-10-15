@@ -147,7 +147,7 @@ func TestItemHandler_GetItems(t *testing.T) {
 	uid1 := "00000000-0000-0000-0000-000000000001"
 	uid2 := "00000000-0000-0000-0000-000000000002"
 
-	item1 := &domain.Item{
+	item1 := &domain.ItemAgg{
 		ID:          uid1,
 		Name:        "name1",
 		Price:       1,
@@ -155,7 +155,7 @@ func TestItemHandler_GetItems(t *testing.T) {
 		CardImg:     "card_img1",
 		TypesID:     []string{"type1"},
 	}
-	item2 := &domain.Item{
+	item2 := &domain.ItemAgg{
 		ID:          uid2,
 		Name:        "name2",
 		Price:       2,
@@ -189,7 +189,7 @@ func TestItemHandler_GetItems(t *testing.T) {
 			mockSetup: func(uc *mock.MockItemUsecaseInterface) {
 				uc.EXPECT().
 					GetItems(context.Background(), uid1).
-					Return([]*domain.Item{item1, item2}, nil)
+					Return([]*domain.ItemAgg{item1, item2}, nil)
 			},
 			expectedCode:   http.StatusOK,
 			expectedResult: []*transport.Item{itemResp1, itemResp2},
