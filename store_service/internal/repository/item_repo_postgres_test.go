@@ -142,7 +142,7 @@ func TestItemRepoPostgres_GetItems(t *testing.T) {
 					AddRow(uid1, name1, price1, description1, cardImg1, uid1).
 					AddRow(uid2, name2, price2, description2, cardImg2, uid2)
 
-				mock.ExpectQuery(`select item.id, item.name, store_item.price, item.description, item.card_img, item_type.type_id
+				mock.ExpectQuery(`select store_item.id, item.name, store_item.price, item.description, item.card_img, item_type.type_id
 		from store_item join item on store_item.item_id = item.id
 		join item_type on item.id = item_type.item_id
 		where store_item.store_id = \$1`).
@@ -178,7 +178,7 @@ func TestItemRepoPostgres_GetItems(t *testing.T) {
 					AddRow(uid2, name2, price2, description2, cardImg2, uid1).
 					AddRow(uid2, name2, price2, description2, cardImg2, uid2)
 
-				mock.ExpectQuery(`select item.id, item.name, store_item.price, item.description, item.card_img, item_type.type_id
+				mock.ExpectQuery(`select store_item.id, item.name, store_item.price, item.description, item.card_img, item_type.type_id
 		from store_item join item on store_item.item_id = item.id
 		join item_type on item.id = item_type.item_id
 		where store_item.store_id = \$1`).
@@ -224,7 +224,7 @@ func TestItemRepoPostgres_GetItems(t *testing.T) {
 		{
 			name: "ошибка при запросе",
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				mock.ExpectQuery(`select item.id, item.name, store_item.price, item.description, item.card_img, item_type.type_id
+				mock.ExpectQuery(`select store_item.id, item.name, store_item.price, item.description, item.card_img, item_type.type_id
 		from store_item join item on store_item.item_id = item.id
 		join item_type on item.id = item_type.item_id
 		where store_item.store_id = \$1`).
@@ -238,7 +238,7 @@ func TestItemRepoPostgres_GetItems(t *testing.T) {
 			name: "пустой результат",
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
 				rows := pgxmock.NewRows([]string{"id", "name", "price", "description", "card_img", "type_id"})
-				mock.ExpectQuery(`select item.id, item.name, store_item.price, item.description, item.card_img, item_type.type_id
+				mock.ExpectQuery(`select store_item.id, item.name, store_item.price, item.description, item.card_img, item_type.type_id
 		from store_item join item on store_item.item_id = item.id
 		join item_type on item.id = item_type.item_id
 		where store_item.store_id = \$1`).
@@ -255,7 +255,7 @@ func TestItemRepoPostgres_GetItems(t *testing.T) {
 					AddRow(uid1, name1, price1, description1, cardImg1, uid1).
 					RowError(0, domain.ErrInternalServer)
 
-				mock.ExpectQuery(`select item.id, item.name, store_item.price, item.description, item.card_img, item_type.type_id
+				mock.ExpectQuery(`select store_item.id, item.name, store_item.price, item.description, item.card_img, item_type.type_id
 		from store_item join item on store_item.item_id = item.id
 		join item_type on item.id = item_type.item_id
 		where store_item.store_id = \$1`).

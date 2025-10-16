@@ -49,6 +49,21 @@ func (mr *MockStoreRepositoryMockRecorder) CreateStore(ctx, store interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateStore", reflect.TypeOf((*MockStoreRepository)(nil).CreateStore), ctx, store)
 }
 
+// GetCities mocks base method.
+func (m *MockStoreRepository) GetCities(ctx context.Context) ([]*domain.City, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCities", ctx)
+	ret0, _ := ret[0].([]*domain.City)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCities indicates an expected call of GetCities.
+func (mr *MockStoreRepositoryMockRecorder) GetCities(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCities", reflect.TypeOf((*MockStoreRepository)(nil).GetCities), ctx)
+}
+
 // GetStore mocks base method.
 func (m *MockStoreRepository) GetStore(ctx context.Context, id string) (*domain.Store, error) {
 	m.ctrl.T.Helper()
@@ -77,4 +92,19 @@ func (m *MockStoreRepository) GetStores(ctx context.Context, filter *domain.Stor
 func (mr *MockStoreRepositoryMockRecorder) GetStores(ctx, filter interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStores", reflect.TypeOf((*MockStoreRepository)(nil).GetStores), ctx, filter)
+}
+
+// GetTags mocks base method.
+func (m *MockStoreRepository) GetTags(ctx context.Context) ([]*domain.StoreTag, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTags", ctx)
+	ret0, _ := ret[0].([]*domain.StoreTag)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTags indicates an expected call of GetTags.
+func (mr *MockStoreRepositoryMockRecorder) GetTags(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTags", reflect.TypeOf((*MockStoreRepository)(nil).GetTags), ctx)
 }

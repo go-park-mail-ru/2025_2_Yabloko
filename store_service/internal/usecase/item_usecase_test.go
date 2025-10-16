@@ -86,7 +86,7 @@ func TestItemUsecase_GetItems(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name: "GetItems успешный вызов без необходимости аггрегаций",
+			name: "GetItems успешный вызов c аггрегацией",
 			input: args{
 				ctx: context.Background(),
 				id:  uid1,
@@ -176,7 +176,7 @@ func TestItemUsecase_GetItems(t *testing.T) {
 			result, err := uc.GetItems(tt.input.ctx, tt.input.id)
 
 			require.Equal(t, tt.expectedError, err)
-			require.Equal(t, tt.expectedResult, result)
+			require.ElementsMatch(t, tt.expectedResult, result)
 		})
 	}
 }

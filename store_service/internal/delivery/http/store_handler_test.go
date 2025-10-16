@@ -149,64 +149,126 @@ func TestStoreHandler_GetStores(t *testing.T) {
 
 	uid1 := "00000000-0000-0000-0000-000000000001"
 	uid2 := "00000000-0000-0000-0000-000000000002"
+	name1 := "name1"
+	name2 := "name2"
+	description1 := "description1"
+	description2 := "description2"
+	address1 := "address1"
+	address2 := "address2"
+	cardImg1 := "card_img1"
+	cardImg2 := "card_img2"
+	rating1 := 1.
+	rating2 := 2.
+	openAt1 := "open_at1"
+	openAt2 := "open_at2"
+	closedAt1 := "closed_at1"
+	closedAt2 := "closed_at2"
+
+	store1 := &domain.Store{
+		ID:          uid1,
+		Name:        name1,
+		Description: description1,
+		CityID:      uid1,
+		Address:     address1,
+		CardImg:     cardImg1,
+		Rating:      rating1,
+		OpenAt:      openAt1,
+		ClosedAt:    closedAt1,
+	}
+
+	store2 := &domain.Store{
+		ID:          uid2,
+		Name:        name2,
+		Description: description2,
+		CityID:      uid2,
+		Address:     address2,
+		CardImg:     cardImg2,
+		Rating:      rating2,
+		OpenAt:      openAt2,
+		ClosedAt:    closedAt2,
+	}
+
+	storeResp1 := &transport.StoreResponse{
+		ID:          store1.ID,
+		Name:        store1.Name,
+		Description: store1.Description,
+		CityID:      store1.CityID,
+		Address:     store1.Address,
+		CardImg:     store1.CardImg,
+		Rating:      store1.Rating,
+		OpenAt:      store1.OpenAt,
+		ClosedAt:    store1.ClosedAt,
+	}
+
+	storeResp2 := &transport.StoreResponse{
+		ID:          uid2,
+		Name:        name2,
+		Description: description2,
+		CityID:      uid2,
+		Address:     address2,
+		CardImg:     cardImg2,
+		Rating:      rating2,
+		OpenAt:      openAt2,
+		ClosedAt:    closedAt2,
+	}
 
 	tests := []testCase{
 		{
-			name:   "GetStores успешный вызов",
+			name:   "GetStores успешный вызов без фильтров",
 			method: http.MethodPost,
 			body:   parseJSON(&domain.StoreFilter{Limit: 10}),
 			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
 				uc.EXPECT().
 					GetStores(context.Background(), &domain.StoreFilter{Limit: 10}).
-					Return([]*domain.Store{
-						{
-							ID:          uid1,
-							Name:        "name",
-							Description: "description",
-							CityID:      uid1,
-							Address:     "address",
-							CardImg:     "card_img",
-							Rating:      5,
-							OpenAt:      "open_at",
-							ClosedAt:    "closed_at",
-						},
-						{
-							ID:          uid2,
-							Name:        "name",
-							Description: "description",
-							CityID:      uid2,
-							Address:     "address",
-							CardImg:     "card_img",
-							Rating:      5,
-							OpenAt:      "open_at",
-							ClosedAt:    "closed_at",
-						},
-					}, nil)
+					Return([]*domain.Store{store1, store2}, nil)
 			},
 			expectedCode: http.StatusOK,
 			expectedResult: []*transport.StoreResponse{
-				{
-					ID:          uid1,
-					Name:        "name",
-					Description: "description",
-					CityID:      uid1,
-					Address:     "address",
-					CardImg:     "card_img",
-					Rating:      5,
-					OpenAt:      "open_at",
-					ClosedAt:    "closed_at",
-				},
-				{
-					ID:          uid2,
-					Name:        "name",
-					Description: "description",
-					CityID:      uid2,
-					Address:     "address",
-					CardImg:     "card_img",
-					Rating:      5,
-					OpenAt:      "open_at",
-					ClosedAt:    "closed_at",
-				},
+				storeResp1,
+				storeResp2,
+			},
+		},
+		{
+			name:   "GetStores успешный вызов с фильтром по тегу",
+			method: http.MethodPost,
+			body:   parseJSON(&domain.StoreFilter{Limit: 10, TagID: uid1}),
+			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
+				uc.EXPECT().
+					GetStores(context.Background(), &domain.StoreFilter{Limit: 10, TagID: uid1}).
+					Return([]*domain.Store{store1}, nil)
+			},
+			expectedCode: http.StatusOK,
+			expectedResult: []*transport.StoreResponse{
+				storeResp1,
+			},
+		},
+		{
+			name:   "GetStores успешный вызов с фильтром по городу",
+			method: http.MethodPost,
+			body:   parseJSON(&domain.StoreFilter{Limit: 10, CityID: uid2}),
+			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
+				uc.EXPECT().
+					GetStores(context.Background(), &domain.StoreFilter{Limit: 10, CityID: uid2}).
+					Return([]*domain.Store{store2}, nil)
+			},
+			expectedCode: http.StatusOK,
+			expectedResult: []*transport.StoreResponse{
+				storeResp2,
+			},
+		},
+		{
+			name:   "GetStores успешный вызов с сортировкой",
+			method: http.MethodPost,
+			body:   parseJSON(&domain.StoreFilter{Limit: 5, Sorted: "rating"}),
+			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
+				uc.EXPECT().
+					GetStores(context.Background(), &domain.StoreFilter{Limit: 5, Sorted: "rating"}).
+					Return([]*domain.Store{store2, store1}, nil)
+			},
+			expectedCode: http.StatusOK,
+			expectedResult: []*transport.StoreResponse{
+				storeResp2,
+				storeResp1,
 			},
 		},
 		{
@@ -376,6 +438,216 @@ func TestStoreHandler_CreateStore(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			handler.CreateStore(w, req)
+
+			require.Equal(t, tt.expectedCode, w.Code)
+			if tt.expectedResult != nil {
+				require.JSONEq(t, w.Body.String(), parseJSON(tt.expectedResult))
+			}
+			if tt.expectedErrResult != nil {
+				require.JSONEq(t, w.Body.String(), parseJSON(tt.expectedErrResult))
+			}
+		})
+	}
+}
+
+func TestStoreHandler_GetCities(t *testing.T) {
+	url := "/cities"
+	type testCase struct {
+		name              string
+		method            string
+		mockSetup         func(uc *mock.MockStoreUsecaseInterface)
+		expectedCode      int
+		expectedResult    []*transport.CityResponse
+		expectedErrResult *handlers.ErrResponse
+	}
+
+	uid1 := "00000000-0000-0000-0000-000000000001"
+	name1 := "name1"
+	uid2 := "00000000-0000-0000-0000-000000000002"
+	name2 := "name2"
+
+	tests := []testCase{
+		{
+			name:   "GetCities успешный вызов",
+			method: http.MethodGet,
+			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
+				uc.EXPECT().
+					GetCities(context.Background()).
+					Return([]*domain.City{
+						{
+							ID:   uid1,
+							Name: name1,
+						},
+						{
+							ID:   uid2,
+							Name: name2,
+						},
+					}, nil)
+			},
+			expectedCode: http.StatusOK,
+			expectedResult: []*transport.CityResponse{
+				{
+					ID:   uid1,
+					Name: name1,
+				},
+				{
+					ID:   uid2,
+					Name: name2,
+				},
+			},
+		},
+		{
+			name:              "GetCities метод не разрешен",
+			method:            http.MethodPost,
+			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
+			expectedCode:      http.StatusMethodNotAllowed,
+			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+		},
+		{
+			name:   "GetCities не найдено данных",
+			method: http.MethodGet,
+			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
+				uc.EXPECT().
+					GetCities(context.Background()).
+					Return(nil, domain.ErrRowsNotFound)
+			},
+			expectedCode:      http.StatusNotFound,
+			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+		},
+		{
+			name:   "GetCities внутренняя ошибка",
+			method: http.MethodGet,
+			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
+				uc.EXPECT().
+					GetCities(context.Background()).
+					Return(nil, domain.ErrInternalServer)
+			},
+			expectedCode:      http.StatusInternalServerError,
+			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	uc := mock.NewMockStoreUsecaseInterface(ctrl)
+	handler := NewStoreHandler(uc, logger.NewNilLogger())
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup(uc)
+
+			req := httptest.NewRequest(tt.method, url, bytes.NewBuffer([]byte(nil)))
+			req = req.WithContext(context.Background())
+
+			w := httptest.NewRecorder()
+
+			handler.GetCities(w, req)
+
+			require.Equal(t, tt.expectedCode, w.Code)
+			if tt.expectedResult != nil {
+				require.JSONEq(t, w.Body.String(), parseJSON(tt.expectedResult))
+			}
+			if tt.expectedErrResult != nil {
+				require.JSONEq(t, w.Body.String(), parseJSON(tt.expectedErrResult))
+			}
+		})
+	}
+}
+
+func TestStoreHandler_GetTags(t *testing.T) {
+	url := "/tags"
+	type testCase struct {
+		name              string
+		method            string
+		mockSetup         func(uc *mock.MockStoreUsecaseInterface)
+		expectedCode      int
+		expectedResult    []*transport.TagResponse
+		expectedErrResult *handlers.ErrResponse
+	}
+
+	uid1 := "00000000-0000-0000-0000-000000000001"
+	name1 := "name1"
+	uid2 := "00000000-0000-0000-0000-000000000002"
+	name2 := "name2"
+
+	tests := []testCase{
+		{
+			name:   "GetTags успешный вызов",
+			method: http.MethodGet,
+			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
+				uc.EXPECT().
+					GetTags(context.Background()).
+					Return([]*domain.StoreTag{
+						{
+							ID:   uid1,
+							Name: name1,
+						},
+						{
+							ID:   uid2,
+							Name: name2,
+						},
+					}, nil)
+			},
+			expectedCode: http.StatusOK,
+			expectedResult: []*transport.TagResponse{
+				{
+					ID:   uid1,
+					Name: name1,
+				},
+				{
+					ID:   uid2,
+					Name: name2,
+				},
+			},
+		},
+		{
+			name:              "GetTags метод не разрешен",
+			method:            http.MethodPost,
+			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
+			expectedCode:      http.StatusMethodNotAllowed,
+			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+		},
+		{
+			name:   "GetTags не найдено данных",
+			method: http.MethodGet,
+			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
+				uc.EXPECT().
+					GetTags(context.Background()).
+					Return(nil, domain.ErrRowsNotFound)
+			},
+			expectedCode:      http.StatusNotFound,
+			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+		},
+		{
+			name:   "GetTags внутренняя ошибка",
+			method: http.MethodGet,
+			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
+				uc.EXPECT().
+					GetTags(context.Background()).
+					Return(nil, domain.ErrInternalServer)
+			},
+			expectedCode:      http.StatusInternalServerError,
+			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	uc := mock.NewMockStoreUsecaseInterface(ctrl)
+	handler := NewStoreHandler(uc, logger.NewNilLogger())
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup(uc)
+
+			req := httptest.NewRequest(tt.method, url, bytes.NewBuffer([]byte(nil)))
+			req = req.WithContext(context.Background())
+
+			w := httptest.NewRecorder()
+
+			handler.GetTags(w, req)
 
 			require.Equal(t, tt.expectedCode, w.Code)
 			if tt.expectedResult != nil {

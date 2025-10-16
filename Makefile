@@ -32,3 +32,9 @@ cover: test filter-cover
 
 
 test-cover: mocks cover
+
+# генерация сваггеров
+.PHONY: swagger
+
+swagger:
+	swag init -g cmd/store_service/main.go --output ./docs/store --ot yaml

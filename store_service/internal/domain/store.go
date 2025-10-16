@@ -12,10 +12,21 @@ type Store struct {
 	ClosedAt    string
 }
 
+type StoreTag struct {
+	ID   string
+	Name string
+}
+
+type City struct {
+	ID   string
+	Name string
+}
+
 type StoreFilter struct {
 	Limit  int
 	LastID string
-	Tag    string
+	TagID  string
+	CityID string
 	Sorted string
 	Desc   bool
 }

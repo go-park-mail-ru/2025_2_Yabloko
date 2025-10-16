@@ -1,10 +1,10 @@
 package usecase
 
 import (
+	"apple_backend/custom_errors"
 	"apple_backend/store_service/internal/domain"
 	"apple_backend/store_service/internal/usecase/mock"
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -51,7 +51,7 @@ func TestStoreUsecase_GetStore(t *testing.T) {
 				id:  "00000000-0000-0000-0000-000000000001",
 			},
 			expectedResult: nil,
-			expectedError:  errors.New("custom error"),
+			expectedError:  custom_errors.InnerErr,
 		},
 	}
 
@@ -135,7 +135,7 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 				},
 			},
 			expectedResult: nil,
-			expectedError:  errors.New("custom error"),
+			expectedError:  custom_errors.InnerErr,
 		},
 	}
 
@@ -210,7 +210,7 @@ func TestStoreUsecase_CreateStore(t *testing.T) {
 				closedAt:    "ClosedAt",
 				rating:      3,
 			},
-			expectedError: errors.New("custom error"),
+			expectedError: custom_errors.InnerErr,
 		},
 	}
 
@@ -235,6 +235,112 @@ func TestStoreUsecase_CreateStore(t *testing.T) {
 				tt.input.address, tt.input.cardImg, tt.input.closedAt, tt.input.openAt, tt.input.rating)
 
 			require.Equal(t, tt.expectedError, err)
+		})
+	}
+}
+
+func TestStoreUsecase_GetCities(t *testing.T) {
+	type testCase struct {
+		name           string
+		expectedResult []*domain.City
+		expectedError  error
+	}
+
+	ctx := context.Background()
+	tests := []testCase{
+		{
+			name: "успешный вызов",
+			expectedResult: []*domain.City{
+				{
+					ID:   "00000000-0000-0000-0000-000000000001",
+					Name: "city1",
+				},
+				{
+					ID:   "00000000-0000-0000-0000-000000000002",
+					Name: "city2",
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			name:           "ошбика выполнения",
+			expectedResult: nil,
+			expectedError:  custom_errors.InnerErr,
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock.NewMockStoreRepository(ctrl)
+
+	uc := NewStoreUsecase(mockRepo)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockRepo.EXPECT().
+				GetCities(ctx).
+				Return(tt.expectedResult, tt.expectedError)
+
+			store, err := uc.GetCities(ctx)
+
+			require.Equal(t, tt.expectedError, err)
+			require.ElementsMatch(t, tt.expectedResult, store)
+		})
+	}
+}
+
+func TestStoreUsecase_GetTags(t *testing.T) {
+	type testCase struct {
+		name           string
+		expectedResult []*domain.StoreTag
+		expectedError  error
+	}
+
+	ctx := context.Background()
+	tests := []testCase{
+		{
+			name: "успешный вызов",
+			expectedResult: []*domain.StoreTag{
+				{
+					ID:   "00000000-0000-0000-0000-000000000001",
+					Name: "tag1",
+				},
+				{
+					ID:   "00000000-0000-0000-0000-000000000002",
+					Name: "tag2",
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			name:           "ошбика выполнения",
+			expectedResult: nil,
+			expectedError:  custom_errors.InnerErr,
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock.NewMockStoreRepository(ctrl)
+
+	uc := NewStoreUsecase(mockRepo)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockRepo.EXPECT().
+				GetTags(ctx).
+				Return(tt.expectedResult, tt.expectedError)
+
+			store, err := uc.GetTags(ctx)
+
+			require.Equal(t, tt.expectedError, err)
+			require.ElementsMatch(t, tt.expectedResult, store)
 		})
 	}
 }

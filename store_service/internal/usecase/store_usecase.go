@@ -10,6 +10,9 @@ type StoreRepository interface {
 	GetStore(ctx context.Context, id string) (*domain.Store, error)
 	// CreateStore не используется на фронте
 	CreateStore(ctx context.Context, store *domain.Store) error
+
+	GetCities(ctx context.Context) ([]*domain.City, error)
+	GetTags(ctx context.Context) ([]*domain.StoreTag, error)
 }
 
 type StoreUsecase struct {
@@ -48,4 +51,12 @@ func (uc *StoreUsecase) GetStore(ctx context.Context, id string) (*domain.Store,
 
 func (uc *StoreUsecase) GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.Store, error) {
 	return uc.repo.GetStores(ctx, filter)
+}
+
+func (uc *StoreUsecase) GetCities(ctx context.Context) ([]*domain.City, error) {
+	return uc.repo.GetCities(ctx)
+}
+
+func (uc *StoreUsecase) GetTags(ctx context.Context) ([]*domain.StoreTag, error) {
+	return uc.repo.GetTags(ctx)
 }

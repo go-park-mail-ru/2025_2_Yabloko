@@ -49,6 +49,21 @@ func (mr *MockStoreUsecaseInterfaceMockRecorder) CreateStore(ctx, name, descript
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateStore", reflect.TypeOf((*MockStoreUsecaseInterface)(nil).CreateStore), ctx, name, description, cityID, address, cardImg, openAt, closedAt, rating)
 }
 
+// GetCities mocks base method.
+func (m *MockStoreUsecaseInterface) GetCities(ctx context.Context) ([]*domain.City, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCities", ctx)
+	ret0, _ := ret[0].([]*domain.City)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCities indicates an expected call of GetCities.
+func (mr *MockStoreUsecaseInterfaceMockRecorder) GetCities(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCities", reflect.TypeOf((*MockStoreUsecaseInterface)(nil).GetCities), ctx)
+}
+
 // GetStore mocks base method.
 func (m *MockStoreUsecaseInterface) GetStore(ctx context.Context, id string) (*domain.Store, error) {
 	m.ctrl.T.Helper()
@@ -77,4 +92,19 @@ func (m *MockStoreUsecaseInterface) GetStores(ctx context.Context, filter *domai
 func (mr *MockStoreUsecaseInterfaceMockRecorder) GetStores(ctx, filter interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStores", reflect.TypeOf((*MockStoreUsecaseInterface)(nil).GetStores), ctx, filter)
+}
+
+// GetTags mocks base method.
+func (m *MockStoreUsecaseInterface) GetTags(ctx context.Context) ([]*domain.StoreTag, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTags", ctx)
+	ret0, _ := ret[0].([]*domain.StoreTag)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTags indicates an expected call of GetTags.
+func (mr *MockStoreUsecaseInterfaceMockRecorder) GetTags(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTags", reflect.TypeOf((*MockStoreUsecaseInterface)(nil).GetTags), ctx)
 }
