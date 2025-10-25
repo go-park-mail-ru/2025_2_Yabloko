@@ -61,15 +61,8 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 		query += " where " + strings.Join(where, " and ")
 	}
 
-	// допустимые поля для сортировки
-	sortableFields := map[string]bool{
-		"rating":    true,
-		"open_at":   true,
-		"closed_at": true,
-	}
-
 	orderBy := " order by s.id"
-	if filter.Sorted != "" && sortableFields[filter.Sorted] {
+	if filter.Sorted != "" {
 		dir := "asc"
 		if filter.Desc {
 			dir = "desc"
@@ -145,6 +138,49 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.St
 
 	r.log.Debug(ctx, "GetStore завершено успешно", map[string]interface{}{})
 	return store, nil
+}
+
+func (r *StoreRepoPostgres) GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error) {
+	query := `
+		select acc.name, r.rating, r.comment, r.created_at 
+		from review r left join account acc on r.user_id = acc.id
+		where r.store_id = $1
+		order by r.created_at desc
+	`
+	r.log.Debug(ctx, "GetStoreReview начало обработки", map[string]interface{}{})
+
+	rows, err := r.db.Query(ctx, query, id)
+	if err != nil {
+		r.log.Error(ctx, "GetStoreReview ошибка бд", map[string]interface{}{"err": err, "id": id})
+		return nil, err
+	}
+	defer rows.Close()
+
+	var reviews []*domain.StoreReview
+	for rows.Next() {
+		var review domain.StoreReview
+		err = rows.Scan(&review.UserName, &review.Rating, &review.Comment, &review.CreatedAt)
+		if err != nil {
+			r.log.Error(ctx, "GetStoreReview ошибка при декодировании данных",
+				map[string]interface{}{"err": err, "rows": rows})
+			return nil, err
+		}
+		reviews = append(reviews, &review)
+	}
+
+	if err = rows.Err(); err != nil {
+		r.log.Error(ctx, "GetStoreReview ошибка после чтения строк",
+			map[string]interface{}{"err": err, "id": id})
+		return nil, err
+	}
+
+	if len(reviews) == 0 {
+		r.log.Debug(ctx, "GetStoreReview пустой ответ", map[string]interface{}{"id": id})
+		return nil, domain.ErrRowsNotFound
+	}
+
+	r.log.Debug(ctx, "GetStoreReview завершено успешно", map[string]interface{}{})
+	return reviews, nil
 }
 
 // CreateStore не используется

@@ -30,3 +30,10 @@ type StoreFilter struct {
 	Sorted string
 	Desc   bool
 }
+
+type StoreReview struct {
+	UserName  string
+	Rating    float64
+	Comment   string
+	CreatedAt string
+}

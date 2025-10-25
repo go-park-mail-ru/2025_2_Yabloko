@@ -8,6 +8,7 @@ import (
 type StoreRepository interface {
 	GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.Store, error)
 	GetStore(ctx context.Context, id string) (*domain.Store, error)
+	GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error)
 	// CreateStore не используется на фронте
 	CreateStore(ctx context.Context, store *domain.Store) error
 
@@ -49,7 +50,25 @@ func (uc *StoreUsecase) GetStore(ctx context.Context, id string) (*domain.Store,
 	return uc.repo.GetStore(ctx, id)
 }
 
+func (uc *StoreUsecase) GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error) {
+	return uc.repo.GetStoreReview(ctx, id)
+}
+
 func (uc *StoreUsecase) GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.Store, error) {
+	if filter.Limit <= 0 {
+		return nil, domain.ErrRequestParams
+	}
+	// допустимые поля для сортировки
+	sortableFields := map[string]bool{
+		"rating":    true,
+		"open_at":   true,
+		"closed_at": true,
+	}
+
+	if filter.Sorted != "" && !sortableFields[filter.Sorted] {
+		return nil, domain.ErrRequestParams
+	}
+
 	return uc.repo.GetStores(ctx, filter)
 }
 

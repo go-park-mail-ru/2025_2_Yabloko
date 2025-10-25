@@ -10,12 +10,12 @@ type Item struct {
 	Description string   `json:"description"`
 	CardImg     string   `json:"card_img"`
 	TypesID     []string `json:"types_id"`
-}
+} // @name Item
 
 type ItemType struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
-}
+} // @name ItemType
 
 func toItemTypeResponse(itemType *domain.ItemType) *ItemType {
 	return &ItemType{

@@ -12,17 +12,24 @@ type StoreResponse struct {
 	Rating      float64 `json:"rating"`
 	OpenAt      string  `json:"open_at"`
 	ClosedAt    string  `json:"closed_at"`
-}
+} // @name StoreResponse
 
 type CityResponse struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
-}
+} // @name CityResponse
 
 type TagResponse struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
-}
+} // @name TagResponse
+
+type StoreReview struct {
+	UserName  string  `json:"user_name"`
+	Rating    float64 `json:"rating"`
+	Comment   string  `json:"comment"`
+	CreatedAt string  `json:"created_at"`
+} // @name StoreReview
 
 func ToStoreResponse(store *domain.Store) *StoreResponse {
 	if store == nil {
@@ -50,6 +57,27 @@ func ToStoreResponses(stores []*domain.Store) []*StoreResponse {
 	return responses
 }
 
+func ToStoreReview(review *domain.StoreReview) *StoreReview {
+	if review == nil {
+		return nil
+	}
+
+	return &StoreReview{
+		UserName:  review.UserName,
+		Rating:    review.Rating,
+		Comment:   review.Comment,
+		CreatedAt: review.CreatedAt,
+	}
+}
+
+func ToStoreReviews(reviews []*domain.StoreReview) []*StoreReview {
+	responses := make([]*StoreReview, 0, len(reviews))
+	for _, review := range reviews {
+		responses = append(responses, ToStoreReview(review))
+	}
+	return responses
+}
+
 func ToCityResponse(city *domain.City) *CityResponse {
 	if city == nil {
 		return nil
@@ -61,7 +89,6 @@ func ToCityResponse(city *domain.City) *CityResponse {
 	}
 }
 
-// TODO наврное можно дженерики и в pkg
 func ToCityResponses(cities []*domain.City) []*CityResponse {
 	responses := make([]*CityResponse, 0, len(cities))
 	for _, city := range cities {

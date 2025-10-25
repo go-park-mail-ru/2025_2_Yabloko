@@ -1,32 +1,12 @@
 definitions:
-  domain.StoreFilter:
-    properties:
-      cityID:
-        type: string
-      desc:
-        type: boolean
-      lastID:
-        type: string
-      limit:
-        type: integer
-      sorted:
-        type: string
-      tagID:
-        type: string
-    type: object
-  http_response.ErrResponse:
-    properties:
-      error:
-        type: string
-    type: object
-  transport.CityResponse:
+  CityResponse:
     properties:
       id:
         type: string
       name:
         type: string
     type: object
-  transport.Item:
+  Item:
     properties:
       card_img:
         type: string
@@ -44,14 +24,14 @@ definitions:
           type: string
         type: array
     type: object
-  transport.ItemType:
+  ItemType:
     properties:
       id:
         type: string
       name:
         type: string
     type: object
-  transport.StoreResponse:
+  StoreResponse:
     properties:
       address:
         type: string
@@ -72,11 +52,42 @@ definitions:
       rating:
         type: number
     type: object
-  transport.TagResponse:
+  StoreReview:
+    properties:
+      comment:
+        type: string
+      created_at:
+        type: string
+      rating:
+        type: number
+      user_name:
+        type: string
+    type: object
+  TagResponse:
     properties:
       id:
         type: string
       name:
+        type: string
+    type: object
+  domain.StoreFilter:
+    properties:
+      cityID:
+        type: string
+      desc:
+        type: boolean
+      lastID:
+        type: string
+      limit:
+        type: integer
+      sorted:
+        type: string
+      tagID:
+        type: string
+    type: object
+  http_response.ErrResponse:
+    properties:
+      error:
         type: string
     type: object
 info:
@@ -101,10 +112,10 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/transport.StoreResponse'
+              $ref: '#/definitions/StoreResponse'
             type: array
         "400":
-          description: Ошибка декодирования тела запроса
+          description: Ошибка входных данных
           schema:
             $ref: '#/definitions/http_response.ErrResponse'
         "404":
@@ -139,7 +150,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/transport.StoreResponse'
+            $ref: '#/definitions/StoreResponse'
         "400":
           description: Некорректный ID
           schema:
@@ -177,7 +188,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/transport.ItemType'
+              $ref: '#/definitions/ItemType'
             type: array
         "400":
           description: Некорректные параметры
@@ -216,7 +227,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/transport.Item'
+              $ref: '#/definitions/Item'
             type: array
         "400":
           description: Некорректные параметры
@@ -237,6 +248,45 @@ paths:
       summary: Получить список товаров
       tags:
       - items
+  /stores/{id}/reviews:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает отзывы о магазине по его UUID
+      parameters:
+      - description: UUID магазина
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/StoreReview'
+            type: array
+        "400":
+          description: Некорректный ID
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Магазин не найден
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Неверный HTTP-метод
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить отзывы магазина
+      tags:
+      - stores
   /stores/cities:
     get:
       consumes:
@@ -249,7 +299,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/transport.CityResponse'
+              $ref: '#/definitions/CityResponse'
             type: array
         "404":
           description: Города не найдены
@@ -278,7 +328,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/transport.TagResponse'
+              $ref: '#/definitions/TagResponse'
             type: array
         "404":
           description: Теги не найдены

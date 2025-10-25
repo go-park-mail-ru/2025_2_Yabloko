@@ -79,6 +79,21 @@ func (mr *MockStoreUsecaseInterfaceMockRecorder) GetStore(ctx, id interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStore", reflect.TypeOf((*MockStoreUsecaseInterface)(nil).GetStore), ctx, id)
 }
 
+// GetStoreReview mocks base method.
+func (m *MockStoreUsecaseInterface) GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStoreReview", ctx, id)
+	ret0, _ := ret[0].([]*domain.StoreReview)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStoreReview indicates an expected call of GetStoreReview.
+func (mr *MockStoreUsecaseInterfaceMockRecorder) GetStoreReview(ctx, id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStoreReview", reflect.TypeOf((*MockStoreUsecaseInterface)(nil).GetStoreReview), ctx, id)
+}
+
 // GetStores mocks base method.
 func (m *MockStoreUsecaseInterface) GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.Store, error) {
 	m.ctrl.T.Helper()

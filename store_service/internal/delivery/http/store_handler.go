@@ -20,6 +20,7 @@ type StoreUsecaseInterface interface {
 	GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.Store, error)
 	CreateStore(ctx context.Context, name, description, cityID, address, cardImg, openAt, closedAt string, rating float64) error
 
+	GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error)
 	GetCities(ctx context.Context) ([]*domain.City, error)
 	GetTags(ctx context.Context) ([]*domain.StoreTag, error)
 }
@@ -43,6 +44,7 @@ func NewStoreRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string
 
 	mux.HandleFunc(apiPrefix+"/stores/{id}", storeHandler.GetStore)
 	mux.HandleFunc(apiPrefix+"/stores", storeHandler.GetStores)
+	mux.HandleFunc(apiPrefix+"/stores/{id}/reviews", storeHandler.GetStoreReview)
 	//mux.HandleFunc(apiPrefix+"/stores", storeHandler.CreateStore)
 
 	mux.HandleFunc(apiPrefix+"stores/cities", storeHandler.GetStore)
@@ -122,7 +124,7 @@ func (h *StoreHandler) GetStore(w http.ResponseWriter, r *http.Request) {
 // @Produce  json
 // @Param filter body domain.StoreFilter true "Фильтр для поиска магазинов"
 // @Success 200 {array} transport.StoreResponse
-// @Failure 400 {object} http_response.ErrResponse "Ошибка декодирования тела запроса"
+// @Failure 400 {object} http_response.ErrResponse "Ошибка входных данных"
 // @Failure 404 {object} http_response.ErrResponse "Магазины не найдены"
 // @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
 // @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
@@ -144,6 +146,9 @@ func (h *StoreHandler) GetStores(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, domain.ErrRowsNotFound) {
 			h.rs.Error(r.Context(), w, http.StatusNotFound, "GetStores", domain.ErrRowsNotFound, nil)
 			return
+		} else if errors.Is(err, domain.ErrRequestParams) {
+			h.rs.Error(r.Context(), w, http.StatusBadRequest, "GetStores", domain.ErrRequestParams, nil)
+			return
 		}
 		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "GetStores", domain.ErrInternalServer, err)
 		return
@@ -151,6 +156,45 @@ func (h *StoreHandler) GetStores(w http.ResponseWriter, r *http.Request) {
 
 	responseStores := transport.ToStoreResponses(stores)
 	h.rs.Send(r.Context(), w, http.StatusOK, responseStores)
+}
+
+// GetStoreReview godoc
+// @Summary Получить отзывы магазина
+// @Description Возвращает отзывы о магазине по его UUID
+// @Tags stores
+// @Accept  json
+// @Produce  json
+// @Param id path string true "UUID магазина"
+// @Success 200 {array} transport.StoreReview
+// @Failure 400 {object} http_response.ErrResponse "Некорректный ID"
+// @Failure 404 {object} http_response.ErrResponse "Магазин не найден"
+// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
+// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
+// @Router /stores/{id}/reviews [get]
+func (h *StoreHandler) GetStoreReview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "GetStoreReview", domain.ErrHTTPMethod, nil)
+		return
+	}
+
+	store_id := r.PathValue("id")
+	if _, err := uuid.Parse(store_id); err != nil {
+		h.rs.Error(r.Context(), w, http.StatusBadRequest, "GetStoreReview", domain.ErrRequestParams, nil)
+		return
+	}
+
+	reviews, err := h.uc.GetStoreReview(r.Context(), store_id)
+	if err != nil {
+		if errors.Is(err, domain.ErrRowsNotFound) {
+			h.rs.Error(r.Context(), w, http.StatusNotFound, "GetStoreReview", domain.ErrRowsNotFound, nil)
+			return
+		}
+		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "GetStoreReview", domain.ErrInternalServer, err)
+		return
+	}
+
+	responseReview := transport.ToStoreReviews(reviews)
+	h.rs.Send(r.Context(), w, http.StatusOK, responseReview)
 }
 
 // GetCities godoc

@@ -21,7 +21,7 @@ func LoadConfig() *Config {
 		DBHost:     "db",
 		DBPort:     os.Getenv("POSTGRES_PORT"),
 		DBName:     os.Getenv("DB_NAME"),
-		AppPort:    os.Getenv("STORE_SERVICE_PORT"),
+		AppPort:    os.Getenv("APP_PORT"),
 	}
 }
 
