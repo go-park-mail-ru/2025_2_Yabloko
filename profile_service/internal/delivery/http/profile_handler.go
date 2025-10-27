@@ -1,3 +1,4 @@
+//go:generate mockgen -source=profile_handler.go -destination=mock/profile_usecase_mock.go -package=mock
 package http
 
 import (
@@ -20,6 +21,7 @@ import (
 type ProfileUsecaseInterface interface {
 	GetProfile(ctx context.Context, id string) (*domain.Profile, error)
 	GetProfileByEmail(ctx context.Context, email string) (*domain.Profile, error)
+	CreateProfile(ctx context.Context, email, passwordHash string) (*domain.Profile, error)
 	UpdateProfile(ctx context.Context, profile *domain.Profile) error
 	DeleteProfile(ctx context.Context, id string) error
 }
@@ -119,6 +121,26 @@ func (h *ProfileHandler) GetProfileByEmail(w http.ResponseWriter, r *http.Reques
 
 	responseProfile := transport.ToProfileResponse(profile)
 	h.rs.Send(r.Context(), w, http.StatusOK, responseProfile)
+}
+
+func (h *ProfileHandler) CreateProfile(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.rs.Error(r.Context(), w, http.StatusBadRequest, "CreateProfile", domain.ErrRequestParams, err)
+		return
+	}
+
+	profile, err := h.uc.CreateProfile(r.Context(), req.Email, req.Password)
+	if err != nil {
+		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "CreateProfile", domain.ErrInternalServer, err)
+		return
+	}
+
+	h.rs.Send(r.Context(), w, http.StatusCreated, transport.ToProfileResponse(profile))
 }
 
 func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, id string) {

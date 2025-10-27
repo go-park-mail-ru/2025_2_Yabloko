@@ -2,7 +2,7 @@ package http
 
 import (
 	"apple_backend/pkg/logger"
-	"apple_backend/profile_service/internal/delivery/mock"
+	"apple_backend/profile_service/internal/delivery/http/mock"
 	"apple_backend/profile_service/internal/domain"
 	"bytes"
 	"encoding/json"
@@ -249,6 +249,122 @@ func TestProfileHandler_HandleProfileRoutes(t *testing.T) {
 		handler.handleProfileRoutes(w, req)
 
 		require.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestProfileHandler_CreateProfile(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockUC := mock.NewMockProfileUsecaseInterface(ctrl)
+	appLog := logger.NewNilLogger()
+	handler := NewProfileHandler(mockUC, appLog)
+
+	t.Run("Успешное создание профиля", func(t *testing.T) {
+		createData := map[string]interface{}{
+			"email":    "newuser@example.com",
+			"password": "password123",
+		}
+		body, _ := json.Marshal(createData)
+
+		expectedProfile := &domain.Profile{
+			ID:    "new-profile-id",
+			Email: "newuser@example.com",
+		}
+
+		mockUC.EXPECT().
+			CreateProfile(gomock.Any(), "newuser@example.com", gomock.Any()).
+			Return(expectedProfile, nil)
+
+		req := httptest.NewRequest("POST", "/api/v0/profiles", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+
+		handler.CreateProfile(w, req)
+
+		require.Equal(t, http.StatusCreated, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		require.Equal(t, "new-profile-id", response["id"])
+		require.Equal(t, "newuser@example.com", response["email"])
+	})
+
+	t.Run("Неверный JSON при создании", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v0/profiles", bytes.NewReader([]byte("invalid json")))
+		w := httptest.NewRecorder()
+
+		handler.CreateProfile(w, req)
+
+		require.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("Профиль уже существует", func(t *testing.T) {
+		createData := map[string]interface{}{
+			"email":    "existing@example.com",
+			"password": "password123",
+		}
+		body, _ := json.Marshal(createData)
+
+		mockUC.EXPECT().
+			CreateProfile(gomock.Any(), "existing@example.com", gomock.Any()).
+			Return(nil, domain.ErrProfileExist)
+
+		req := httptest.NewRequest("POST", "/api/v0/profiles", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+
+		handler.CreateProfile(w, req)
+
+		require.Equal(t, http.StatusConflict, w.Code)
+	})
+
+	t.Run("Пустой email", func(t *testing.T) {
+		createData := map[string]interface{}{
+			"email":    "",
+			"password": "password123",
+		}
+		body, _ := json.Marshal(createData)
+
+		req := httptest.NewRequest("POST", "/api/v0/profiles", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+
+		handler.CreateProfile(w, req)
+
+		require.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("Пустой password", func(t *testing.T) {
+		createData := map[string]interface{}{
+			"email":    "test@example.com",
+			"password": "",
+		}
+		body, _ := json.Marshal(createData)
+
+		req := httptest.NewRequest("POST", "/api/v0/profiles", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+
+		handler.CreateProfile(w, req)
+
+		require.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("Ошибка сервера при создании", func(t *testing.T) {
+		createData := map[string]interface{}{
+			"email":    "test@example.com",
+			"password": "password123",
+		}
+		body, _ := json.Marshal(createData)
+
+		mockUC.EXPECT().
+			CreateProfile(gomock.Any(), "test@example.com", gomock.Any()).
+			Return(nil, errors.New("internal error"))
+
+		req := httptest.NewRequest("POST", "/api/v0/profiles", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+
+		handler.CreateProfile(w, req)
+
+		require.Equal(t, http.StatusInternalServerError, w.Code)
 	})
 }
 

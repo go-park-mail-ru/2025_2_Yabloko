@@ -118,11 +118,10 @@ func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, profile *domain
 	r.log.Debug(ctx, "UpdateProfile начало обработки", map[string]interface{}{"id": profile.ID})
 
 	query := `
-		UPDATE account 
-		SET name = $1, phone = $2, city_id = $3, address = $4, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $5
-		RETURNING updated_at
-	`
+        UPDATE account 
+        SET name = $1, phone = $2, city_id = $3, address = $4
+        WHERE id = $5
+    `
 
 	r.log.Debug(ctx, "SQL запрос", map[string]interface{}{
 		"query":     query,
@@ -130,17 +129,16 @@ func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, profile *domain
 		"operation": "UpdateProfile",
 	})
 
-	err := r.db.QueryRow(ctx, query,
-		profile.Name, profile.Phone, profile.CityID, profile.Address, profile.ID,
-	).Scan(&profile.UpdatedAt)
-
+	result, err := r.db.Exec(ctx, query, profile.Name, profile.Phone, profile.CityID, profile.Address, profile.ID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			r.log.Warn(ctx, "UpdateProfile профиль не найден", map[string]interface{}{"id": profile.ID})
-			return domain.ErrProfileNotFound
-		}
-		r.log.Error(ctx, "UpdateProfile ошибка БД", map[string]interface{}{"err": err, "profile": profile})
+		r.log.Error(ctx, "UpdateProfile ошибка БД", map[string]interface{}{"err": err, "id": profile.ID})
 		return err
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		r.log.Error(ctx, "UpdateProfile профиль не найден", map[string]interface{}{"id": profile.ID})
+		return domain.ErrProfileNotFound
 	}
 
 	r.log.Debug(ctx, "UpdateProfile завершено успешно", map[string]interface{}{"id": profile.ID})
@@ -170,5 +168,29 @@ func (r *ProfileRepoPostgres) DeleteProfile(ctx context.Context, id string) erro
 	}
 
 	r.log.Debug(ctx, "DeleteProfile завершено успешно", map[string]interface{}{"id": id})
+	return nil
+}
+
+func (r *ProfileRepoPostgres) CreateProfile(ctx context.Context, profile *domain.Profile) error {
+	r.log.Debug(ctx, "CreateProfile начало обработки", map[string]interface{}{"email": profile.Email})
+
+	query := `
+        INSERT INTO account (id, email, password_hash, created_at, updated_at)
+        VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `
+
+	r.log.Debug(ctx, "SQL запрос", map[string]interface{}{
+		"query":     query,
+		"params":    []interface{}{profile.ID, profile.Email, profile.PasswordHash},
+		"operation": "CreateProfile",
+	})
+
+	_, err := r.db.Exec(ctx, query, profile.ID, profile.Email, profile.PasswordHash)
+	if err != nil {
+		r.log.Error(ctx, "CreateProfile ошибка БД", map[string]interface{}{"err": err, "email": profile.Email})
+		return err
+	}
+
+	r.log.Debug(ctx, "CreateProfile завершено успешно", map[string]interface{}{"id": profile.ID})
 	return nil
 }

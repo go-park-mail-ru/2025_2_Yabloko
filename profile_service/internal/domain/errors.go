@@ -7,6 +7,7 @@ var (
 	ErrInternalServer = errors.New("неизвестная ошибка сервера")
 	ErrHTTPMethod     = errors.New("метод недоступен")
 
-	ErrProfileNotFound = errors.New("профиль не найден")
-	ErrProfileExist    = errors.New("профиль уже существует")
+	ErrProfileNotFound    = errors.New("профиль не найден")
+	ErrProfileExist       = errors.New("профиль уже существует")
+	ErrInvalidProfileData = errors.New("неверные данные профиля")
 )
