@@ -1,0 +1,101 @@
+-- Write your migrate up statements here
+create table if not exists store
+(
+    id          uuid primary key,
+    name        text        not null check (length(name) <= 50),
+    description text        not null check (length(description) >= 30 and length(description) <= 2000),
+    city_id     uuid        references city (id) on delete set null,
+    address     text        not null check (length(address) <= 200),
+    card_img    text check (card_img ~ '^(?:\.?/[\w.-]+)+\.(png|jpg|jpeg|svg)$'),
+    rating      numeric(2, 1) check ( rating >= 0 and rating <= 5 ),
+    open_at     timetz      not null,
+    closed_at   timetz      not null,
+    updated_at  timestamptz not null default current_timestamp,
+    created_at  timestamptz not null default current_timestamp,
+    unique (name, city_id, address)
+);
+
+create table store_tag
+(
+    id         uuid primary key,
+    store_id   uuid        not null references store (id) on delete cascade,
+    tag_id     uuid        not null references tag (id) on delete cascade,
+    updated_at timestamptz not null default current_timestamp,
+    created_at timestamptz not null default current_timestamp,
+    unique (store_id, tag_id)
+);
+
+create table store_category
+(
+    id          uuid primary key,
+    store_id    uuid        not null references store (id) on delete cascade,
+    category_id uuid        not null references category (id) on delete cascade,
+    updated_at  timestamptz not null default current_timestamp,
+    created_at  timestamptz not null default current_timestamp,
+    unique (store_id, category_id)
+);
+
+create table if not exists store_item
+(
+    id         uuid primary key,
+    store_id   uuid          not null references store (id) on delete cascade,
+    item_id    uuid          not null references item (id) on delete cascade,
+    price      numeric(8, 2) not null check ( price > 0 ),
+    updated_at timestamptz   not null default current_timestamp,
+    created_at timestamptz   not null default current_timestamp,
+    unique (store_id, item_id)
+);
+
+-- временно для тестов, потом пренести
+insert into store (id, name, description, city_id, address, card_img, rating, open_at, closed_at)
+values
+-- 1
+('b2f0d6b3-65a2-4c2a-a32f-30a1b73f32e2',
+ 'Coffee Point',
+ 'Небольшое уютное кафе с современным интерьером, где подают свежий кофе, десерты и лёгкие закуски. Идеально подходит для утренней чашки кофе или встреч с друзьями.',
+ '3b77c3c9-8b6f-4e9f-94f1-7f0a7a4ad5b9',
+ 'ул. Ленина, 12',
+ './images/stores/coffee_point.jpg',
+ 4.6,
+ '08:00:00+03',
+ '21:00:00+03'),
+
+-- 2
+('9ac3b889-96df-4c93-a0b7-31f5b6a6e89c',
+ 'TechWorld',
+ 'Магазин электроники, предлагающий широкий ассортимент гаджетов, смартфонов, ноутбуков и аксессуаров по доступным ценам. Предоставляется гарантия и сервисное обслуживание.',
+ '3b77c3c9-8b6f-4e9f-94f1-7f0a7a4ad5b9',
+ 'пр. Победы, 45',
+ './images/stores/techworld.png',
+ 4.2,
+ '10:00:00+03',
+ '20:00:00+03'),
+
+-- 3
+('c45a7b64-df32-4e84-b2cb-85a3b8e6b0fc',
+ 'Book Haven',
+ 'Книжный магазин с уютной атмосферой, где можно найти как современные бестселлеры, так и редкие издания. Внутри есть зона для чтения и небольшой буфет с кофе.',
+ 'a1b23f45-1e2d-4a5c-b6d7-c8e9f0a1b2c3',
+ 'ул. Горького, 8',
+ './images/stores/book_haven.jpeg',
+ 4.8,
+ '09:00:00+03',
+ '22:00:00+03'),
+
+-- 4
+('d0c12a9f-2b2a-4e91-8e0a-13df58d9f8af',
+ 'Green Market',
+ 'Фермерский магазин, специализирующийся на продаже свежих овощей, фруктов, молочных продуктов и органических товаров местного производства.',
+ 'b7e2a8d0-cc9a-4d93-81a1-1235a1a4c2c7',
+ 'ул. Центральная, 24',
+ './images/stores/green_market.svg',
+ 4.9,
+ '07:00:00+03',
+ '19:00:00+03');
+
+---- create above / drop below ----
+
+drop table if exists store;
+drop table if exists store_tag;
+drop table if exists store_category;
+drop table if exists store_item;

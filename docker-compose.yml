@@ -13,6 +13,25 @@ services:
 
   db:
     image: postgres:18-alpine
-    container_name: store_db
+    container_name: db
     env_file:
       .env
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d postgres" ]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  migrator:
+    image: ghcr.io/jackc/tern:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./db/migrations:/migrations
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_DB: "${DB_NAME}"
+      POSTGRES_PORT: "${POSTGRES_PORT}"
+    command: [ "migrate", "--config", "/migrations/tern.conf", "--migrations", "/migrations", "up" ]
