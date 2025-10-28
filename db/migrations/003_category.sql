@@ -7,5 +7,10 @@ create table if not exists category
     created_at timestamptz not null default current_timestamp
 );
 
+CREATE TRIGGER trg_update_category_updated_at
+    BEFORE UPDATE
+    ON category
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
 ---- create above / drop below ----
 drop table if exists category;

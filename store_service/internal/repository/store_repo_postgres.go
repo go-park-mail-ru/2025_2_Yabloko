@@ -4,12 +4,10 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/store_service/internal/domain"
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type StoreRepoPostgres struct {
@@ -26,16 +24,14 @@ func NewStoreRepoPostgres(db PgxIface, log *logger.Logger) *StoreRepoPostgres {
 
 func generateQuery(filter *domain.StoreFilter) (string, []any) {
 	query := `
-		select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at
-		from store s
+		select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id
+		from store s left join store_tag st on st.store_id = s.id
 	`
 	args := []any{}
-	joins := []string{}
 	where := []string{}
 
 	// фильтрация по тегу
 	if filter.TagID != "" {
-		joins = append(joins, "join store_tag st on s.id = st.store_id")
 		where = append(where, fmt.Sprintf("st.tag_id = $%d", len(args)+1))
 		args = append(args, filter.TagID)
 	}
@@ -50,11 +46,6 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 	if filter.LastID != "" {
 		where = append(where, fmt.Sprintf("s.id > $%d", len(args)+1))
 		args = append(args, filter.LastID)
-	}
-
-	// добавляем join, если есть
-	if len(joins) > 0 {
-		query += strings.Join(joins, " ")
 	}
 
 	if len(where) > 0 {
@@ -92,7 +83,7 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	for rows.Next() {
 		var store domain.Store
 		err = rows.Scan(&store.ID, &store.Name, &store.Description,
-			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt)
+			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt, &store.TagID)
 		if err != nil {
 			r.log.Error(ctx, "GetStores ошибка при декодировании данных",
 				map[string]interface{}{"err": err, "rows": rows})
@@ -116,28 +107,47 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	return stores, nil
 }
 
-func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.Store, error) {
+func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) ([]*domain.Store, error) {
 	query := `
-		select id, name, description, city_id, address, card_img, rating, open_at, closed_at 
-		from store
+		select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id
+		from store s left join store_tag st on st.store_id = s.id
 		where id = $1
 	`
 	r.log.Debug(ctx, "GetStore начало обработки", map[string]interface{}{})
 
-	store := &domain.Store{}
-	err := r.db.QueryRow(ctx, query, id).Scan(&store.ID, &store.Name, &store.Description,
-		&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt)
+	rows, err := r.db.Query(ctx, query, id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			r.log.Warn(ctx, "GetStore пустой ответ бд", map[string]interface{}{"err": err, "id": id})
-			return nil, domain.ErrRowsNotFound
-		}
 		r.log.Error(ctx, "GetStore ошибка бд", map[string]interface{}{"err": err, "id": id})
 		return nil, err
 	}
+	defer rows.Close()
+
+	var stores []*domain.Store
+	for rows.Next() {
+		var store domain.Store
+		err = rows.Scan(&store.ID, &store.Name, &store.Description,
+			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt, &store.TagID)
+		if err != nil {
+			r.log.Error(ctx, "GetStore ошибка при декодировании данных",
+				map[string]interface{}{"err": err, "rows": rows})
+			return nil, err
+		}
+		stores = append(stores, &store)
+	}
+
+	if err = rows.Err(); err != nil {
+		r.log.Error(ctx, "GetStore ошибка после чтения строк",
+			map[string]interface{}{"err": err, "id": id})
+		return nil, err
+	}
+
+	if len(stores) == 0 {
+		r.log.Debug(ctx, "GetStore пустой ответ", map[string]interface{}{"id": id})
+		return nil, domain.ErrRowsNotFound
+	}
 
 	r.log.Debug(ctx, "GetStore завершено успешно", map[string]interface{}{})
-	return store, nil
+	return stores, nil
 }
 
 func (r *StoreRepoPostgres) GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error) {

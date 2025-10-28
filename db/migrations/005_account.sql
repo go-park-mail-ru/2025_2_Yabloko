@@ -16,6 +16,12 @@ create table if not exists account
     constraint phone_format check (phone ~ '^[0-9]+$')
 );
 
+CREATE TRIGGER trg_update_account_updated_at
+    BEFORE UPDATE
+    ON account
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
+
 create table if not exists friend
 (
     id        uuid primary key,
@@ -24,6 +30,12 @@ create table if not exists friend
     constraint no_self_friend check (user_id_1 <> user_id_2),
     unique (user_id_1, user_id_2)
 );
+
+CREATE TRIGGER trg_update_friend_updated_at
+    BEFORE UPDATE
+    ON friend
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
 
 ---- create above / drop below ----
 drop table if exists account;

@@ -13,6 +13,12 @@ create table if not exists promocode
     check ( (relative_discount = 0 and absolute_discount > 0) or (relative_discount > 0 and absolute_discount = 0) )
 );
 
+CREATE TRIGGER trg_update_promocode_updated_at
+    BEFORE UPDATE
+    ON promocode
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
+
 create table if not exists promocode_item
 (
     id           uuid primary key,
@@ -22,6 +28,13 @@ create table if not exists promocode_item
     created_at   timestamptz not null default current_timestamp,
     unique (item_id, promocode_id)
 );
+
+CREATE TRIGGER trg_update_promocode_item_updated_at
+    BEFORE UPDATE
+    ON promocode_item
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
+
 ---- create above / drop below ----
 drop table if exists promocode;
 drop table if exists promocode_item;

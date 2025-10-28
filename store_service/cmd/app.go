@@ -25,6 +25,8 @@ func Run(appLog, accessLog *logger.Logger) {
 
 	shttp.NewStoreRouter(mux, dbPool, "/api/v0", appLog)
 	shttp.NewItemRouter(mux, dbPool, "/api/v0", appLog)
+	shttp.NewCartRouter(mux, dbPool, "/api/v0", appLog)
+	shttp.NewOrderRouter(mux, dbPool, "/api/v0", appLog)
 
 	handler := middlewares.CorsMiddleware(middlewares.AccessLog(accessLog, mux))
 

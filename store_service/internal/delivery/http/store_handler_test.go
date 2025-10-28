@@ -39,7 +39,7 @@ func TestStoreHandler_GetStore(t *testing.T) {
 			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
 				uc.EXPECT().
 					GetStore(context.Background(), uid1).
-					Return(&domain.Store{
+					Return(&domain.StoreAgg{
 						ID:          uid1,
 						Name:        "name",
 						Description: "description",
@@ -48,6 +48,7 @@ func TestStoreHandler_GetStore(t *testing.T) {
 						CardImg:     "card_img",
 						Rating:      5,
 						OpenAt:      "open_at",
+						TagsID:      []string{uid1},
 						ClosedAt:    "closed_at",
 					}, nil)
 			},
@@ -60,6 +61,7 @@ func TestStoreHandler_GetStore(t *testing.T) {
 				Address:     "address",
 				CardImg:     "card_img",
 				Rating:      5,
+				TagsID:      []string{uid1},
 				OpenAt:      "open_at",
 				ClosedAt:    "closed_at",
 			},
@@ -164,7 +166,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 	closedAt1 := "closed_at1"
 	closedAt2 := "closed_at2"
 
-	store1 := &domain.Store{
+	store1 := &domain.StoreAgg{
 		ID:          uid1,
 		Name:        name1,
 		Description: description1,
@@ -172,11 +174,12 @@ func TestStoreHandler_GetStores(t *testing.T) {
 		Address:     address1,
 		CardImg:     cardImg1,
 		Rating:      rating1,
+		TagsID:      []string{uid1},
 		OpenAt:      openAt1,
 		ClosedAt:    closedAt1,
 	}
 
-	store2 := &domain.Store{
+	store2 := &domain.StoreAgg{
 		ID:          uid2,
 		Name:        name2,
 		Description: description2,
@@ -184,6 +187,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 		Address:     address2,
 		CardImg:     cardImg2,
 		Rating:      rating2,
+		TagsID:      []string{uid2},
 		OpenAt:      openAt2,
 		ClosedAt:    closedAt2,
 	}
@@ -196,6 +200,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 		Address:     store1.Address,
 		CardImg:     store1.CardImg,
 		Rating:      store1.Rating,
+		TagsID:      []string{uid1},
 		OpenAt:      store1.OpenAt,
 		ClosedAt:    store1.ClosedAt,
 	}
@@ -208,6 +213,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 		Address:     address2,
 		CardImg:     cardImg2,
 		Rating:      rating2,
+		TagsID:      []string{uid2},
 		OpenAt:      openAt2,
 		ClosedAt:    closedAt2,
 	}
@@ -220,7 +226,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
 				uc.EXPECT().
 					GetStores(context.Background(), &domain.StoreFilter{Limit: 10}).
-					Return([]*domain.Store{store1, store2}, nil)
+					Return([]*domain.StoreAgg{store1, store2}, nil)
 			},
 			expectedCode: http.StatusOK,
 			expectedResult: []*transport.StoreResponse{
@@ -235,7 +241,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
 				uc.EXPECT().
 					GetStores(context.Background(), &domain.StoreFilter{Limit: 10, TagID: uid1}).
-					Return([]*domain.Store{store1}, nil)
+					Return([]*domain.StoreAgg{store1}, nil)
 			},
 			expectedCode: http.StatusOK,
 			expectedResult: []*transport.StoreResponse{
@@ -249,7 +255,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
 				uc.EXPECT().
 					GetStores(context.Background(), &domain.StoreFilter{Limit: 10, CityID: uid2}).
-					Return([]*domain.Store{store2}, nil)
+					Return([]*domain.StoreAgg{store2}, nil)
 			},
 			expectedCode: http.StatusOK,
 			expectedResult: []*transport.StoreResponse{
@@ -263,7 +269,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
 				uc.EXPECT().
 					GetStores(context.Background(), &domain.StoreFilter{Limit: 5, Sorted: "rating"}).
-					Return([]*domain.Store{store2, store1}, nil)
+					Return([]*domain.StoreAgg{store2, store1}, nil)
 			},
 			expectedCode: http.StatusOK,
 			expectedResult: []*transport.StoreResponse{

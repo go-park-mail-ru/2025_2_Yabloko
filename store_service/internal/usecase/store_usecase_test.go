@@ -20,7 +20,8 @@ func TestStoreUsecase_GetStore(t *testing.T) {
 	type testCase struct {
 		name           string
 		input          args
-		expectedResult *domain.Store
+		repoOutput     []*domain.Store
+		expectedResult *domain.StoreAgg
 		expectedError  error
 	}
 
@@ -31,7 +32,21 @@ func TestStoreUsecase_GetStore(t *testing.T) {
 				ctx: context.Background(),
 				id:  "00000000-0000-0000-0000-000000000001",
 			},
-			expectedResult: &domain.Store{
+			repoOutput: []*domain.Store{
+				{
+					ID:          "00000000-0000-0000-0000-000000000001",
+					Name:        "Store",
+					Description: "Description",
+					CityID:      "10000000-0000-0000-0000-000000000001",
+					Address:     "Address",
+					CardImg:     "CardImg",
+					Rating:      3,
+					TagID:       "10000000-0000-0000-0000-000000000001",
+					OpenAt:      "OpenAt",
+					ClosedAt:    "ClosedAt",
+				},
+			},
+			expectedResult: &domain.StoreAgg{
 				ID:          "00000000-0000-0000-0000-000000000001",
 				Name:        "Store",
 				Description: "Description",
@@ -39,6 +54,53 @@ func TestStoreUsecase_GetStore(t *testing.T) {
 				Address:     "Address",
 				CardImg:     "CardImg",
 				Rating:      3,
+				TagsID:      []string{"10000000-0000-0000-0000-000000000001"},
+				OpenAt:      "OpenAt",
+				ClosedAt:    "ClosedAt",
+			},
+			expectedError: nil,
+		},
+		{
+			name: "GetStore успешный вызов несколько категорий",
+			input: args{
+				ctx: context.Background(),
+				id:  "00000000-0000-0000-0000-000000000001",
+			},
+			repoOutput: []*domain.Store{
+				{
+					ID:          "00000000-0000-0000-0000-000000000001",
+					Name:        "Store",
+					Description: "Description",
+					CityID:      "10000000-0000-0000-0000-000000000001",
+					Address:     "Address",
+					CardImg:     "CardImg",
+					Rating:      3,
+					TagID:       "10000000-0000-0000-0000-000000000001",
+					OpenAt:      "OpenAt",
+					ClosedAt:    "ClosedAt",
+				},
+				{
+					ID:          "00000000-0000-0000-0000-000000000001",
+					Name:        "Store",
+					Description: "Description",
+					CityID:      "10000000-0000-0000-0000-000000000001",
+					Address:     "Address",
+					CardImg:     "CardImg",
+					Rating:      3,
+					TagID:       "10000000-0000-0000-0000-000000000002",
+					OpenAt:      "OpenAt",
+					ClosedAt:    "ClosedAt",
+				},
+			},
+			expectedResult: &domain.StoreAgg{
+				ID:          "00000000-0000-0000-0000-000000000001",
+				Name:        "Store",
+				Description: "Description",
+				CityID:      "10000000-0000-0000-0000-000000000001",
+				Address:     "Address",
+				CardImg:     "CardImg",
+				Rating:      3,
+				TagsID:      []string{"10000000-0000-0000-0000-000000000001", "10000000-0000-0000-0000-000000000002"},
 				OpenAt:      "OpenAt",
 				ClosedAt:    "ClosedAt",
 			},
@@ -68,7 +130,7 @@ func TestStoreUsecase_GetStore(t *testing.T) {
 
 			mockRepo.EXPECT().
 				GetStore(tt.input.ctx, tt.input.id).
-				Return(tt.expectedResult, tt.expectedError)
+				Return(tt.repoOutput, tt.expectedError)
 
 			store, err := uc.GetStore(tt.input.ctx, tt.input.id)
 
@@ -87,7 +149,8 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 	type testCase struct {
 		name           string
 		input          args
-		expectedResult []*domain.Store
+		repoOutput     []*domain.Store
+		expectedResult []*domain.StoreAgg
 		expectedError  error
 	}
 
@@ -100,7 +163,7 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 					Limit: 2,
 				},
 			},
-			expectedResult: []*domain.Store{
+			repoOutput: []*domain.Store{
 				{
 					ID:          "00000000-0000-0000-0000-000000000001",
 					Name:        "Store",
@@ -109,6 +172,7 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 					Address:     "Address",
 					CardImg:     "CardImg",
 					Rating:      3,
+					TagID:       "00000000-0000-0000-0000-000000000001",
 					OpenAt:      "OpenAt",
 					ClosedAt:    "ClosedAt",
 				},
@@ -120,6 +184,33 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 					Address:     "Address",
 					CardImg:     "CardImg",
 					Rating:      3,
+					TagID:       "00000000-0000-0000-0000-000000000001",
+					OpenAt:      "OpenAt",
+					ClosedAt:    "ClosedAt",
+				},
+			},
+			expectedResult: []*domain.StoreAgg{
+				{
+					ID:          "00000000-0000-0000-0000-000000000001",
+					Name:        "Store",
+					Description: "Description",
+					CityID:      "10000000-0000-0000-0000-000000000001",
+					Address:     "Address",
+					CardImg:     "CardImg",
+					Rating:      3,
+					TagsID:      []string{"00000000-0000-0000-0000-000000000001"},
+					OpenAt:      "OpenAt",
+					ClosedAt:    "ClosedAt",
+				},
+				{
+					ID:          "00000000-0000-0000-0000-000000000002",
+					Name:        "Store",
+					Description: "Description",
+					CityID:      "10000000-0000-0000-0000-000000000001",
+					Address:     "Address",
+					CardImg:     "CardImg",
+					Rating:      3,
+					TagsID:      []string{"00000000-0000-0000-0000-000000000001"},
 					OpenAt:      "OpenAt",
 					ClosedAt:    "ClosedAt",
 				},
@@ -134,6 +225,7 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 					Limit: 2,
 				},
 			},
+			repoOutput:     nil,
 			expectedResult: nil,
 			expectedError:  custom_errors.InnerErr,
 		},
@@ -152,7 +244,7 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 
 			mockRepo.EXPECT().
 				GetStores(tt.input.ctx, tt.input.filter).
-				Return(tt.expectedResult, tt.expectedError)
+				Return(tt.repoOutput, tt.expectedError)
 
 			store, err := uc.GetStores(tt.input.ctx, tt.input.filter)
 

@@ -5,12 +5,17 @@ create table if not exists "order"
 (
     id          uuid primary key,
     user_id     uuid         not null references account (id) on delete cascade,
-    store_id    uuid         references store (id) on delete set null,
-    total_price numeric(8, 2) check ( total_price > 0 ),
+    total_price numeric(8, 2) check ( total_price >= 0 ),
     status      order_status not null default 'pending',
     updated_at  timestamptz  not null default current_timestamp,
     created_at  timestamptz  not null default current_timestamp
 );
+
+CREATE TRIGGER trg_update_order_updated_at
+    BEFORE UPDATE
+    ON "order"
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
 
 create table if not exists order_item
 (
@@ -23,6 +28,13 @@ create table if not exists order_item
     created_at    timestamptz   not null default current_timestamp,
     unique (order_id, store_item_id)
 );
+
+CREATE TRIGGER trg_update_order_item_updated_at
+    BEFORE UPDATE
+    ON order_item
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
+
 ---- create above / drop below ----
 drop table if exists "order";
 drop table if exists order_item;

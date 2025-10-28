@@ -8,6 +8,20 @@ type Store struct {
 	Address     string
 	CardImg     string
 	Rating      float64
+	TagID       string
+	OpenAt      string
+	ClosedAt    string
+}
+
+type StoreAgg struct {
+	ID          string
+	Name        string
+	Description string
+	CityID      string
+	Address     string
+	CardImg     string
+	Rating      float64
+	TagsID      []string
 	OpenAt      string
 	ClosedAt    string
 }

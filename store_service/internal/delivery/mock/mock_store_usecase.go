@@ -65,10 +65,10 @@ func (mr *MockStoreUsecaseInterfaceMockRecorder) GetCities(ctx interface{}) *gom
 }
 
 // GetStore mocks base method.
-func (m *MockStoreUsecaseInterface) GetStore(ctx context.Context, id string) (*domain.Store, error) {
+func (m *MockStoreUsecaseInterface) GetStore(ctx context.Context, id string) (*domain.StoreAgg, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetStore", ctx, id)
-	ret0, _ := ret[0].(*domain.Store)
+	ret0, _ := ret[0].(*domain.StoreAgg)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -95,10 +95,10 @@ func (mr *MockStoreUsecaseInterfaceMockRecorder) GetStoreReview(ctx, id interfac
 }
 
 // GetStores mocks base method.
-func (m *MockStoreUsecaseInterface) GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.Store, error) {
+func (m *MockStoreUsecaseInterface) GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.StoreAgg, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetStores", ctx, filter)
-	ret0, _ := ret[0].([]*domain.Store)
+	ret0, _ := ret[0].([]*domain.StoreAgg)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
