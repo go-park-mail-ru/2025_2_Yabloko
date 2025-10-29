@@ -3,15 +3,16 @@ package transport
 import "apple_backend/store_service/internal/domain"
 
 type StoreResponse struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	CityID      string  `json:"city_id"`
-	Address     string  `json:"address"`
-	CardImg     string  `json:"card_img"`
-	Rating      float64 `json:"rating"`
-	OpenAt      string  `json:"open_at"`
-	ClosedAt    string  `json:"closed_at"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	CityID      string   `json:"city_id"`
+	Address     string   `json:"address"`
+	CardImg     string   `json:"card_img"`
+	Rating      float64  `json:"rating"`
+	TagsID      []string `json:"tags_id"`
+	OpenAt      string   `json:"open_at"`
+	ClosedAt    string   `json:"closed_at"`
 } // @name StoreResponse
 
 type CityResponse struct {
@@ -31,7 +32,7 @@ type StoreReview struct {
 	CreatedAt string  `json:"created_at"`
 } // @name StoreReview
 
-func ToStoreResponse(store *domain.Store) *StoreResponse {
+func ToStoreResponse(store *domain.StoreAgg) *StoreResponse {
 	if store == nil {
 		return nil
 	}
@@ -44,12 +45,13 @@ func ToStoreResponse(store *domain.Store) *StoreResponse {
 		Address:     store.Address,
 		CardImg:     store.CardImg,
 		Rating:      store.Rating,
+		TagsID:      store.TagsID,
 		OpenAt:      store.OpenAt,
 		ClosedAt:    store.ClosedAt,
 	}
 }
 
-func ToStoreResponses(stores []*domain.Store) []*StoreResponse {
+func ToStoreResponses(stores []*domain.StoreAgg) []*StoreResponse {
 	responses := make([]*StoreResponse, 0, len(stores))
 	for _, store := range stores {
 		responses = append(responses, ToStoreResponse(store))

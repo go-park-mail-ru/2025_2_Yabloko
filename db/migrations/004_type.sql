@@ -7,5 +7,10 @@ create table if not exists type
     created_at timestamptz not null default current_timestamp
 );
 
+CREATE TRIGGER trg_update_type_updated_at
+    BEFORE UPDATE
+    ON type
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
 ---- create above / drop below ----
 drop table if exists type;

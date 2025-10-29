@@ -10,5 +10,12 @@ create table if not exists review
     created_at timestamptz   not null default current_timestamp
 );
 
+
+CREATE TRIGGER trg_update_review_updated_at
+    BEFORE UPDATE
+    ON review
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
+
 ---- create above / drop below ----
 drop table if exists review;

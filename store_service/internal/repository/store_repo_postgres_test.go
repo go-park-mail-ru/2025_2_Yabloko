@@ -17,21 +17,24 @@ func TestStoreRepoPostgres_GetStore(t *testing.T) {
 		name          string
 		mockSetup     func(mock pgxmock.PgxPoolIface)
 		storeID       string
-		expectedRes   *domain.Store
+		expectedRes   []*domain.Store
 		expectedError error
 	}
 
 	storeID := "00000000-0000-0000-0000-000000000001"
-	store := &domain.Store{
-		ID:          storeID,
-		Name:        "Store1",
-		Description: "Description1",
-		CityID:      "City1",
-		Address:     "Address1",
-		CardImg:     "img1",
-		Rating:      4.5,
-		OpenAt:      "08:00",
-		ClosedAt:    "22:00",
+	stores := []*domain.Store{
+		{
+			ID:          storeID,
+			Name:        "Store1",
+			Description: "Description1",
+			CityID:      "City1",
+			Address:     "Address1",
+			CardImg:     "img1",
+			Rating:      4.5,
+			TagID:       storeID,
+			OpenAt:      "08:00",
+			ClosedAt:    "22:00",
+		},
 	}
 
 	tests := []testCase{
@@ -39,21 +42,23 @@ func TestStoreRepoPostgres_GetStore(t *testing.T) {
 			name:    "успешный запрос",
 			storeID: storeID,
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at"}).
-					AddRow(store.ID, store.Name, store.Description, store.CityID, store.Address, store.CardImg, store.Rating, store.OpenAt, store.ClosedAt)
-				mock.ExpectQuery(`select id, name, description, city_id, address, card_img, rating, open_at, closed_at from store where id = \$1`).
+				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at", "tag_id"}).
+					AddRow(stores[0].ID, stores[0].Name, stores[0].Description, stores[0].CityID, stores[0].Address, stores[0].CardImg, stores[0].Rating, stores[0].OpenAt, stores[0].ClosedAt, stores[0].TagID)
+				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id
+		from store s left join store_tag st on st.store_id = s.id where id = \$1`).
 					WithArgs(storeID).
 					WillReturnRows(rows)
 			},
-			expectedRes:   store,
+			expectedRes:   stores,
 			expectedError: nil,
 		},
 		{
 			name:    "пустой результат",
 			storeID: storeID,
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at"})
-				mock.ExpectQuery(`select id, name, description, city_id, address, card_img, rating, open_at, closed_at from store where id = \$1`).
+				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at", "tag_id"})
+				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id
+		from store s left join store_tag st on st.store_id = s.id where id = \$1`).
 					WithArgs(storeID).
 					WillReturnRows(rows)
 			},
@@ -64,7 +69,8 @@ func TestStoreRepoPostgres_GetStore(t *testing.T) {
 			name:    "ошибка запроса",
 			storeID: storeID,
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				mock.ExpectQuery(`select id, name, description, city_id, address, card_img, rating, open_at, closed_at from store where id = \$1`).
+				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id
+		from store s left join store_tag st on st.store_id = s.id where id = \$1`).
 					WithArgs(storeID).
 					WillReturnError(domain.ErrInternalServer)
 			},
@@ -199,6 +205,7 @@ func TestStoreRepoPostgres_GetStores(t *testing.T) {
 		Address:     address1,
 		CardImg:     cardImg1,
 		Rating:      rating1,
+		TagID:       uid1,
 		OpenAt:      openAt1,
 		ClosedAt:    closeAt1,
 	}
@@ -211,6 +218,7 @@ func TestStoreRepoPostgres_GetStores(t *testing.T) {
 		Address:     address2,
 		CardImg:     cardImg2,
 		Rating:      rating2,
+		TagID:       uid2,
 		OpenAt:      openAt2,
 		ClosedAt:    closeAt2,
 	}
@@ -220,11 +228,10 @@ func TestStoreRepoPostgres_GetStores(t *testing.T) {
 			name:   "без фильтров",
 			filter: &domain.StoreFilter{Limit: 10},
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at"}).
-					AddRow(store1.ID, store1.Name, store1.Description, store1.CityID, store1.Address, store1.CardImg, store1.Rating, store1.OpenAt, store1.ClosedAt).
-					AddRow(store2.ID, store2.Name, store2.Description, store2.CityID, store2.Address, store2.CardImg, store2.Rating, store2.OpenAt, store2.ClosedAt)
-
-				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at from store s order by s.id limit \$1`).
+				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at", "tag_id"}).
+					AddRow(store1.ID, store1.Name, store1.Description, store1.CityID, store1.Address, store1.CardImg, store1.Rating, store1.OpenAt, store1.ClosedAt, store1.TagID).
+					AddRow(store2.ID, store2.Name, store2.Description, store2.CityID, store2.Address, store2.CardImg, store2.Rating, store2.OpenAt, store2.ClosedAt, store2.TagID)
+				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id from store s left join store_tag st on st.store_id = s.id order by s.id limit \$1`).
 					WithArgs(10).
 					WillReturnRows(rows)
 			},
@@ -235,10 +242,10 @@ func TestStoreRepoPostgres_GetStores(t *testing.T) {
 			name:   "с фильтром по id",
 			filter: &domain.StoreFilter{Limit: 5, LastID: uid1},
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at"}).
-					AddRow(store2.ID, store2.Name, store2.Description, store2.CityID, store2.Address, store2.CardImg, store2.Rating, store2.OpenAt, store2.ClosedAt)
+				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at", "tag_id"}).
+					AddRow(store2.ID, store2.Name, store2.Description, store2.CityID, store2.Address, store2.CardImg, store2.Rating, store2.OpenAt, store2.ClosedAt, store2.TagID)
 
-				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at from store s where s.id > \$1 order by s.id limit \$2`).
+				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id from store s left join store_tag st on st.store_id = s.id where s.id > \$1 order by s.id limit \$2`).
 					WithArgs(uid1, 5).
 					WillReturnRows(rows)
 			},
@@ -249,10 +256,10 @@ func TestStoreRepoPostgres_GetStores(t *testing.T) {
 			name:   "с фильтром по тегу и городу",
 			filter: &domain.StoreFilter{Limit: 10, TagID: uid1, CityID: uid1},
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at"}).
-					AddRow(store1.ID, store1.Name, store1.Description, store1.CityID, store1.Address, store1.CardImg, store1.Rating, store1.OpenAt, store1.ClosedAt)
+				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at", "tag_id"}).
+					AddRow(store1.ID, store1.Name, store1.Description, store1.CityID, store1.Address, store1.CardImg, store1.Rating, store1.OpenAt, store1.ClosedAt, store1.TagID)
 
-				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at from store s join store_tag st on s.id = st.store_id where st.tag_id = \$1 and s.city_id = \$2 order by s.id limit \$3`).
+				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id from store s left join store_tag st on st.store_id = s.id where st.tag_id = \$1 and s.city_id = \$2 order by s.id limit \$3`).
 					WithArgs(uid1, uid1, 10).
 					WillReturnRows(rows)
 			},
@@ -263,11 +270,11 @@ func TestStoreRepoPostgres_GetStores(t *testing.T) {
 			name:   "с сортировкой по рейтингу desc",
 			filter: &domain.StoreFilter{Limit: 10, Sorted: "rating", Desc: true},
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at"}).
-					AddRow(store2.ID, store2.Name, store2.Description, store2.CityID, store2.Address, store2.CardImg, store2.Rating, store2.OpenAt, store2.ClosedAt).
-					AddRow(store1.ID, store1.Name, store1.Description, store1.CityID, store1.Address, store1.CardImg, store1.Rating, store1.OpenAt, store1.ClosedAt)
+				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at", "tag_id"}).
+					AddRow(store2.ID, store2.Name, store2.Description, store2.CityID, store2.Address, store2.CardImg, store2.Rating, store2.OpenAt, store2.ClosedAt, store2.TagID).
+					AddRow(store1.ID, store1.Name, store1.Description, store1.CityID, store1.Address, store1.CardImg, store1.Rating, store1.OpenAt, store1.ClosedAt, store1.TagID)
 
-				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at from store s order by s.rating desc, s.id limit \$1`).
+				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id from store s left join store_tag st on st.store_id = s.id order by s.rating desc, s.id limit \$1`).
 					WithArgs(10).
 					WillReturnRows(rows)
 			},
@@ -278,8 +285,8 @@ func TestStoreRepoPostgres_GetStores(t *testing.T) {
 			name:   "пустой результат",
 			filter: &domain.StoreFilter{Limit: 10},
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at"})
-				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at from store s order by s.id limit \$1`).
+				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at", "tag_id"})
+				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id from store s left join store_tag st on st.store_id = s.id order by s.id limit \$1`).
 					WithArgs(10).
 					WillReturnRows(rows)
 			},
@@ -290,7 +297,7 @@ func TestStoreRepoPostgres_GetStores(t *testing.T) {
 			name:   "ошибка запроса",
 			filter: &domain.StoreFilter{Limit: 10},
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at from store s order by s.id limit \$1`).
+				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id from store s left join store_tag st on st.store_id = s.id order by s.id limit \$1`).
 					WithArgs(10).
 					WillReturnError(errors.New("db error"))
 			},
@@ -301,11 +308,11 @@ func TestStoreRepoPostgres_GetStores(t *testing.T) {
 			name:   "ошибка при чтении",
 			filter: &domain.StoreFilter{Limit: 10},
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at"}).
-					AddRow(store2.ID, store2.Name, store2.Description, store2.CityID, store2.Address, store2.CardImg, store2.Rating, store2.OpenAt, store2.ClosedAt).
+				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at", "tag_id"}).
+					AddRow(store2.ID, store2.Name, store2.Description, store2.CityID, store2.Address, store2.CardImg, store2.Rating, store2.OpenAt, store2.ClosedAt, store2.TagID).
 					RowError(0, domain.ErrInternalServer)
 
-				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at from store s order by s.id limit \$1`).
+				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id from store s left join store_tag st on st.store_id = s.id order by s.id limit \$1`).
 					WithArgs(10).
 					WillReturnRows(rows)
 			},

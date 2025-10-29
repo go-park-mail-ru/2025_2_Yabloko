@@ -16,8 +16,8 @@ import (
 )
 
 type StoreUsecaseInterface interface {
-	GetStore(ctx context.Context, id string) (*domain.Store, error)
-	GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.Store, error)
+	GetStore(ctx context.Context, id string) (*domain.StoreAgg, error)
+	GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.StoreAgg, error)
 	CreateStore(ctx context.Context, name, description, cityID, address, cardImg, openAt, closedAt string, rating float64) error
 
 	GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error)
@@ -47,8 +47,8 @@ func NewStoreRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string
 	mux.HandleFunc(apiPrefix+"/stores/{id}/reviews", storeHandler.GetStoreReview)
 	//mux.HandleFunc(apiPrefix+"/stores", storeHandler.CreateStore)
 
-	mux.HandleFunc(apiPrefix+"stores/cities", storeHandler.GetStore)
-	mux.HandleFunc(apiPrefix+"stores/tags", storeHandler.GetStores)
+	mux.HandleFunc(apiPrefix+"/stores/cities", storeHandler.GetCities)
+	mux.HandleFunc(apiPrefix+"/stores/tags", storeHandler.GetTags)
 }
 
 func (h *StoreHandler) CreateStore(w http.ResponseWriter, r *http.Request) {
@@ -177,13 +177,13 @@ func (h *StoreHandler) GetStoreReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	store_id := r.PathValue("id")
-	if _, err := uuid.Parse(store_id); err != nil {
+	storeID := r.PathValue("id")
+	if _, err := uuid.Parse(storeID); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "GetStoreReview", domain.ErrRequestParams, nil)
 		return
 	}
 
-	reviews, err := h.uc.GetStoreReview(r.Context(), store_id)
+	reviews, err := h.uc.GetStoreReview(r.Context(), storeID)
 	if err != nil {
 		if errors.Is(err, domain.ErrRowsNotFound) {
 			h.rs.Error(r.Context(), w, http.StatusNotFound, "GetStoreReview", domain.ErrRowsNotFound, nil)

@@ -53,7 +53,7 @@ func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, id string) ([]*doma
 	}
 
 	if len(itemTypes) == 0 {
-		r.log.Debug(ctx, "GetItemTypes пустой ответ", map[string]interface{}{"id": id})
+		r.log.Warn(ctx, "GetItemTypes пустой ответ", map[string]interface{}{"id": id})
 		return nil, domain.ErrRowsNotFound
 	}
 

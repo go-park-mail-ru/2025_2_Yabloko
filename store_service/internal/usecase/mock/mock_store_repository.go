@@ -65,10 +65,10 @@ func (mr *MockStoreRepositoryMockRecorder) GetCities(ctx interface{}) *gomock.Ca
 }
 
 // GetStore mocks base method.
-func (m *MockStoreRepository) GetStore(ctx context.Context, id string) (*domain.Store, error) {
+func (m *MockStoreRepository) GetStore(ctx context.Context, id string) ([]*domain.Store, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetStore", ctx, id)
-	ret0, _ := ret[0].(*domain.Store)
+	ret0, _ := ret[0].([]*domain.Store)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

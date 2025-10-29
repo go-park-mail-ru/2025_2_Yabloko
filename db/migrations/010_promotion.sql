@@ -13,6 +13,12 @@ create table if not exists promotion
                                         (absolute_discount > 0 and relative_discount = 0))
 );
 
+CREATE TRIGGER trg_update_promotion_updated_at
+    BEFORE UPDATE
+    ON promotion
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
+
 create table if not exists promotion_item
 (
     id           uuid primary key,
@@ -22,6 +28,12 @@ create table if not exists promotion_item
     created_at   timestamptz not null default current_timestamp,
     unique (item_id, promotion_id)
 );
+
+CREATE TRIGGER trg_update_promotion_item_updated_at
+    BEFORE UPDATE
+    ON promotion_item
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
 
 ---- create above / drop below ----
 drop table if exists promotion;
