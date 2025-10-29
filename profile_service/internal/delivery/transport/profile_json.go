@@ -2,8 +2,12 @@ package transport
 
 import (
 	"apple_backend/profile_service/internal/domain"
-	"html"
+	"time"
 )
+
+type CreateProfileResponse struct {
+	ID string `json:"id"`
+} // @name CreateProfileResponse
 
 type ProfileResponse struct {
 	ID        string  `json:"id"`
@@ -14,36 +18,29 @@ type ProfileResponse struct {
 	Address   *string `json:"address,omitempty"`
 	CreatedAt string  `json:"created_at"`
 	UpdatedAt string  `json:"updated_at"`
-}
+} // @name ProfileResponse
+
+type CreateProfileRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+} // @name CreateProfileRequest
 
 type UpdateProfileRequest struct {
 	Name    *string `json:"name,omitempty"`
 	Phone   *string `json:"phone,omitempty"`
 	CityID  *string `json:"city_id,omitempty"`
 	Address *string `json:"address,omitempty"`
-}
+} // @name UpdateProfileRequest
 
-func escapeString(s *string) *string {
-	if s == nil {
-		return nil
-	}
-	escaped := html.EscapeString(*s)
-	return &escaped
-}
-
-func ToProfileResponse(profile *domain.Profile) *ProfileResponse {
-	if profile == nil {
-		return nil
-	}
-
+func ToProfileResponse(p *domain.Profile) *ProfileResponse {
 	return &ProfileResponse{
-		ID:        profile.ID,
-		Email:     profile.Email,
-		Name:      escapeString(profile.Name),
-		Phone:     escapeString(profile.Phone),
-		CityID:    escapeString(profile.CityID),
-		Address:   escapeString(profile.Address),
-		CreatedAt: profile.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: profile.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:        p.ID,
+		Email:     p.Email,
+		Name:      p.Name,
+		Phone:     p.Phone,
+		CityID:    p.CityID,
+		Address:   p.Address,
+		CreatedAt: p.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: p.UpdatedAt.Format(time.RFC3339),
 	}
 }

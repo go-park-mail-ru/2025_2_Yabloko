@@ -26,6 +26,9 @@ func NewProfileUsecase(repo ProfileRepository) *ProfileUsecase {
 }
 
 func (uc *ProfileUsecase) GetProfile(ctx context.Context, id string) (*domain.Profile, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return nil, domain.ErrInvalidProfileData
+	}
 	return uc.repo.GetProfile(ctx, id)
 }
 
@@ -33,13 +36,14 @@ func (uc *ProfileUsecase) GetProfileByEmail(ctx context.Context, email string) (
 	return uc.repo.GetProfileByEmail(ctx, email)
 }
 
-func (uc *ProfileUsecase) CreateProfile(ctx context.Context, email, passwordHash string) (*domain.Profile, error) {
-	_, err := uc.repo.GetProfileByEmail(ctx, email)
-	if err == nil {
-		return nil, domain.ErrProfileExist
+func (uc *ProfileUsecase) CreateProfile(ctx context.Context, email, passwordHash string) (string, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return "", domain.ErrInvalidProfileData
 	}
-	if err != domain.ErrProfileNotFound {
-		return nil, err
+
+	if passwordHash == "" {
+		return "", domain.ErrInvalidProfileData
 	}
 
 	profile := &domain.Profile{
@@ -49,10 +53,10 @@ func (uc *ProfileUsecase) CreateProfile(ctx context.Context, email, passwordHash
 	}
 
 	if err := uc.repo.CreateProfile(ctx, profile); err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return profile, nil
+	return profile.ID, nil
 }
 
 func (uc *ProfileUsecase) UpdateProfile(ctx context.Context, profile *domain.Profile) error {

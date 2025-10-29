@@ -4,7 +4,6 @@ package http
 import (
 	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
-	"apple_backend/profile_service/internal/delivery/middlewares"
 	"apple_backend/profile_service/internal/delivery/transport"
 	"apple_backend/profile_service/internal/domain"
 	"apple_backend/profile_service/internal/repository"
@@ -14,14 +13,12 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-
-	"github.com/google/uuid"
 )
 
 type ProfileUsecaseInterface interface {
 	GetProfile(ctx context.Context, id string) (*domain.Profile, error)
 	GetProfileByEmail(ctx context.Context, email string) (*domain.Profile, error)
-	CreateProfile(ctx context.Context, email, passwordHash string) (*domain.Profile, error)
+	CreateProfile(ctx context.Context, email, passwordHash string) (string, error)
 	UpdateProfile(ctx context.Context, profile *domain.Profile) error
 	DeleteProfile(ctx context.Context, id string) error
 }
@@ -38,23 +35,19 @@ func NewProfileHandler(uc ProfileUsecaseInterface, log *logger.Logger) *ProfileH
 	}
 }
 
-func NewProfileRouter(db repository.PgxIface, apiPrefix string, appLog, accessLog *logger.Logger) http.Handler {
+func NewProfileRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string, appLog *logger.Logger) {
 	profileRepo := repository.NewProfileRepoPostgres(db, appLog)
 	profileUC := usecase.NewProfileUsecase(profileRepo)
 	profileHandler := NewProfileHandler(profileUC, appLog)
 
-	mux := http.NewServeMux()
+	// POST /apiPrefix/profiles Create (без id)
+	mux.HandleFunc(apiPrefix+"/profiles", profileHandler.CreateProfile)
 
+	// GET/PUT/DELETE /apiPrefix/profiles/{id}
 	mux.HandleFunc(apiPrefix+"/profiles/", profileHandler.handleProfileRoutes)
-	mux.HandleFunc(apiPrefix+"/profiles/email/", profileHandler.GetProfileByEmail)
 
-	return middlewares.CSRFMiddleware(
-		middlewares.CSRFTokenMiddleware(
-			middlewares.CorsMiddleware(
-				middlewares.AccessLog(accessLog, mux),
-			),
-		),
-	)
+	// GET /apiPrefix/profiles/email/{email}
+	mux.HandleFunc(apiPrefix+"/profiles/email/", profileHandler.GetProfileByEmail)
 }
 
 func extractIDFromPath(path, prefix string) string {
@@ -64,11 +57,6 @@ func extractIDFromPath(path, prefix string) string {
 
 func (h *ProfileHandler) handleProfileRoutes(w http.ResponseWriter, r *http.Request) {
 	id := extractIDFromPath(r.URL.Path, "/api/v0/profiles/")
-
-	if _, err := uuid.Parse(id); err != nil && id != "" {
-		h.rs.Error(r.Context(), w, http.StatusBadRequest, "ProfileRoutes", domain.ErrRequestParams, nil)
-		return
-	}
 
 	switch r.Method {
 	case http.MethodGet:
@@ -82,6 +70,19 @@ func (h *ProfileHandler) handleProfileRoutes(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// GetProfile godoc
+// @Summary Получить профиль по ID
+// @Description Возвращает информацию о профиле пользователя по его UUID
+// @Tags profiles
+// @Accept json
+// @Produce json
+// @Param id path string true "UUID пользователя"
+// @Success 200 {object} transport.ProfileResponse
+// @Failure 400 {object} http_response.ErrResponse "Некорректный ID"
+// @Failure 404 {object} http_response.ErrResponse "Профиль не найден"
+// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
+// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
+// @Router /profiles/{id} [get]
 func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request, id string) {
 	profile, err := h.uc.GetProfile(r.Context(), id)
 	if err != nil {
@@ -97,6 +98,19 @@ func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request, id s
 	h.rs.Send(r.Context(), w, http.StatusOK, responseProfile)
 }
 
+// GetProfileByEmail godoc
+// @Summary Получить профиль по email
+// @Description Возвращает информацию о профиле пользователя по его email
+// @Tags profiles
+// @Accept json
+// @Produce json
+// @Param email path string true "Email пользователя"
+// @Success 200 {object} transport.ProfileResponse
+// @Failure 400 {object} http_response.ErrResponse "Некорректный email"
+// @Failure 404 {object} http_response.ErrResponse "Профиль не найден"
+// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
+// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
+// @Router /profiles/email/{email} [get]
 func (h *ProfileHandler) GetProfileByEmail(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "GetProfileByEmail", domain.ErrHTTPMethod, nil)
@@ -123,26 +137,62 @@ func (h *ProfileHandler) GetProfileByEmail(w http.ResponseWriter, r *http.Reques
 	h.rs.Send(r.Context(), w, http.StatusOK, responseProfile)
 }
 
+// CreateProfile godoc
+// @Summary Создать профиль
+// @Description Создает новый профиль пользователя
+// @Tags profiles
+// @Accept json
+// @Produce json
+// @Param request body transport.CreateProfileRequest true "Данные для создания профиля"
+// @Success 201 {object} transport.CreateProfileResponse
+// @Failure 400 {object} http_response.ErrResponse "Ошибка входных данных"
+// @Failure 409 {object} http_response.ErrResponse "Профиль уже существует"
+// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
+// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
+// @Router /profiles [post]
 func (h *ProfileHandler) CreateProfile(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+	if r.Method != http.MethodPost {
+		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "CreateProfile", domain.ErrHTTPMethod, nil)
+		return
 	}
 
+	var req transport.CreateProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "CreateProfile", domain.ErrRequestParams, err)
 		return
 	}
 
-	profile, err := h.uc.CreateProfile(r.Context(), req.Email, req.Password)
+	profileID, err := h.uc.CreateProfile(r.Context(), req.Email, req.Password)
 	if err != nil {
+		if errors.Is(err, domain.ErrProfileExist) {
+			h.rs.Error(r.Context(), w, http.StatusConflict, "CreateProfile", domain.ErrProfileExist, err)
+			return
+		}
+		if errors.Is(err, domain.ErrInvalidProfileData) {
+			h.rs.Error(r.Context(), w, http.StatusBadRequest, "CreateProfile", domain.ErrInvalidProfileData, err)
+			return
+		}
 		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "CreateProfile", domain.ErrInternalServer, err)
 		return
 	}
 
-	h.rs.Send(r.Context(), w, http.StatusCreated, transport.ToProfileResponse(profile))
+	h.rs.Send(r.Context(), w, http.StatusCreated, &transport.CreateProfileResponse{ID: profileID})
 }
 
+// UpdateProfile godoc
+// @Summary Обновить профиль
+// @Description Обновляет информацию о профиле пользователя
+// @Tags profiles
+// @Accept json
+// @Produce json
+// @Param id path string true "UUID пользователя"
+// @Param request body transport.UpdateProfileRequest true "Данные для обновления профиля"
+// @Success 200 {object} map[string]string "Профиль успешно обновлен"
+// @Failure 400 {object} http_response.ErrResponse "Ошибка входных данных"
+// @Failure 404 {object} http_response.ErrResponse "Профиль не найден"
+// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
+// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
+// @Router /profiles/{id} [put]
 func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, id string) {
 	var req transport.UpdateProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -171,6 +221,19 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, i
 	h.rs.Send(r.Context(), w, http.StatusOK, map[string]string{"message": "Профиль успешно обновлен"})
 }
 
+// DeleteProfile godoc
+// @Summary Удалить профиль
+// @Description Удаляет профиль пользователя по UUID
+// @Tags profiles
+// @Accept json
+// @Produce json
+// @Param id path string true "UUID пользователя"
+// @Success 204 "Профиль успешно удален"
+// @Failure 400 {object} map[string]string "Некорректный ID"
+// @Failure 404 {object} map[string]string "Профиль не найден"
+// @Failure 405 {object} map[string]string "Неверный HTTP-метод"
+// @Failure 500 {object} map[string]string "Внутренняя ошибка сервера"
+// @Router /profiles/{id} [delete]
 func (h *ProfileHandler) DeleteProfile(w http.ResponseWriter, r *http.Request, id string) {
 	err := h.uc.DeleteProfile(r.Context(), id)
 	if err != nil {

@@ -71,8 +71,8 @@ func (r *ProfileRepoPostgres) GetProfileByEmail(ctx context.Context, email strin
 	r.log.Debug(ctx, "GetProfileByEmail начало обработки", map[string]interface{}{"email": email})
 
 	query := `
-		SELECT id, email, name, phone, city_id, address, created_at, updated_at 
-		FROM account 
+		SELECT id, email, password_hash, name, phone, city_id, address, created_at, updated_at
+		FROM account
 		WHERE email = $1
 	`
 
@@ -88,6 +88,7 @@ func (r *ProfileRepoPostgres) GetProfileByEmail(ctx context.Context, email strin
 	err := r.db.QueryRow(ctx, query, email).Scan(
 		&profile.ID,
 		&profile.Email,
+		&profile.PasswordHash,
 		&name,
 		&phone,
 		&cityID,
@@ -95,7 +96,6 @@ func (r *ProfileRepoPostgres) GetProfileByEmail(ctx context.Context, email strin
 		&profile.CreatedAt,
 		&profile.UpdatedAt,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			r.log.Warn(ctx, "GetProfileByEmail профиль не найден", map[string]interface{}{"email": email})
@@ -118,7 +118,7 @@ func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, profile *domain
 	r.log.Debug(ctx, "UpdateProfile начало обработки", map[string]interface{}{"id": profile.ID})
 
 	query := `
-        UPDATE account 
+        UPDATE account
         SET name = $1, phone = $2, city_id = $3, address = $4
         WHERE id = $5
     `
@@ -175,8 +175,8 @@ func (r *ProfileRepoPostgres) CreateProfile(ctx context.Context, profile *domain
 	r.log.Debug(ctx, "CreateProfile начало обработки", map[string]interface{}{"email": profile.Email})
 
 	query := `
-        INSERT INTO account (id, email, password_hash, created_at, updated_at)
-        VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO account (id, email, password_hash)
+        VALUES ($1, $2, $3)
     `
 
 	r.log.Debug(ctx, "SQL запрос", map[string]interface{}{

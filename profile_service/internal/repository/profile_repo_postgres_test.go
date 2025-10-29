@@ -8,302 +8,434 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v4"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestProfileRepoPostgres_GetProfile(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	log := logger.NewNilLogger()
-	repo := &ProfileRepoPostgres{
-		db:  mock,
-		log: log,
-	}
-
-	t.Run("Успешное получение профиля", func(t *testing.T) {
-		expectedID := "550e8400-e29b-41d4-a716-446655440000"
-		expectedEmail := "test@example.com"
-		expectedName := "John Doe"
-		expectedPhone := "+123456789"
-		expectedCityID := "city-123"
-		expectedAddress := "Test Address"
-		now := time.Now()
-
-		rows := mock.NewRows([]string{
-			"id", "email", "name", "phone", "city_id", "address", "created_at", "updated_at",
-		}).AddRow(
-			expectedID, expectedEmail, &expectedName, &expectedPhone, &expectedCityID,
-			&expectedAddress, now, now,
-		)
-
-		mock.ExpectQuery("SELECT id, email, name, phone, city_id, address, created_at, updated_at FROM account WHERE id = \\$1").
-			WithArgs(expectedID).
-			WillReturnRows(rows)
-
-		profile, err := repo.GetProfile(context.Background(), expectedID)
-		require.NoError(t, err)
-		require.NotNil(t, profile)
-		require.Equal(t, expectedID, profile.ID)
-		require.Equal(t, expectedEmail, profile.Email)
-		require.Equal(t, &expectedName, profile.Name)
-		require.Equal(t, &expectedPhone, profile.Phone)
-		require.Equal(t, &expectedCityID, profile.CityID)
-		require.Equal(t, &expectedAddress, profile.Address)
-
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Профиль не найден", func(t *testing.T) {
-		expectedID := "550e8400-e29b-41d4-a716-446655440000"
-
-		mock.ExpectQuery("SELECT id, email, name, phone, city_id, address, created_at, updated_at FROM account WHERE id = \\$1").
-			WithArgs(expectedID).
-			WillReturnError(domain.ErrProfileNotFound)
-
-		profile, err := repo.GetProfile(context.Background(), expectedID)
-		require.Error(t, err)
-		require.Nil(t, profile)
-		require.Equal(t, domain.ErrProfileNotFound, err)
-
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Ошибка БД при получении профиля", func(t *testing.T) {
-		expectedID := "550e8400-e29b-41d4-a716-446655440000"
-
-		mock.ExpectQuery("SELECT id, email, name, phone, city_id, address, created_at, updated_at FROM account WHERE id = \\$1").
-			WithArgs(expectedID).
-			WillReturnError(errors.New("database error"))
-
-		profile, err := repo.GetProfile(context.Background(), expectedID)
-		require.Error(t, err)
-		require.Nil(t, profile)
-		require.Contains(t, err.Error(), "database error")
-
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
+type ProfileRepoPostgresTestSuite struct {
+	suite.Suite
+	mock pgxmock.PgxPoolIface
+	repo *ProfileRepoPostgres
 }
 
-func TestProfileRepoPostgres_GetProfileByEmail(t *testing.T) {
+func (s *ProfileRepoPostgresTestSuite) SetupTest() {
 	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	log := logger.NewNilLogger()
-	repo := &ProfileRepoPostgres{
+	require.NoError(s.T(), err)
+	s.mock = mock
+	s.repo = &ProfileRepoPostgres{
 		db:  mock,
-		log: log,
+		log: logger.NewNilLogger(),
 	}
-
-	t.Run("Успешное получение профиля по email", func(t *testing.T) {
-		expectedEmail := "test@example.com"
-		expectedID := "550e8400-e29b-41d4-a716-446655440000"
-		expectedName := "John Doe"
-		expectedPhone := "+123456789"
-		expectedCityID := "city-123"
-		expectedAddress := "Test Address"
-		now := time.Now()
-
-		rows := mock.NewRows([]string{
-			"id", "email", "name", "phone", "city_id", "address", "created_at", "updated_at",
-		}).AddRow(
-			expectedID, expectedEmail, &expectedName, &expectedPhone, &expectedCityID,
-			&expectedAddress, now, now,
-		)
-
-		mock.ExpectQuery("SELECT id, email, name, phone, city_id, address, created_at, updated_at FROM account WHERE email = \\$1").
-			WithArgs(expectedEmail).
-			WillReturnRows(rows)
-
-		profile, err := repo.GetProfileByEmail(context.Background(), expectedEmail)
-		require.NoError(t, err)
-		require.NotNil(t, profile)
-		require.Equal(t, expectedEmail, profile.Email)
-		require.Equal(t, expectedID, profile.ID)
-
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Профиль не найден по email", func(t *testing.T) {
-		expectedEmail := "notfound@example.com"
-
-		mock.ExpectQuery("SELECT id, email, name, phone, city_id, address, created_at, updated_at FROM account WHERE email = \\$1").
-			WithArgs(expectedEmail).
-			WillReturnError(domain.ErrProfileNotFound)
-
-		profile, err := repo.GetProfileByEmail(context.Background(), expectedEmail)
-		require.Error(t, err)
-		require.Nil(t, profile)
-		require.Equal(t, domain.ErrProfileNotFound, err)
-
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
 }
 
-func TestProfileRepoPostgres_UpdateProfile(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	log := logger.NewNilLogger()
-	repo := &ProfileRepoPostgres{
-		db:  mock,
-		log: log,
-	}
-
-	t.Run("Успешное обновление профиля", func(t *testing.T) {
-		profile := &domain.Profile{
-			ID:      "550e8400-e29b-41d4-a716-446655440000",
-			Name:    stringPtr("Updated Name"),
-			Phone:   stringPtr("+987654321"),
-			CityID:  stringPtr("city-456"),
-			Address: stringPtr("Updated Address"),
-		}
-
-		mock.ExpectExec("UPDATE account SET name = \\$1, phone = \\$2, city_id = \\$3, address = \\$4 WHERE id = \\$5").
-			WithArgs(profile.Name, profile.Phone, profile.CityID, profile.Address, profile.ID).
-			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-
-		err := repo.UpdateProfile(context.Background(), profile)
-		require.NoError(t, err)
-
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Профиль не найден при обновлении", func(t *testing.T) {
-		profile := &domain.Profile{
-			ID:   "550e8400-e29b-41d4-a716-446655440000",
-			Name: stringPtr("Updated Name"),
-		}
-
-		mock.ExpectExec("UPDATE account SET name = \\$1, phone = \\$2, city_id = \\$3, address = \\$4 WHERE id = \\$5").
-			WithArgs(profile.Name, profile.Phone, profile.CityID, profile.Address, profile.ID).
-			WillReturnResult(pgxmock.NewResult("UPDATE", 0))
-
-		err := repo.UpdateProfile(context.Background(), profile)
-		require.Error(t, err)
-		require.Equal(t, domain.ErrProfileNotFound, err)
-
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Ошибка БД при обновлении", func(t *testing.T) {
-		profile := &domain.Profile{
-			ID:   "550e8400-e29b-41d4-a716-446655440000",
-			Name: stringPtr("Updated Name"),
-		}
-
-		mock.ExpectExec("UPDATE account SET name = \\$1, phone = \\$2, city_id = \\$3, address = \\$4 WHERE id = \\$5").
-			WithArgs(profile.Name, profile.Phone, profile.CityID, profile.Address, profile.ID).
-			WillReturnError(errors.New("database error"))
-
-		err := repo.UpdateProfile(context.Background(), profile)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "database error")
-
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
+func (s *ProfileRepoPostgresTestSuite) TearDownTest() {
+	s.mock.Close()
 }
 
-func TestProfileRepoPostgres_DeleteProfile(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	log := logger.NewNilLogger()
-	repo := &ProfileRepoPostgres{
-		db:  mock,
-		log: log,
-	}
-
-	t.Run("Успешное удаление профиля", func(t *testing.T) {
-		expectedID := "550e8400-e29b-41d4-a716-446655440000"
-
-		mock.ExpectExec("DELETE FROM account WHERE id = \\$1").
-			WithArgs(expectedID).
-			WillReturnResult(pgxmock.NewResult("DELETE", 1))
-
-		err := repo.DeleteProfile(context.Background(), expectedID)
-		require.NoError(t, err)
-
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Профиль не найден при удалении", func(t *testing.T) {
-		expectedID := "550e8400-e29b-41d4-a716-446655440000"
-
-		mock.ExpectExec("DELETE FROM account WHERE id = \\$1").
-			WithArgs(expectedID).
-			WillReturnResult(pgxmock.NewResult("DELETE", 0))
-
-		err := repo.DeleteProfile(context.Background(), expectedID)
-		require.Error(t, err)
-		require.Equal(t, domain.ErrProfileNotFound, err)
-
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Ошибка БД при удалении", func(t *testing.T) {
-		expectedID := "550e8400-e29b-41d4-a716-446655440000"
-
-		mock.ExpectExec("DELETE FROM account WHERE id = \\$1").
-			WithArgs(expectedID).
-			WillReturnError(errors.New("db error"))
-
-		err := repo.DeleteProfile(context.Background(), expectedID)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "db error")
-
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
+func TestProfileRepoPostgresTestSuite(t *testing.T) {
+	suite.Run(t, new(ProfileRepoPostgresTestSuite))
 }
 
-func TestProfileRepoPostgres_CreateProfile(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	log := logger.NewNilLogger()
-	repo := &ProfileRepoPostgres{
-		db:  mock,
-		log: log,
+func (s *ProfileRepoPostgresTestSuite) TestGetProfile_Success() {
+	profileID := "550e8400-e29b-41d4-a716-446655440000"
+	expectedProfile := &domain.Profile{
+		ID:        profileID,
+		Email:     "test@example.com",
+		Name:      stringPtr("John Doe"),
+		Phone:     stringPtr("+123456789"),
+		CityID:    stringPtr("city-123"),
+		Address:   stringPtr("Test Address"),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
-	t.Run("Успешное создание профиля", func(t *testing.T) {
-		profile := &domain.Profile{
-			ID:           "550e8400-e29b-41d4-a716-446655440000",
-			Email:        "newuser@example.com",
-			PasswordHash: "hashedpassword123",
-		}
+	rows := s.mock.NewRows([]string{
+		"id", "email", "name", "phone", "city_id", "address", "created_at", "updated_at",
+	}).AddRow(
+		expectedProfile.ID, expectedProfile.Email, expectedProfile.Name, expectedProfile.Phone,
+		expectedProfile.CityID, expectedProfile.Address, expectedProfile.CreatedAt, expectedProfile.UpdatedAt,
+	)
 
-		mock.ExpectExec("INSERT INTO account \\(id, email, password_hash, created_at, updated_at\\) VALUES \\(\\$1, \\$2, \\$3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP\\)").
-			WithArgs(profile.ID, profile.Email, profile.PasswordHash).
-			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	s.mock.ExpectQuery(`SELECT id, email, name, phone, city_id, address, created_at, updated_at FROM account WHERE id = \$1`).
+		WithArgs(profileID).
+		WillReturnRows(rows)
 
-		err := repo.CreateProfile(context.Background(), profile)
-		require.NoError(t, err)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
+	profile, err := s.repo.GetProfile(context.Background(), profileID)
 
-	t.Run("Ошибка дублирования email", func(t *testing.T) {
-		profile := &domain.Profile{
-			ID:           "550e8400-e29b-41d4-a716-446655440000",
-			Email:        "existing@example.com",
-			PasswordHash: "hashedpassword123",
-		}
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), expectedProfile, profile)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
 
-		mock.ExpectExec("INSERT INTO account \\(id, email, password_hash, created_at, updated_at\\) VALUES \\(\\$1, \\$2, \\$3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP\\)").
-			WithArgs(profile.ID, profile.Email, profile.PasswordHash).
-			WillReturnError(errors.New("duplicate key value"))
+func (s *ProfileRepoPostgresTestSuite) TestGetProfile_SuccessWithNullFields() {
+	profileID := "550e8400-e29b-41d4-a716-446655440000"
+	expectedProfile := &domain.Profile{
+		ID:        profileID,
+		Email:     "test@example.com",
+		Name:      nil,
+		Phone:     nil,
+		CityID:    nil,
+		Address:   nil,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
 
-		err := repo.CreateProfile(context.Background(), profile)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "duplicate key")
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
+	rows := s.mock.NewRows([]string{
+		"id", "email", "name", "phone", "city_id", "address", "created_at", "updated_at",
+	}).AddRow(
+		expectedProfile.ID, expectedProfile.Email, nil, nil, nil, nil, expectedProfile.CreatedAt, expectedProfile.UpdatedAt,
+	)
+
+	s.mock.ExpectQuery(`SELECT id, email, name, phone, city_id, address, created_at, updated_at FROM account WHERE id = \$1`).
+		WithArgs(profileID).
+		WillReturnRows(rows)
+
+	profile, err := s.repo.GetProfile(context.Background(), profileID)
+
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), expectedProfile, profile)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestGetProfile_NotFound() {
+	profileID := "550e8400-e29b-41d4-a716-446655440000"
+
+	s.mock.ExpectQuery(`SELECT id, email, name, phone, city_id, address, created_at, updated_at FROM account WHERE id = \$1`).
+		WithArgs(profileID).
+		WillReturnError(pgx.ErrNoRows)
+
+	profile, err := s.repo.GetProfile(context.Background(), profileID)
+
+	assert.ErrorIs(s.T(), err, domain.ErrProfileNotFound)
+	assert.Nil(s.T(), profile)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestGetProfile_DatabaseError() {
+	profileID := "550e8400-e29b-41d4-a716-446655440000"
+	dbError := errors.New("database error")
+
+	s.mock.ExpectQuery(`SELECT id, email, name, phone, city_id, address, created_at, updated_at FROM account WHERE id = \$1`).
+		WithArgs(profileID).
+		WillReturnError(dbError)
+
+	profile, err := s.repo.GetProfile(context.Background(), profileID)
+
+	assert.Error(s.T(), err)
+	assert.Contains(s.T(), err.Error(), "database error")
+	assert.Nil(s.T(), profile)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestGetProfileByEmail_Success() {
+	email := "test@example.com"
+	expectedProfile := &domain.Profile{
+		ID:           "550e8400-e29b-41d4-a716-446655440000",
+		Email:        email,
+		PasswordHash: "hashed_password",
+		Name:         stringPtr("John Doe"),
+		Phone:        stringPtr("+123456789"),
+		CityID:       stringPtr("city-123"),
+		Address:      stringPtr("Test Address"),
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	rows := s.mock.NewRows([]string{
+		"id", "email", "password_hash", "name", "phone", "city_id", "address", "created_at", "updated_at",
+	}).AddRow(
+		expectedProfile.ID, expectedProfile.Email, expectedProfile.PasswordHash, expectedProfile.Name,
+		expectedProfile.Phone, expectedProfile.CityID, expectedProfile.Address, expectedProfile.CreatedAt, expectedProfile.UpdatedAt,
+	)
+
+	s.mock.ExpectQuery(`SELECT id, email, password_hash, name, phone, city_id, address, created_at, updated_at FROM account WHERE email = \$1`).
+		WithArgs(email).
+		WillReturnRows(rows)
+
+	profile, err := s.repo.GetProfileByEmail(context.Background(), email)
+
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), expectedProfile, profile)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestGetProfileByEmail_SuccessWithNullFields() {
+	email := "test@example.com"
+	expectedProfile := &domain.Profile{
+		ID:           "550e8400-e29b-41d4-a716-446655440000",
+		Email:        email,
+		PasswordHash: "hashed_password",
+		Name:         nil,
+		Phone:        nil,
+		CityID:       nil,
+		Address:      nil,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	rows := s.mock.NewRows([]string{
+		"id", "email", "password_hash", "name", "phone", "city_id", "address", "created_at", "updated_at",
+	}).AddRow(
+		expectedProfile.ID, expectedProfile.Email, expectedProfile.PasswordHash, nil, nil, nil, nil,
+		expectedProfile.CreatedAt, expectedProfile.UpdatedAt,
+	)
+
+	s.mock.ExpectQuery(`SELECT id, email, password_hash, name, phone, city_id, address, created_at, updated_at FROM account WHERE email = \$1`).
+		WithArgs(email).
+		WillReturnRows(rows)
+
+	profile, err := s.repo.GetProfileByEmail(context.Background(), email)
+
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), expectedProfile, profile)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestGetProfileByEmail_NotFound() {
+	email := "notfound@example.com"
+
+	s.mock.ExpectQuery(`SELECT id, email, password_hash, name, phone, city_id, address, created_at, updated_at FROM account WHERE email = \$1`).
+		WithArgs(email).
+		WillReturnError(pgx.ErrNoRows)
+
+	profile, err := s.repo.GetProfileByEmail(context.Background(), email)
+
+	assert.ErrorIs(s.T(), err, domain.ErrProfileNotFound)
+	assert.Nil(s.T(), profile)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestGetProfileByEmail_DatabaseError() {
+	email := "test@example.com"
+	dbError := errors.New("database error")
+
+	s.mock.ExpectQuery(`SELECT id, email, password_hash, name, phone, city_id, address, created_at, updated_at FROM account WHERE email = \$1`).
+		WithArgs(email).
+		WillReturnError(dbError)
+
+	profile, err := s.repo.GetProfileByEmail(context.Background(), email)
+
+	assert.Error(s.T(), err)
+	assert.Contains(s.T(), err.Error(), "database error")
+	assert.Nil(s.T(), profile)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestUpdateProfile_Success() {
+	profile := &domain.Profile{
+		ID:      "550e8400-e29b-41d4-a716-446655440000",
+		Name:    stringPtr("Updated Name"),
+		Phone:   stringPtr("+987654321"),
+		CityID:  stringPtr("city-456"),
+		Address: stringPtr("Updated Address"),
+	}
+
+	s.mock.ExpectExec(`UPDATE account SET name = \$1, phone = \$2, city_id = \$3, address = \$4 WHERE id = \$5`).
+		WithArgs(profile.Name, profile.Phone, profile.CityID, profile.Address, profile.ID).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+	err := s.repo.UpdateProfile(context.Background(), profile)
+
+	assert.NoError(s.T(), err)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestUpdateProfile_SuccessWithNullFields() {
+	profile := &domain.Profile{
+		ID:      "550e8400-e29b-41d4-a716-446655440000",
+		Name:    nil,
+		Phone:   nil,
+		CityID:  nil,
+		Address: nil,
+	}
+
+	s.mock.ExpectExec(`UPDATE account SET name = \$1, phone = \$2, city_id = \$3, address = \$4 WHERE id = \$5`).
+		WithArgs(profile.Name, profile.Phone, profile.CityID, profile.Address, profile.ID).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+	err := s.repo.UpdateProfile(context.Background(), profile)
+
+	assert.NoError(s.T(), err)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestUpdateProfile_SuccessPartialUpdate() {
+	profile := &domain.Profile{
+		ID:   "550e8400-e29b-41d4-a716-446655440000",
+		Name: stringPtr("Only Name Updated"),
+	}
+
+	s.mock.ExpectExec(`UPDATE account SET name = \$1, phone = \$2, city_id = \$3, address = \$4 WHERE id = \$5`).
+		WithArgs(profile.Name, profile.Phone, profile.CityID, profile.Address, profile.ID).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+	err := s.repo.UpdateProfile(context.Background(), profile)
+
+	assert.NoError(s.T(), err)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestUpdateProfile_NotFound() {
+	profile := &domain.Profile{
+		ID:   "550e8400-e29b-41d4-a716-446655440000",
+		Name: stringPtr("Updated Name"),
+	}
+
+	s.mock.ExpectExec(`UPDATE account SET name = \$1, phone = \$2, city_id = \$3, address = \$4 WHERE id = \$5`).
+		WithArgs(profile.Name, profile.Phone, profile.CityID, profile.Address, profile.ID).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+
+	err := s.repo.UpdateProfile(context.Background(), profile)
+
+	assert.ErrorIs(s.T(), err, domain.ErrProfileNotFound)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestUpdateProfile_DatabaseError() {
+	profile := &domain.Profile{
+		ID:   "550e8400-e29b-41d4-a716-446655440000",
+		Name: stringPtr("Updated Name"),
+	}
+	dbError := errors.New("database error")
+
+	s.mock.ExpectExec(`UPDATE account SET name = \$1, phone = \$2, city_id = \$3, address = \$4 WHERE id = \$5`).
+		WithArgs(profile.Name, profile.Phone, profile.CityID, profile.Address, profile.ID).
+		WillReturnError(dbError)
+
+	err := s.repo.UpdateProfile(context.Background(), profile)
+
+	assert.Error(s.T(), err)
+	assert.Contains(s.T(), err.Error(), "database error")
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestDeleteProfile_Success() {
+	profileID := "550e8400-e29b-41d4-a716-446655440000"
+
+	s.mock.ExpectExec(`DELETE FROM account WHERE id = \$1`).
+		WithArgs(profileID).
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+
+	err := s.repo.DeleteProfile(context.Background(), profileID)
+
+	assert.NoError(s.T(), err)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestDeleteProfile_NotFound() {
+	profileID := "550e8400-e29b-41d4-a716-446655440000"
+
+	s.mock.ExpectExec(`DELETE FROM account WHERE id = \$1`).
+		WithArgs(profileID).
+		WillReturnResult(pgxmock.NewResult("DELETE", 0))
+
+	err := s.repo.DeleteProfile(context.Background(), profileID)
+
+	assert.ErrorIs(s.T(), err, domain.ErrProfileNotFound)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestDeleteProfile_DatabaseError() {
+	profileID := "550e8400-e29b-41d4-a716-446655440000"
+	dbError := errors.New("database error")
+
+	s.mock.ExpectExec(`DELETE FROM account WHERE id = \$1`).
+		WithArgs(profileID).
+		WillReturnError(dbError)
+
+	err := s.repo.DeleteProfile(context.Background(), profileID)
+
+	assert.Error(s.T(), err)
+	assert.Contains(s.T(), err.Error(), "database error")
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestCreateProfile_Success() {
+	profile := &domain.Profile{
+		ID:           "550e8400-e29b-41d4-a716-446655440000",
+		Email:        "newuser@example.com",
+		PasswordHash: "hashedpassword123",
+	}
+
+	s.mock.ExpectExec(`INSERT INTO account \(id, email, password_hash\) VALUES \(\$1, \$2, \$3\)`).
+		WithArgs(profile.ID, profile.Email, profile.PasswordHash).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+	err := s.repo.CreateProfile(context.Background(), profile)
+
+	assert.NoError(s.T(), err)
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestCreateProfile_DuplicateEmail() {
+	profile := &domain.Profile{
+		ID:           "550e8400-e29b-41d4-a716-446655440000",
+		Email:        "existing@example.com",
+		PasswordHash: "hashedpassword123",
+	}
+	dbError := errors.New("duplicate key value")
+
+	s.mock.ExpectExec(`INSERT INTO account \(id, email, password_hash\) VALUES \(\$1, \$2, \$3\)`).
+		WithArgs(profile.ID, profile.Email, profile.PasswordHash).
+		WillReturnError(dbError)
+
+	err := s.repo.CreateProfile(context.Background(), profile)
+
+	assert.Error(s.T(), err)
+	assert.Contains(s.T(), err.Error(), "duplicate key")
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestCreateProfile_DatabaseError() {
+	profile := &domain.Profile{
+		ID:           "550e8400-e29b-41d4-a716-446655440000",
+		Email:        "newuser@example.com",
+		PasswordHash: "hashedpassword123",
+	}
+	dbError := errors.New("database error")
+
+	s.mock.ExpectExec(`INSERT INTO account \(id, email, password_hash\) VALUES \(\$1, \$2, \$3\)`).
+		WithArgs(profile.ID, profile.Email, profile.PasswordHash).
+		WillReturnError(dbError)
+
+	err := s.repo.CreateProfile(context.Background(), profile)
+
+	assert.Error(s.T(), err)
+	assert.Contains(s.T(), err.Error(), "database error")
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
+}
+
+func (s *ProfileRepoPostgresTestSuite) TestAllMethods_ContextCancelled() {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	profileID := "550e8400-e29b-41d4-a716-446655440000"
+	profile := &domain.Profile{
+		ID:    profileID,
+		Email: "test@example.com",
+	}
+
+	s.mock.ExpectQuery(`SELECT.*`).WithArgs(profileID).WillReturnError(context.Canceled)
+	s.mock.ExpectExec(`UPDATE.*`).WithArgs(profile.Name, profile.Phone, profile.CityID, profile.Address, profile.ID).WillReturnError(context.Canceled)
+	s.mock.ExpectExec(`DELETE.*`).WithArgs(profileID).WillReturnError(context.Canceled)
+	s.mock.ExpectExec(`INSERT.*`).WithArgs(profile.ID, profile.Email, profile.PasswordHash).WillReturnError(context.Canceled)
+
+	_, err := s.repo.GetProfile(ctx, profileID)
+	assert.ErrorIs(s.T(), err, context.Canceled)
+
+	err = s.repo.UpdateProfile(ctx, profile)
+	assert.ErrorIs(s.T(), err, context.Canceled)
+
+	err = s.repo.DeleteProfile(ctx, profileID)
+	assert.ErrorIs(s.T(), err, context.Canceled)
+
+	err = s.repo.CreateProfile(ctx, profile)
+	assert.ErrorIs(s.T(), err, context.Canceled)
+
+	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
 }
 
 func stringPtr(s string) *string {
