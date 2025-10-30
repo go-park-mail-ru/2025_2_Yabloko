@@ -12,12 +12,25 @@ type Config struct {
 	DBPort     string
 	DBName     string
 	AppPort    string
+
+	UploadPath string // локальная папка для аватарок
+	BaseURL    string // базовый публичный url для файлов
 }
 
 func LoadConfig() *Config {
 	dbHost := os.Getenv("POSTGRES_HOST")
 	if dbHost == "" {
 		dbHost = "db"
+	}
+
+	uploadPath := os.Getenv("UPLOAD_PATH")
+	if uploadPath == "" {
+		uploadPath = "uploads"
+	}
+
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://localhost:8080"
 	}
 
 	return &Config{
@@ -27,6 +40,8 @@ func LoadConfig() *Config {
 		DBPort:     os.Getenv("POSTGRES_PORT"),
 		DBName:     os.Getenv("DB_NAME"),
 		AppPort:    os.Getenv("PROFILE_SERVICE_PORT"),
+		UploadPath: uploadPath,
+		BaseURL:    baseURL,
 	}
 }
 

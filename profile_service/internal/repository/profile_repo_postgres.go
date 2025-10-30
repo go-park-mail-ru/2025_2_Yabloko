@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type ProfileRepoPostgres struct {
@@ -25,10 +26,11 @@ func (r *ProfileRepoPostgres) GetProfile(ctx context.Context, id string) (*domai
 	r.log.Debug(ctx, "GetProfile начало обработки", map[string]interface{}{"id": id})
 
 	query := `
-		SELECT id, email, name, phone, city_id, address, created_at, updated_at 
+		SELECT id, email, name, phone, city_id, address, avatar_url, created_at, updated_at 
 		FROM account 
 		WHERE id = $1
 	`
+
 	r.log.Debug(ctx, "SQL запрос", map[string]interface{}{
 		"query":     query,
 		"params":    []interface{}{id},
@@ -36,19 +38,18 @@ func (r *ProfileRepoPostgres) GetProfile(ctx context.Context, id string) (*domai
 	})
 
 	profile := &domain.Profile{}
-	var name, phone, cityID, address *string
 
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&profile.ID,
 		&profile.Email,
-		&name,
-		&phone,
-		&cityID,
-		&address,
+		&profile.Name,
+		&profile.Phone,
+		&profile.CityID,
+		&profile.Address,
+		&profile.AvatarURL,
 		&profile.CreatedAt,
 		&profile.UpdatedAt,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			r.log.Warn(ctx, "GetProfile профиль не найден", map[string]interface{}{"id": id})
@@ -58,59 +59,7 @@ func (r *ProfileRepoPostgres) GetProfile(ctx context.Context, id string) (*domai
 		return nil, err
 	}
 
-	profile.Name = name
-	profile.Phone = phone
-	profile.CityID = cityID
-	profile.Address = address
-
 	r.log.Debug(ctx, "GetProfile завершено успешно", map[string]interface{}{"id": id})
-	return profile, nil
-}
-
-func (r *ProfileRepoPostgres) GetProfileByEmail(ctx context.Context, email string) (*domain.Profile, error) {
-	r.log.Debug(ctx, "GetProfileByEmail начало обработки", map[string]interface{}{"email": email})
-
-	query := `
-		SELECT id, email, password_hash, name, phone, city_id, address, created_at, updated_at
-		FROM account
-		WHERE email = $1
-	`
-
-	r.log.Debug(ctx, "SQL запрос", map[string]interface{}{
-		"query":     query,
-		"params":    []interface{}{email},
-		"operation": "GetProfileByEmail",
-	})
-
-	profile := &domain.Profile{}
-	var name, phone, cityID, address *string
-
-	err := r.db.QueryRow(ctx, query, email).Scan(
-		&profile.ID,
-		&profile.Email,
-		&profile.PasswordHash,
-		&name,
-		&phone,
-		&cityID,
-		&address,
-		&profile.CreatedAt,
-		&profile.UpdatedAt,
-	)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			r.log.Warn(ctx, "GetProfileByEmail профиль не найден", map[string]interface{}{"email": email})
-			return nil, domain.ErrProfileNotFound
-		}
-		r.log.Error(ctx, "GetProfileByEmail ошибка БД", map[string]interface{}{"err": err, "email": email})
-		return nil, err
-	}
-
-	profile.Name = name
-	profile.Phone = phone
-	profile.CityID = cityID
-	profile.Address = address
-
-	r.log.Debug(ctx, "GetProfileByEmail завершено успешно", map[string]interface{}{"email": email})
 	return profile, nil
 }
 
@@ -119,25 +68,35 @@ func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, profile *domain
 
 	query := `
         UPDATE account
-        SET name = $1, phone = $2, city_id = $3, address = $4
-        WHERE id = $5
+        SET
+            name       = $1,
+            phone      = $2,
+            city_id    = $3,
+            address    = $4,
+            avatar_url = $5
+        WHERE id = $6
     `
 
 	r.log.Debug(ctx, "SQL запрос", map[string]interface{}{
 		"query":     query,
-		"params":    []interface{}{profile.Name, profile.Phone, profile.CityID, profile.Address, profile.ID},
+		"params":    []interface{}{profile.Name, profile.Phone, profile.CityID, profile.Address, profile.AvatarURL, profile.ID},
 		"operation": "UpdateProfile",
 	})
 
-	result, err := r.db.Exec(ctx, query, profile.Name, profile.Phone, profile.CityID, profile.Address, profile.ID)
+	cmdTag, err := r.db.Exec(ctx, query,
+		profile.Name,
+		profile.Phone,
+		profile.CityID,
+		profile.Address,
+		profile.AvatarURL,
+		profile.ID,
+	)
 	if err != nil {
 		r.log.Error(ctx, "UpdateProfile ошибка БД", map[string]interface{}{"err": err, "id": profile.ID})
 		return err
 	}
-
-	rowsAffected := result.RowsAffected()
-	if rowsAffected == 0 {
-		r.log.Error(ctx, "UpdateProfile профиль не найден", map[string]interface{}{"id": profile.ID})
+	if cmdTag.RowsAffected() == 0 {
+		r.log.Warn(ctx, "UpdateProfile профиль не найден", map[string]interface{}{"id": profile.ID})
 		return domain.ErrProfileNotFound
 	}
 
@@ -187,6 +146,11 @@ func (r *ProfileRepoPostgres) CreateProfile(ctx context.Context, profile *domain
 
 	_, err := r.db.Exec(ctx, query, profile.ID, profile.Email, profile.PasswordHash)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			r.log.Warn(ctx, "CreateProfile конфликт email (unique)", map[string]interface{}{"email": profile.Email, "pgcode": pgErr.Code})
+			return domain.ErrProfileExist
+		}
 		r.log.Error(ctx, "CreateProfile ошибка БД", map[string]interface{}{"err": err, "email": profile.Email})
 		return err
 	}

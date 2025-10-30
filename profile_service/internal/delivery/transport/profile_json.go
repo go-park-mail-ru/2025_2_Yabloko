@@ -16,6 +16,7 @@ type ProfileResponse struct {
 	Phone     *string `json:"phone,omitempty"`
 	CityID    *string `json:"city_id,omitempty"`
 	Address   *string `json:"address,omitempty"`
+	AvatarURL *string `json:"avatar_url,omitempty"`
 	CreatedAt string  `json:"created_at"`
 	UpdatedAt string  `json:"updated_at"`
 } // @name ProfileResponse
@@ -26,13 +27,18 @@ type CreateProfileRequest struct {
 } // @name CreateProfileRequest
 
 type UpdateProfileRequest struct {
-	Name    *string `json:"name,omitempty"`
-	Phone   *string `json:"phone,omitempty"`
-	CityID  *string `json:"city_id,omitempty"`
-	Address *string `json:"address,omitempty"`
+	Name      *string `json:"name,omitempty"`
+	Phone     *string `json:"phone,omitempty"`
+	CityID    *string `json:"city_id,omitempty"`
+	Address   *string `json:"address,omitempty"`
+	AvatarURL *string `json:"avatar_url,omitempty"`
 } // @name UpdateProfileRequest
 
 func ToProfileResponse(p *domain.Profile) *ProfileResponse {
+	if p == nil {
+		return nil
+	}
+
 	return &ProfileResponse{
 		ID:        p.ID,
 		Email:     p.Email,
@@ -40,6 +46,7 @@ func ToProfileResponse(p *domain.Profile) *ProfileResponse {
 		Phone:     p.Phone,
 		CityID:    p.CityID,
 		Address:   p.Address,
+		AvatarURL: p.AvatarURL,
 		CreatedAt: p.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: p.UpdatedAt.Format(time.RFC3339),
 	}

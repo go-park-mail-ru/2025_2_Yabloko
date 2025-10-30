@@ -4,6 +4,7 @@ package http
 import (
 	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
+	"apple_backend/profile_service/internal/delivery/middlewares"
 	"apple_backend/profile_service/internal/delivery/transport"
 	"apple_backend/profile_service/internal/domain"
 	"apple_backend/profile_service/internal/repository"
@@ -17,8 +18,7 @@ import (
 
 type ProfileUsecaseInterface interface {
 	GetProfile(ctx context.Context, id string) (*domain.Profile, error)
-	GetProfileByEmail(ctx context.Context, email string) (*domain.Profile, error)
-	CreateProfile(ctx context.Context, email, passwordHash string) (string, error)
+	CreateProfile(ctx context.Context, email, password string) (string, error) // исправлено: передаём открытый пароль
 	UpdateProfile(ctx context.Context, profile *domain.Profile) error
 	DeleteProfile(ctx context.Context, id string) error
 }
@@ -26,53 +26,82 @@ type ProfileUsecaseInterface interface {
 type ProfileHandler struct {
 	uc ProfileUsecaseInterface
 	rs *http_response.ResponseSender
+
+	// префикс пути "/{apiPrefix}/profiles/"
+	profilesPath string
 }
 
-func NewProfileHandler(uc ProfileUsecaseInterface, log *logger.Logger) *ProfileHandler {
+func NewProfileHandler(uc ProfileUsecaseInterface, log *logger.Logger, apiPrefix string) *ProfileHandler {
 	return &ProfileHandler{
-		uc: uc,
-		rs: http_response.NewResponseSender(log),
+		uc:           uc,
+		rs:           http_response.NewResponseSender(log),
+		profilesPath: strings.TrimRight(apiPrefix, "/") + "/profiles/",
 	}
 }
 
-func NewProfileRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string, appLog *logger.Logger) {
-
+func NewProfileRouter(
+	mux *http.ServeMux,
+	db repository.PgxIface,
+	apiPrefix string,
+	appLog *logger.Logger,
+	uploadPath string,
+	baseURL string,
+) {
 	profileRepo := repository.NewProfileRepoPostgres(db, appLog)
-
 	profileUC := usecase.NewProfileUsecase(profileRepo)
+	avatarUC := usecase.NewAvatarUsecase(profileRepo, baseURL, uploadPath)
 
-	profileHandler := NewProfileHandler(profileUC, appLog)
+	profileHandler := NewProfileHandler(profileUC, appLog, apiPrefix)
+	avatarHandler := NewAvatarHandler(avatarUC, appLog)
 
-	// POST /apiPrefix/profiles Create (без id)
-	mux.HandleFunc(apiPrefix+"/profiles", profileHandler.CreateProfile)
+	chain := func(h http.Handler) http.Handler {
+		return middlewares.AccessLog(appLog,
+			middlewares.CSRFTokenMiddleware(
+				middlewares.CSRFMiddleware(h),
+			),
+		)
+	}
 
-	// GET/PUT/DELETE /apiPrefix/profiles/{id}
-	mux.HandleFunc(apiPrefix+"/profiles/", profileHandler.handleProfileRoutes)
+	mux.Handle(apiPrefix+"/profiles", chain(http.HandlerFunc(profileHandler.CreateProfile)))
 
+	mux.Handle(apiPrefix+"/profiles/",
+		chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(strings.TrimRight(r.URL.Path, "/"), "/avatar") {
+				avatarHandler.UploadAvatar(w, r)
+				return
+			}
+			profileHandler.handleProfileRoutes(w, r)
+		})),
+	)
 }
 
-func extractIDFromPath(path, prefix string) string {
-	id := strings.TrimPrefix(path, prefix)
-	return strings.TrimSuffix(id, "/")
+func (h *ProfileHandler) extractIDFromRequest(r *http.Request) string {
+	path := strings.TrimPrefix(r.URL.Path, h.profilesPath)
+	if path == "" {
+		return ""
+	}
+	// берем первый сегмент после "/profiles/"
+	if i := strings.IndexByte(path, '/'); i >= 0 {
+		return path[:i]
+	}
+	return path
 }
 
 func (h *ProfileHandler) handleProfileRoutes(w http.ResponseWriter, r *http.Request) {
-	id := extractIDFromPath(r.URL.Path, "/api/v0/profiles/")
-
+	id := h.extractIDFromRequest(r)
+	if id == "" {
+		h.rs.Error(r.Context(), w, http.StatusBadRequest, "ProfileRoutes", domain.ErrRequestParams, nil)
+		return
+	}
 	switch r.Method {
-
 	case http.MethodGet:
 		h.GetProfile(w, r, id)
-
 	case http.MethodPut:
 		h.UpdateProfile(w, r, id)
-
 	case http.MethodDelete:
 		h.DeleteProfile(w, r, id)
-
 	default:
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "ProfileRoutes", domain.ErrHTTPMethod, nil)
-
 	}
 }
 
@@ -93,13 +122,17 @@ func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request, id s
 
 	profile, err := h.uc.GetProfile(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, domain.ErrProfileNotFound) {
-			h.rs.Error(r.Context(), w, http.StatusNotFound, "GetProfile", domain.ErrProfileNotFound, nil)
+		switch {
+		case errors.Is(err, domain.ErrInvalidProfileData):
+			h.rs.Error(r.Context(), w, http.StatusBadRequest, "GetProfile", err, nil)
+			return
+		case errors.Is(err, domain.ErrProfileNotFound):
+			h.rs.Error(r.Context(), w, http.StatusNotFound, "GetProfile", err, nil)
+			return
+		default:
+			h.rs.Error(r.Context(), w, http.StatusInternalServerError, "GetProfile", domain.ErrInternalServer, err)
 			return
 		}
-
-		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "GetProfile", domain.ErrInternalServer, err)
-		return
 	}
 
 	responseProfile := transport.ToProfileResponse(profile)
@@ -134,25 +167,22 @@ func (h *ProfileHandler) CreateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	profileID, err := h.uc.CreateProfile(r.Context(), req.Email, req.Password)
-
+	id, err := h.uc.CreateProfile(r.Context(), req.Email, req.Password) // передаём открытый пароль
 	if err != nil {
-
-		if errors.Is(err, domain.ErrProfileExist) {
-			h.rs.Error(r.Context(), w, http.StatusConflict, "CreateProfile", domain.ErrProfileExist, err)
+		switch {
+		case errors.Is(err, domain.ErrProfileExist):
+			h.rs.Error(r.Context(), w, http.StatusConflict, "CreateProfile", err, nil)
+			return
+		case errors.Is(err, domain.ErrInvalidProfileData):
+			h.rs.Error(r.Context(), w, http.StatusBadRequest, "CreateProfile", err, nil)
+			return
+		default:
+			h.rs.Error(r.Context(), w, http.StatusInternalServerError, "CreateProfile", domain.ErrInternalServer, err)
 			return
 		}
-
-		if errors.Is(err, domain.ErrInvalidProfileData) {
-			h.rs.Error(r.Context(), w, http.StatusBadRequest, "CreateProfile", domain.ErrInvalidProfileData, err)
-			return
-		}
-
-		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "CreateProfile", domain.ErrInternalServer, err)
-		return
 	}
 
-	h.rs.Send(r.Context(), w, http.StatusCreated, &transport.CreateProfileResponse{ID: profileID})
+	h.rs.Send(r.Context(), w, http.StatusCreated, &transport.CreateProfileResponse{ID: id})
 }
 
 // UpdateProfile godoc
@@ -187,14 +217,18 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, i
 	}
 
 	err := h.uc.UpdateProfile(r.Context(), profile)
-
 	if err != nil {
-		if errors.Is(err, domain.ErrProfileNotFound) {
-			h.rs.Error(r.Context(), w, http.StatusNotFound, "UpdateProfile", domain.ErrProfileNotFound, nil)
+		switch {
+		case errors.Is(err, domain.ErrInvalidProfileData):
+			h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateProfile", err, nil)
+			return
+		case errors.Is(err, domain.ErrProfileNotFound):
+			h.rs.Error(r.Context(), w, http.StatusNotFound, "UpdateProfile", err, nil)
+			return
+		default:
+			h.rs.Error(r.Context(), w, http.StatusInternalServerError, "UpdateProfile", domain.ErrInternalServer, err)
 			return
 		}
-		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "UpdateProfile", domain.ErrInternalServer, err)
-		return
 	}
 
 	h.rs.Send(r.Context(), w, http.StatusOK, map[string]string{"message": "Профиль успешно обновлен"})
@@ -217,14 +251,17 @@ func (h *ProfileHandler) DeleteProfile(w http.ResponseWriter, r *http.Request, i
 
 	err := h.uc.DeleteProfile(r.Context(), id)
 	if err != nil {
-
-		if errors.Is(err, domain.ErrProfileNotFound) {
-			h.rs.Error(r.Context(), w, http.StatusNotFound, "DeleteProfile", domain.ErrProfileNotFound, nil)
+		switch {
+		case errors.Is(err, domain.ErrInvalidProfileData):
+			h.rs.Error(r.Context(), w, http.StatusBadRequest, "DeleteProfile", err, nil)
+			return
+		case errors.Is(err, domain.ErrProfileNotFound):
+			h.rs.Error(r.Context(), w, http.StatusNotFound, "DeleteProfile", err, nil)
+			return
+		default:
+			h.rs.Error(r.Context(), w, http.StatusInternalServerError, "DeleteProfile", domain.ErrInternalServer, err)
 			return
 		}
-
-		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "DeleteProfile", domain.ErrInternalServer, err)
-		return
 	}
 
 	h.rs.Send(r.Context(), w, http.StatusNoContent, nil)

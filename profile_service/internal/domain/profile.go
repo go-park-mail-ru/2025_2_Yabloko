@@ -10,6 +10,7 @@ type Profile struct {
 	Phone        *string
 	CityID       *string
 	Address      *string
+	AvatarURL    *string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

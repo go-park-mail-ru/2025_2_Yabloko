@@ -15,6 +15,7 @@ import (
 
 func Run(appLog, accessLog *logger.Logger) {
 	conf := config.LoadConfig()
+
 	dbPool, err := pgxpool.New(context.Background(), conf.DBPath())
 	if err != nil {
 		log.Fatal(err)
@@ -23,7 +24,7 @@ func Run(appLog, accessLog *logger.Logger) {
 
 	mux := http.NewServeMux()
 
-	phttp.NewProfileRouter(mux, dbPool, "/api/v0", appLog)
+	phttp.NewProfileRouter(mux, dbPool, "/api/v0", appLog, conf.UploadPath, conf.BaseURL)
 
 	handler := middlewares.CorsMiddleware(middlewares.AccessLog(accessLog, mux))
 

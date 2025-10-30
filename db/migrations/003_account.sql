@@ -8,6 +8,7 @@ create table if not exists account
     phone      text,
     city_id    uuid references city (id),
     address    text,
+    avatar_url text check (length(avatar_url) <= 500),
     updated_at timestamptz not null default current_timestamp,
     created_at timestamptz not null default current_timestamp,
     constraint email_length check (length(email) <= 100),

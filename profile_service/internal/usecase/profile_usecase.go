@@ -2,20 +2,14 @@
 package usecase
 
 import (
-	"apple_backend/profile_service/internal/domain"
 	"context"
 	"strings"
 
-	"github.com/google/uuid"
-)
+	"apple_backend/profile_service/internal/domain"
 
-type ProfileRepository interface {
-	GetProfile(ctx context.Context, id string) (*domain.Profile, error)
-	GetProfileByEmail(ctx context.Context, email string) (*domain.Profile, error)
-	CreateProfile(ctx context.Context, profile *domain.Profile) error
-	UpdateProfile(ctx context.Context, profile *domain.Profile) error
-	DeleteProfile(ctx context.Context, id string) error
-}
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
+)
 
 type ProfileUsecase struct {
 	repo ProfileRepository
@@ -32,79 +26,73 @@ func (uc *ProfileUsecase) GetProfile(ctx context.Context, id string) (*domain.Pr
 	return uc.repo.GetProfile(ctx, id)
 }
 
-func (uc *ProfileUsecase) GetProfileByEmail(ctx context.Context, email string) (*domain.Profile, error) {
-	return uc.repo.GetProfileByEmail(ctx, email)
-}
-
-func (uc *ProfileUsecase) CreateProfile(ctx context.Context, email, passwordHash string) (string, error) {
+func (uc *ProfileUsecase) CreateProfile(ctx context.Context, email, password string) (string, error) {
 	email = strings.TrimSpace(email)
-	if email == "" {
+	if email == "" || password == "" {
 		return "", domain.ErrInvalidProfileData
 	}
-
-	if passwordHash == "" {
+	if !strings.Contains(email, "@") || len(email) > 100 {
 		return "", domain.ErrInvalidProfileData
 	}
-
-	profile := &domain.Profile{
-		ID:           uuid.New().String(),
-		Email:        email,
-		PasswordHash: passwordHash,
+	if len(password) < 8 || len(password) > 72 {
+		return "", domain.ErrInvalidProfileData
 	}
-
-	if err := uc.repo.CreateProfile(ctx, profile); err != nil {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
 		return "", err
 	}
-
-	return profile.ID, nil
+	id := uuid.NewString()
+	p := &domain.Profile{
+		ID:           id,
+		Email:        email,
+		PasswordHash: string(hash),
+	}
+	if err := uc.repo.CreateProfile(ctx, p); err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
-func (uc *ProfileUsecase) UpdateProfile(ctx context.Context, profile *domain.Profile) error {
-	existing, err := uc.repo.GetProfile(ctx, profile.ID)
+func (uc *ProfileUsecase) UpdateProfile(ctx context.Context, in *domain.Profile) error {
+	if _, err := uuid.Parse(in.ID); err != nil {
+		return domain.ErrInvalidProfileData
+	}
+	existing, err := uc.repo.GetProfile(ctx, in.ID)
 	if err != nil {
 		return err
 	}
 
-	if profile.Name != nil && len(*profile.Name) > 100 {
+	if in.Name != nil && len(*in.Name) > 100 {
 		return domain.ErrInvalidProfileData
 	}
-
-	if profile.Phone != nil {
-		p := strings.TrimSpace(*profile.Phone)
+	if in.Phone != nil {
+		p := strings.TrimSpace(*in.Phone)
 		if len(p) < 10 || len(p) > 20 {
 			return domain.ErrInvalidProfileData
 		}
 	}
-
-	if profile.Address != nil && len(*profile.Address) > 200 {
+	if in.Address != nil && len(*in.Address) > 200 {
 		return domain.ErrInvalidProfileData
 	}
-
-	merged := &domain.Profile{
-		ID:      existing.ID,
-		Email:   existing.Email,
-		Name:    existing.Name,
-		Phone:   existing.Phone,
-		CityID:  existing.CityID,
-		Address: existing.Address,
+	if in.Name != nil {
+		existing.Name = in.Name
+	}
+	if in.Phone != nil {
+		existing.Phone = in.Phone
+	}
+	if in.CityID != nil {
+		existing.CityID = in.CityID
+	}
+	if in.Address != nil {
+		existing.Address = in.Address
 	}
 
-	if profile.Name != nil {
-		merged.Name = profile.Name
-	}
-	if profile.Phone != nil {
-		merged.Phone = profile.Phone
-	}
-	if profile.CityID != nil {
-		merged.CityID = profile.CityID
-	}
-	if profile.Address != nil {
-		merged.Address = profile.Address
-	}
-
-	return uc.repo.UpdateProfile(ctx, merged)
+	return uc.repo.UpdateProfile(ctx, existing)
 }
 
 func (uc *ProfileUsecase) DeleteProfile(ctx context.Context, id string) error {
+	if _, err := uuid.Parse(id); err != nil {
+		return domain.ErrInvalidProfileData
+	}
 	return uc.repo.DeleteProfile(ctx, id)
 }

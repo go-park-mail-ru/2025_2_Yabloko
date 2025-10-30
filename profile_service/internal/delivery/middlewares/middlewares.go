@@ -53,28 +53,52 @@ func verifyJWTCSRFToken(tokenString, sessionID, userAgent string) bool {
 	return false
 }
 
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *statusWriter) Write(b []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	n, err := w.ResponseWriter.Write(b)
+	w.bytes += n
+	return n, err
+}
+
 func AccessLog(log *logger.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqID := r.Header.Get("X-Request-ID")
 		if reqID == "" {
 			reqID = uuid.NewString()
 		}
-
 		ctx := trace.SetRequestID(r.Context(), reqID)
 		r = r.WithContext(ctx)
 		w.Header().Set("X-Request-ID", reqID)
 
+		sw := &statusWriter{ResponseWriter: w}
 		start := time.Now()
+
 		log.Info(ctx, "request started", map[string]interface{}{
 			"method": r.Method,
 			"url":    r.URL.Path,
 		})
-		next.ServeHTTP(w, r)
+
+		next.ServeHTTP(sw, r)
 
 		duration := time.Since(start)
 		log.Info(ctx, "request completed", map[string]interface{}{
 			"method":   r.Method,
 			"url":      r.URL.Path,
+			"status":   sw.status,
+			"bytes":    sw.bytes,
 			"duration": duration.Milliseconds(),
 		})
 	})
