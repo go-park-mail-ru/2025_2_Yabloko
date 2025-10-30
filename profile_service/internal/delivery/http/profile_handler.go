@@ -36,8 +36,11 @@ func NewProfileHandler(uc ProfileUsecaseInterface, log *logger.Logger) *ProfileH
 }
 
 func NewProfileRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string, appLog *logger.Logger) {
+
 	profileRepo := repository.NewProfileRepoPostgres(db, appLog)
+
 	profileUC := usecase.NewProfileUsecase(profileRepo)
+
 	profileHandler := NewProfileHandler(profileUC, appLog)
 
 	// POST /apiPrefix/profiles Create (без id)
@@ -46,8 +49,6 @@ func NewProfileRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix stri
 	// GET/PUT/DELETE /apiPrefix/profiles/{id}
 	mux.HandleFunc(apiPrefix+"/profiles/", profileHandler.handleProfileRoutes)
 
-	// GET /apiPrefix/profiles/email/{email}
-	mux.HandleFunc(apiPrefix+"/profiles/email/", profileHandler.GetProfileByEmail)
 }
 
 func extractIDFromPath(path, prefix string) string {
@@ -59,14 +60,19 @@ func (h *ProfileHandler) handleProfileRoutes(w http.ResponseWriter, r *http.Requ
 	id := extractIDFromPath(r.URL.Path, "/api/v0/profiles/")
 
 	switch r.Method {
+
 	case http.MethodGet:
 		h.GetProfile(w, r, id)
+
 	case http.MethodPut:
 		h.UpdateProfile(w, r, id)
+
 	case http.MethodDelete:
 		h.DeleteProfile(w, r, id)
+
 	default:
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "ProfileRoutes", domain.ErrHTTPMethod, nil)
+
 	}
 }
 
@@ -84,52 +90,15 @@ func (h *ProfileHandler) handleProfileRoutes(w http.ResponseWriter, r *http.Requ
 // @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
 // @Router /profiles/{id} [get]
 func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request, id string) {
+
 	profile, err := h.uc.GetProfile(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, domain.ErrProfileNotFound) {
 			h.rs.Error(r.Context(), w, http.StatusNotFound, "GetProfile", domain.ErrProfileNotFound, nil)
 			return
 		}
+
 		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "GetProfile", domain.ErrInternalServer, err)
-		return
-	}
-
-	responseProfile := transport.ToProfileResponse(profile)
-	h.rs.Send(r.Context(), w, http.StatusOK, responseProfile)
-}
-
-// GetProfileByEmail godoc
-// @Summary Получить профиль по email
-// @Description Возвращает информацию о профиле пользователя по его email
-// @Tags profiles
-// @Accept json
-// @Produce json
-// @Param email path string true "Email пользователя"
-// @Success 200 {object} transport.ProfileResponse
-// @Failure 400 {object} http_response.ErrResponse "Некорректный email"
-// @Failure 404 {object} http_response.ErrResponse "Профиль не найден"
-// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
-// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
-// @Router /profiles/email/{email} [get]
-func (h *ProfileHandler) GetProfileByEmail(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "GetProfileByEmail", domain.ErrHTTPMethod, nil)
-		return
-	}
-
-	email := extractIDFromPath(r.URL.Path, "/api/v0/profiles/email/")
-	if email == "" {
-		h.rs.Error(r.Context(), w, http.StatusBadRequest, "GetProfileByEmail", domain.ErrRequestParams, nil)
-		return
-	}
-
-	profile, err := h.uc.GetProfileByEmail(r.Context(), email)
-	if err != nil {
-		if errors.Is(err, domain.ErrProfileNotFound) {
-			h.rs.Error(r.Context(), w, http.StatusNotFound, "GetProfileByEmail", domain.ErrProfileNotFound, nil)
-			return
-		}
-		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "GetProfileByEmail", domain.ErrInternalServer, err)
 		return
 	}
 
@@ -151,27 +120,34 @@ func (h *ProfileHandler) GetProfileByEmail(w http.ResponseWriter, r *http.Reques
 // @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
 // @Router /profiles [post]
 func (h *ProfileHandler) CreateProfile(w http.ResponseWriter, r *http.Request) {
+
 	if r.Method != http.MethodPost {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "CreateProfile", domain.ErrHTTPMethod, nil)
 		return
+
 	}
 
 	var req transport.CreateProfileRequest
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "CreateProfile", domain.ErrRequestParams, err)
 		return
 	}
 
 	profileID, err := h.uc.CreateProfile(r.Context(), req.Email, req.Password)
+
 	if err != nil {
+
 		if errors.Is(err, domain.ErrProfileExist) {
 			h.rs.Error(r.Context(), w, http.StatusConflict, "CreateProfile", domain.ErrProfileExist, err)
 			return
 		}
+
 		if errors.Is(err, domain.ErrInvalidProfileData) {
 			h.rs.Error(r.Context(), w, http.StatusBadRequest, "CreateProfile", domain.ErrInvalidProfileData, err)
 			return
 		}
+
 		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "CreateProfile", domain.ErrInternalServer, err)
 		return
 	}
@@ -194,7 +170,9 @@ func (h *ProfileHandler) CreateProfile(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
 // @Router /profiles/{id} [put]
 func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, id string) {
+
 	var req transport.UpdateProfileRequest
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateProfile", domain.ErrRequestParams, err)
 		return
@@ -209,6 +187,7 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, i
 	}
 
 	err := h.uc.UpdateProfile(r.Context(), profile)
+
 	if err != nil {
 		if errors.Is(err, domain.ErrProfileNotFound) {
 			h.rs.Error(r.Context(), w, http.StatusNotFound, "UpdateProfile", domain.ErrProfileNotFound, nil)
@@ -235,12 +214,15 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, i
 // @Failure 500 {object} map[string]string "Внутренняя ошибка сервера"
 // @Router /profiles/{id} [delete]
 func (h *ProfileHandler) DeleteProfile(w http.ResponseWriter, r *http.Request, id string) {
+
 	err := h.uc.DeleteProfile(r.Context(), id)
 	if err != nil {
+
 		if errors.Is(err, domain.ErrProfileNotFound) {
 			h.rs.Error(r.Context(), w, http.StatusNotFound, "DeleteProfile", domain.ErrProfileNotFound, nil)
 			return
 		}
+
 		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "DeleteProfile", domain.ErrInternalServer, err)
 		return
 	}

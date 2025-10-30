@@ -85,84 +85,8 @@ func TestProfileHandler_GetProfile(t *testing.T) {
 	})
 }
 
-func TestProfileHandler_GetProfileByEmail(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockUC := mock.NewMockProfileUsecaseInterface(ctrl)
-	appLog := logger.NewNilLogger()
-	handler := NewProfileHandler(mockUC, appLog)
-
-	t.Run("Успешное получение профиля по email", func(t *testing.T) {
-		expectedProfile := &domain.Profile{
-			ID:    "550e8400-e29b-41d4-a716-446655440000",
-			Email: "test@example.com",
-			Name:  stringPtr("John"),
-		}
-
-		mockUC.EXPECT().
-			GetProfileByEmail(gomock.Any(), "test@example.com").
-			Return(expectedProfile, nil)
-
-		req := httptest.NewRequest("GET", "/api/v0/profiles/email/test@example.com", nil)
-		w := httptest.NewRecorder()
-
-		handler.GetProfileByEmail(w, req)
-
-		require.Equal(t, http.StatusOK, w.Code)
-
-		var response transport.ProfileResponse
-		err := json.Unmarshal(w.Body.Bytes(), &response)
-		require.NoError(t, err)
-		require.Equal(t, "test@example.com", response.Email)
-	})
-
-	t.Run("Пустой email", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/v0/profiles/email/", nil)
-		w := httptest.NewRecorder()
-
-		handler.GetProfileByEmail(w, req)
-
-		require.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("Профиль не найден по email", func(t *testing.T) {
-		mockUC.EXPECT().
-			GetProfileByEmail(gomock.Any(), "notfound@example.com").
-			Return(nil, domain.ErrProfileNotFound)
-
-		req := httptest.NewRequest("GET", "/api/v0/profiles/email/notfound@example.com", nil)
-		w := httptest.NewRecorder()
-
-		handler.GetProfileByEmail(w, req)
-
-		require.Equal(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("Неподдерживаемый метод", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/api/v0/profiles/email/test@example.com", nil)
-		w := httptest.NewRecorder()
-
-		handler.GetProfileByEmail(w, req)
-
-		require.Equal(t, http.StatusMethodNotAllowed, w.Code)
-	})
-
-	t.Run("Ошибка сервера при получении по email", func(t *testing.T) {
-		mockUC.EXPECT().
-			GetProfileByEmail(gomock.Any(), "error@example.com").
-			Return(nil, errors.New("internal error"))
-
-		req := httptest.NewRequest("GET", "/api/v0/profiles/email/error@example.com", nil)
-		w := httptest.NewRecorder()
-
-		handler.GetProfileByEmail(w, req)
-
-		require.Equal(t, http.StatusInternalServerError, w.Code)
-	})
-}
-
 func TestProfileHandler_UpdateProfile(t *testing.T) {
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
