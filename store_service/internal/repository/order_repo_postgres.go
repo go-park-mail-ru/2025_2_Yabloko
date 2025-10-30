@@ -59,7 +59,7 @@ func (r *OrderRepoPostgres) CreateOrder(ctx context.Context, userID string) (str
 	// сумма заказа
 	query = `
 		update "order"
-		ser total_price = (
+		set total_price = (
 			select sum(si.price * ci.quantity)
 			from cart_item ci
 			join cart c ON c.id = ci.cart_id
@@ -85,7 +85,11 @@ func (r *OrderRepoPostgres) CreateOrder(ctx context.Context, userID string) (str
 		return "", err
 	}
 
-	tx.Commit(ctx)
+	err = tx.Commit(ctx)
+	if err != nil {
+		r.log.Error(ctx, "CreateOrder ошибка закрытия транзакции", map[string]interface{}{"err": err, "id": userID})
+		return "", domain.ErrInternalServer
+	}
 
 	r.log.Debug(ctx, "CreateOrder завершено успешно", map[string]interface{}{})
 	return orderID, nil

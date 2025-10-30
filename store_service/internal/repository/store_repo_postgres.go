@@ -32,7 +32,7 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 
 	// фильтрация по тегу
 	if filter.TagID != "" {
-		where = append(where, fmt.Sprintf("st.tag_id = $%d", len(args)+1))
+		where = append(where, fmt.Sprintf("exists (select 1 from store_tag st2 where st2.store_id = s.id and st2.tag_id = $%d)", len(args)+1))
 		args = append(args, filter.TagID)
 	}
 
