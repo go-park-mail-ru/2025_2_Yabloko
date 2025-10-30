@@ -1,10 +1,10 @@
 package usecase
 
 import (
+	"apple_backend/custom_errors"
 	"apple_backend/store_service/internal/domain"
 	"apple_backend/store_service/internal/usecase/mock"
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -20,7 +20,8 @@ func TestStoreUsecase_GetStore(t *testing.T) {
 	type testCase struct {
 		name           string
 		input          args
-		expectedResult *domain.Store
+		repoOutput     []*domain.Store
+		expectedResult *domain.StoreAgg
 		expectedError  error
 	}
 
@@ -31,7 +32,21 @@ func TestStoreUsecase_GetStore(t *testing.T) {
 				ctx: context.Background(),
 				id:  "00000000-0000-0000-0000-000000000001",
 			},
-			expectedResult: &domain.Store{
+			repoOutput: []*domain.Store{
+				{
+					ID:          "00000000-0000-0000-0000-000000000001",
+					Name:        "Store",
+					Description: "Description",
+					CityID:      "10000000-0000-0000-0000-000000000001",
+					Address:     "Address",
+					CardImg:     "CardImg",
+					Rating:      3,
+					TagID:       "10000000-0000-0000-0000-000000000001",
+					OpenAt:      "OpenAt",
+					ClosedAt:    "ClosedAt",
+				},
+			},
+			expectedResult: &domain.StoreAgg{
 				ID:          "00000000-0000-0000-0000-000000000001",
 				Name:        "Store",
 				Description: "Description",
@@ -39,6 +54,53 @@ func TestStoreUsecase_GetStore(t *testing.T) {
 				Address:     "Address",
 				CardImg:     "CardImg",
 				Rating:      3,
+				TagsID:      []string{"10000000-0000-0000-0000-000000000001"},
+				OpenAt:      "OpenAt",
+				ClosedAt:    "ClosedAt",
+			},
+			expectedError: nil,
+		},
+		{
+			name: "GetStore успешный вызов несколько категорий",
+			input: args{
+				ctx: context.Background(),
+				id:  "00000000-0000-0000-0000-000000000001",
+			},
+			repoOutput: []*domain.Store{
+				{
+					ID:          "00000000-0000-0000-0000-000000000001",
+					Name:        "Store",
+					Description: "Description",
+					CityID:      "10000000-0000-0000-0000-000000000001",
+					Address:     "Address",
+					CardImg:     "CardImg",
+					Rating:      3,
+					TagID:       "10000000-0000-0000-0000-000000000001",
+					OpenAt:      "OpenAt",
+					ClosedAt:    "ClosedAt",
+				},
+				{
+					ID:          "00000000-0000-0000-0000-000000000001",
+					Name:        "Store",
+					Description: "Description",
+					CityID:      "10000000-0000-0000-0000-000000000001",
+					Address:     "Address",
+					CardImg:     "CardImg",
+					Rating:      3,
+					TagID:       "10000000-0000-0000-0000-000000000002",
+					OpenAt:      "OpenAt",
+					ClosedAt:    "ClosedAt",
+				},
+			},
+			expectedResult: &domain.StoreAgg{
+				ID:          "00000000-0000-0000-0000-000000000001",
+				Name:        "Store",
+				Description: "Description",
+				CityID:      "10000000-0000-0000-0000-000000000001",
+				Address:     "Address",
+				CardImg:     "CardImg",
+				Rating:      3,
+				TagsID:      []string{"10000000-0000-0000-0000-000000000001", "10000000-0000-0000-0000-000000000002"},
 				OpenAt:      "OpenAt",
 				ClosedAt:    "ClosedAt",
 			},
@@ -51,7 +113,7 @@ func TestStoreUsecase_GetStore(t *testing.T) {
 				id:  "00000000-0000-0000-0000-000000000001",
 			},
 			expectedResult: nil,
-			expectedError:  errors.New("custom error"),
+			expectedError:  custom_errors.InnerErr,
 		},
 	}
 
@@ -68,7 +130,7 @@ func TestStoreUsecase_GetStore(t *testing.T) {
 
 			mockRepo.EXPECT().
 				GetStore(tt.input.ctx, tt.input.id).
-				Return(tt.expectedResult, tt.expectedError)
+				Return(tt.repoOutput, tt.expectedError)
 
 			store, err := uc.GetStore(tt.input.ctx, tt.input.id)
 
@@ -87,7 +149,8 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 	type testCase struct {
 		name           string
 		input          args
-		expectedResult []*domain.Store
+		repoOutput     []*domain.Store
+		expectedResult []*domain.StoreAgg
 		expectedError  error
 	}
 
@@ -100,7 +163,7 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 					Limit: 2,
 				},
 			},
-			expectedResult: []*domain.Store{
+			repoOutput: []*domain.Store{
 				{
 					ID:          "00000000-0000-0000-0000-000000000001",
 					Name:        "Store",
@@ -109,6 +172,7 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 					Address:     "Address",
 					CardImg:     "CardImg",
 					Rating:      3,
+					TagID:       "00000000-0000-0000-0000-000000000001",
 					OpenAt:      "OpenAt",
 					ClosedAt:    "ClosedAt",
 				},
@@ -120,6 +184,33 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 					Address:     "Address",
 					CardImg:     "CardImg",
 					Rating:      3,
+					TagID:       "00000000-0000-0000-0000-000000000001",
+					OpenAt:      "OpenAt",
+					ClosedAt:    "ClosedAt",
+				},
+			},
+			expectedResult: []*domain.StoreAgg{
+				{
+					ID:          "00000000-0000-0000-0000-000000000001",
+					Name:        "Store",
+					Description: "Description",
+					CityID:      "10000000-0000-0000-0000-000000000001",
+					Address:     "Address",
+					CardImg:     "CardImg",
+					Rating:      3,
+					TagsID:      []string{"00000000-0000-0000-0000-000000000001"},
+					OpenAt:      "OpenAt",
+					ClosedAt:    "ClosedAt",
+				},
+				{
+					ID:          "00000000-0000-0000-0000-000000000002",
+					Name:        "Store",
+					Description: "Description",
+					CityID:      "10000000-0000-0000-0000-000000000001",
+					Address:     "Address",
+					CardImg:     "CardImg",
+					Rating:      3,
+					TagsID:      []string{"00000000-0000-0000-0000-000000000001"},
 					OpenAt:      "OpenAt",
 					ClosedAt:    "ClosedAt",
 				},
@@ -134,8 +225,9 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 					Limit: 2,
 				},
 			},
+			repoOutput:     nil,
 			expectedResult: nil,
-			expectedError:  errors.New("custom error"),
+			expectedError:  custom_errors.InnerErr,
 		},
 	}
 
@@ -152,12 +244,12 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 
 			mockRepo.EXPECT().
 				GetStores(tt.input.ctx, tt.input.filter).
-				Return(tt.expectedResult, tt.expectedError)
+				Return(tt.repoOutput, tt.expectedError)
 
 			store, err := uc.GetStores(tt.input.ctx, tt.input.filter)
 
 			require.Equal(t, tt.expectedError, err)
-			require.Equal(t, tt.expectedResult, store)
+			require.ElementsMatch(t, tt.expectedResult, store)
 		})
 	}
 }
@@ -210,7 +302,7 @@ func TestStoreUsecase_CreateStore(t *testing.T) {
 				closedAt:    "ClosedAt",
 				rating:      3,
 			},
-			expectedError: errors.New("custom error"),
+			expectedError: custom_errors.InnerErr,
 		},
 	}
 
@@ -235,6 +327,112 @@ func TestStoreUsecase_CreateStore(t *testing.T) {
 				tt.input.address, tt.input.cardImg, tt.input.closedAt, tt.input.openAt, tt.input.rating)
 
 			require.Equal(t, tt.expectedError, err)
+		})
+	}
+}
+
+func TestStoreUsecase_GetCities(t *testing.T) {
+	type testCase struct {
+		name           string
+		expectedResult []*domain.City
+		expectedError  error
+	}
+
+	ctx := context.Background()
+	tests := []testCase{
+		{
+			name: "успешный вызов",
+			expectedResult: []*domain.City{
+				{
+					ID:   "00000000-0000-0000-0000-000000000001",
+					Name: "city1",
+				},
+				{
+					ID:   "00000000-0000-0000-0000-000000000002",
+					Name: "city2",
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			name:           "ошбика выполнения",
+			expectedResult: nil,
+			expectedError:  custom_errors.InnerErr,
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock.NewMockStoreRepository(ctrl)
+
+	uc := NewStoreUsecase(mockRepo)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockRepo.EXPECT().
+				GetCities(ctx).
+				Return(tt.expectedResult, tt.expectedError)
+
+			store, err := uc.GetCities(ctx)
+
+			require.Equal(t, tt.expectedError, err)
+			require.ElementsMatch(t, tt.expectedResult, store)
+		})
+	}
+}
+
+func TestStoreUsecase_GetTags(t *testing.T) {
+	type testCase struct {
+		name           string
+		expectedResult []*domain.StoreTag
+		expectedError  error
+	}
+
+	ctx := context.Background()
+	tests := []testCase{
+		{
+			name: "успешный вызов",
+			expectedResult: []*domain.StoreTag{
+				{
+					ID:   "00000000-0000-0000-0000-000000000001",
+					Name: "tag1",
+				},
+				{
+					ID:   "00000000-0000-0000-0000-000000000002",
+					Name: "tag2",
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			name:           "ошбика выполнения",
+			expectedResult: nil,
+			expectedError:  custom_errors.InnerErr,
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock.NewMockStoreRepository(ctrl)
+
+	uc := NewStoreUsecase(mockRepo)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockRepo.EXPECT().
+				GetTags(ctx).
+				Return(tt.expectedResult, tt.expectedError)
+
+			store, err := uc.GetTags(ctx)
+
+			require.Equal(t, tt.expectedError, err)
+			require.ElementsMatch(t, tt.expectedResult, store)
 		})
 	}
 }

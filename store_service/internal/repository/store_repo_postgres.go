@@ -4,12 +4,10 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/store_service/internal/domain"
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type StoreRepoPostgres struct {
@@ -26,20 +24,27 @@ func NewStoreRepoPostgres(db PgxIface, log *logger.Logger) *StoreRepoPostgres {
 
 func generateQuery(filter *domain.StoreFilter) (string, []any) {
 	query := `
-		select id, name, description, city_id, address, card_img, rating, open_at, closed_at 
-		from store
+		select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id
+		from store s left join store_tag st on st.store_id = s.id
 	`
-	where := []string{}
 	args := []any{}
+	where := []string{}
 
 	// фильтрация по тегу
-	if filter.Tag != "" {
-		where = append(where, fmt.Sprintf("tag_id = $%d", len(args)+1))
-		args = append(args, filter.Tag)
+	if filter.TagID != "" {
+		where = append(where, fmt.Sprintf("st.tag_id = $%d", len(args)+1))
+		args = append(args, filter.TagID)
 	}
+
+	// фильтрация по городу
+	if filter.CityID != "" {
+		where = append(where, fmt.Sprintf("s.city_id = $%d", len(args)+1))
+		args = append(args, filter.CityID)
+	}
+
 	// если не первый запрос
 	if filter.LastID != "" {
-		where = append(where, fmt.Sprintf("id > $%d", len(args)+1))
+		where = append(where, fmt.Sprintf("s.id > $%d", len(args)+1))
 		args = append(args, filter.LastID)
 	}
 
@@ -47,20 +52,19 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 		query += " where " + strings.Join(where, " and ")
 	}
 
-	// сортировка
-	orderBy := " order by id"
+	orderBy := " order by s.id"
 	if filter.Sorted != "" {
 		dir := "asc"
 		if filter.Desc {
 			dir = "desc"
 		}
-		orderBy = fmt.Sprintf(" order by $%d %s, id", len(args)+1, dir)
-		args = append(args, filter.Sorted)
+		orderBy = fmt.Sprintf(" order by s.%s %s, s.id", filter.Sorted, dir)
 	}
 	query += orderBy
 
 	query += fmt.Sprintf(" limit $%d", len(args)+1)
 	args = append(args, filter.Limit)
+
 	return query, args
 }
 
@@ -79,7 +83,7 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	for rows.Next() {
 		var store domain.Store
 		err = rows.Scan(&store.ID, &store.Name, &store.Description,
-			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt)
+			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt, &store.TagID)
 		if err != nil {
 			r.log.Error(ctx, "GetStores ошибка при декодировании данных",
 				map[string]interface{}{"err": err, "rows": rows})
@@ -96,41 +100,104 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 
 	if len(stores) == 0 {
 		r.log.Debug(ctx, "GetStores пустой ответ", map[string]interface{}{"filter": filter})
-		return nil, domain.ErrStoreNotFound
+		return nil, domain.ErrRowsNotFound
 	}
 
 	r.log.Debug(ctx, "GetStores завершено успешно", map[string]interface{}{})
 	return stores, nil
 }
 
-func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.Store, error) {
+func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) ([]*domain.Store, error) {
 	query := `
-		select id, name, description, city_id, address, card_img, rating, open_at, closed_at 
-		from store
+		select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id
+		from store s left join store_tag st on st.store_id = s.id
 		where id = $1
 	`
 	r.log.Debug(ctx, "GetStore начало обработки", map[string]interface{}{})
 
-	store := &domain.Store{}
-	err := r.db.QueryRow(ctx, query, id).Scan(&store.ID, &store.Name, &store.Description,
-		&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt)
+	rows, err := r.db.Query(ctx, query, id)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			r.log.Warn(ctx, "GetStore пустой ответ бд", map[string]interface{}{"err": err, "id": id})
-			return nil, domain.ErrStoreNotFound
-		}
 		r.log.Error(ctx, "GetStore ошибка бд", map[string]interface{}{"err": err, "id": id})
 		return nil, err
 	}
+	defer rows.Close()
+
+	var stores []*domain.Store
+	for rows.Next() {
+		var store domain.Store
+		err = rows.Scan(&store.ID, &store.Name, &store.Description,
+			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt, &store.TagID)
+		if err != nil {
+			r.log.Error(ctx, "GetStore ошибка при декодировании данных",
+				map[string]interface{}{"err": err, "rows": rows})
+			return nil, err
+		}
+		stores = append(stores, &store)
+	}
+
+	if err = rows.Err(); err != nil {
+		r.log.Error(ctx, "GetStore ошибка после чтения строк",
+			map[string]interface{}{"err": err, "id": id})
+		return nil, err
+	}
+
+	if len(stores) == 0 {
+		r.log.Debug(ctx, "GetStore пустой ответ", map[string]interface{}{"id": id})
+		return nil, domain.ErrRowsNotFound
+	}
 
 	r.log.Debug(ctx, "GetStore завершено успешно", map[string]interface{}{})
-	return store, nil
+	return stores, nil
 }
 
+func (r *StoreRepoPostgres) GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error) {
+	query := `
+		select acc.name, r.rating, r.comment, r.created_at 
+		from review r left join account acc on r.user_id = acc.id
+		where r.store_id = $1
+		order by r.created_at desc
+	`
+	r.log.Debug(ctx, "GetStoreReview начало обработки", map[string]interface{}{})
+
+	rows, err := r.db.Query(ctx, query, id)
+	if err != nil {
+		r.log.Error(ctx, "GetStoreReview ошибка бд", map[string]interface{}{"err": err, "id": id})
+		return nil, err
+	}
+	defer rows.Close()
+
+	var reviews []*domain.StoreReview
+	for rows.Next() {
+		var review domain.StoreReview
+		err = rows.Scan(&review.UserName, &review.Rating, &review.Comment, &review.CreatedAt)
+		if err != nil {
+			r.log.Error(ctx, "GetStoreReview ошибка при декодировании данных",
+				map[string]interface{}{"err": err, "rows": rows})
+			return nil, err
+		}
+		reviews = append(reviews, &review)
+	}
+
+	if err = rows.Err(); err != nil {
+		r.log.Error(ctx, "GetStoreReview ошибка после чтения строк",
+			map[string]interface{}{"err": err, "id": id})
+		return nil, err
+	}
+
+	if len(reviews) == 0 {
+		r.log.Debug(ctx, "GetStoreReview пустой ответ", map[string]interface{}{"id": id})
+		return nil, domain.ErrRowsNotFound
+	}
+
+	r.log.Debug(ctx, "GetStoreReview завершено успешно", map[string]interface{}{})
+	return reviews, nil
+}
+
+// CreateStore не используется
 func (r *StoreRepoPostgres) CreateStore(ctx context.Context, store *domain.Store) error {
 	addStore := `
 		insert into store (id, name, description, city_id, address, card_img, rating, open_at, closed_at)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	r.log.Debug(ctx, "CreateStore начало обработки", map[string]interface{}{})
 
@@ -148,4 +215,86 @@ func (r *StoreRepoPostgres) CreateStore(ctx context.Context, store *domain.Store
 
 	r.log.Debug(ctx, "CreateStore завершено успешно", map[string]interface{}{})
 	return nil
+}
+
+func (r *StoreRepoPostgres) GetTags(ctx context.Context) ([]*domain.StoreTag, error) {
+	r.log.Debug(ctx, "GetTags начало обработки", map[string]interface{}{})
+	query := `
+		select id, name
+		from tag
+	`
+
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		r.log.Error(ctx, "GetTags ошибка бд", map[string]interface{}{"err": err})
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tags []*domain.StoreTag
+	for rows.Next() {
+		var tag domain.StoreTag
+		err = rows.Scan(&tag.ID, &tag.Name)
+		if err != nil {
+			r.log.Error(ctx, "GetTags ошибка при декодировании данных",
+				map[string]interface{}{"err": err, "rows": rows})
+			return nil, err
+		}
+		tags = append(tags, &tag)
+	}
+
+	if err = rows.Err(); err != nil {
+		r.log.Error(ctx, "GetTags ошибка после чтения строк",
+			map[string]interface{}{"err": err})
+		return nil, err
+	}
+
+	if len(tags) == 0 {
+		r.log.Debug(ctx, "GetTags пустой ответ", map[string]interface{}{})
+		return nil, domain.ErrRowsNotFound
+	}
+
+	r.log.Debug(ctx, "GetTags завершено успешно", map[string]interface{}{})
+	return tags, nil
+}
+
+func (r *StoreRepoPostgres) GetCities(ctx context.Context) ([]*domain.City, error) {
+	r.log.Debug(ctx, "GetCities начало обработки", map[string]interface{}{})
+	query := `
+		select id, name
+		from city
+	`
+
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		r.log.Error(ctx, "GetCities ошибка бд", map[string]interface{}{"err": err})
+		return nil, err
+	}
+	defer rows.Close()
+
+	var cities []*domain.City
+	for rows.Next() {
+		var city domain.City
+		err = rows.Scan(&city.ID, &city.Name)
+		if err != nil {
+			r.log.Error(ctx, "GetCities ошибка при декодировании данных",
+				map[string]interface{}{"err": err, "rows": rows})
+			return nil, err
+		}
+		cities = append(cities, &city)
+	}
+
+	if err = rows.Err(); err != nil {
+		r.log.Error(ctx, "GetCities ошибка после чтения строк",
+			map[string]interface{}{"err": err})
+		return nil, err
+	}
+
+	if len(cities) == 0 {
+		r.log.Debug(ctx, "GetCities пустой ответ", map[string]interface{}{})
+		return nil, domain.ErrRowsNotFound
+	}
+
+	r.log.Debug(ctx, "GetCities завершено успешно", map[string]interface{}{})
+	return cities, nil
 }

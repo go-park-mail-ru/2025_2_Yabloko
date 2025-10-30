@@ -1,0 +1,676 @@
+definitions:
+  Cart:
+    properties:
+      id:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/CartItem'
+        type: array
+    type: object
+  CartItem:
+    properties:
+      card_img:
+        type: string
+      id:
+        description: ID из таблицы store_item
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      quantity:
+        type: integer
+    type: object
+  CartUpdate:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/ItemUpdate'
+        type: array
+    type: object
+  CityResponse:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  Item:
+    properties:
+      card_img:
+        type: string
+      description:
+        type: string
+      id:
+        description: ID из таблицы store_item
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      types_id:
+        items:
+          type: string
+        type: array
+    type: object
+  ItemType:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  ItemUpdate:
+    properties:
+      id:
+        description: id - store_item_id
+        type: string
+      quantity:
+        type: integer
+    type: object
+  Order:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      total:
+        type: number
+    type: object
+  OrderInfo:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/OrderItemInfo'
+        type: array
+      status:
+        type: string
+      total:
+        type: number
+    type: object
+  OrderItemInfo:
+    properties:
+      card_img:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      quantity:
+        type: integer
+    type: object
+  Orders:
+    properties:
+      status:
+        type: string
+    type: object
+  StoreResponse:
+    properties:
+      address:
+        type: string
+      card_img:
+        type: string
+      city_id:
+        type: string
+      closed_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      open_at:
+        type: string
+      rating:
+        type: number
+      tags_id:
+        items:
+          type: string
+        type: array
+    type: object
+  StoreReview:
+    properties:
+      comment:
+        type: string
+      created_at:
+        type: string
+      rating:
+        type: number
+      user_name:
+        type: string
+    type: object
+  TagResponse:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  UpdateResponse:
+    properties:
+      id:
+        type: string
+    type: object
+  domain.StoreFilter:
+    properties:
+      cityID:
+        type: string
+      desc:
+        type: boolean
+      lastID:
+        type: string
+      limit:
+        type: integer
+      sorted:
+        type: string
+      tagID:
+        type: string
+    type: object
+  http_response.ErrResponse:
+    properties:
+      error:
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /carts/{id}:
+    put:
+      consumes:
+        - application/json
+      description: Очищает корзину и добавляет новый набор товаров
+      parameters:
+        - description: ID корзины (UUID)
+          in: path
+          name: id
+          required: true
+          type: string
+        - description: Список товаров в корзине
+          in: body
+          name: cart_items
+          required: true
+          schema:
+            $ref: '#/definitions/CartUpdate'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/UpdateResponse'
+        "400":
+          description: Некорректные параетры запроса
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Метод не поддерживается
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Заменить товары в корзине
+      tags:
+        - cart
+  /orders/{id}:
+    get:
+      consumes:
+        - application/json
+      description: Подробная информация о заказе
+      parameters:
+        - description: ID заказа (UUID)
+          in: path
+          name: id
+          required: true
+          type: string
+        - description: Список товаров в корзине
+          in: body
+          name: cart_items
+          required: true
+          schema:
+            $ref: '#/definitions/CartUpdate'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/OrderInfo'
+        "400":
+          description: Некорректные параетры запроса
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Отсутствует заказ
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Метод не поддерживается
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить информацию по заказу
+      tags:
+        - order
+  /orders/{id}/status:
+    patch:
+      consumes:
+        - application/json
+      description: Меняет статус заказа на один из возможных ('pending', 'paid', 'delivered',
+        'cancelled', 'on the way')
+      parameters:
+        - description: ID заказа (UUID)
+          in: path
+          name: id
+          required: true
+          type: string
+        - description: Новый статус заказа
+          in: body
+          name: cart_items
+          required: true
+          schema:
+            $ref: '#/definitions/Orders'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/OrderInfo'
+        "400":
+          description: Некорректные параетры запроса
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Отсутствует заказ
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Метод не поддерживается
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Заменить статус заказа
+      tags:
+        - order
+  /stores:
+    post:
+      consumes:
+      - application/json
+      description: Возвращает список магазинов по фильтру
+      parameters:
+      - description: Фильтр для поиска магазинов
+        in: body
+        name: filter
+        required: true
+        schema:
+          $ref: '#/definitions/domain.StoreFilter'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/StoreResponse'
+            type: array
+        "400":
+          description: Ошибка входных данных
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Магазины не найдены
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Неверный HTTP-метод
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить список магазинов
+      tags:
+      - stores
+  /stores/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает информацию о магазине по его UUID
+      parameters:
+      - description: UUID магазина
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/StoreResponse'
+        "400":
+          description: Некорректный ID
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Магазин не найден
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Неверный HTTP-метод
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить магазин по ID
+      tags:
+      - stores
+  /stores/{id}/item-types:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список типов товара по ID магазина
+      parameters:
+      - description: ID магазина (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/ItemType'
+            type: array
+        "400":
+          description: Некорректные параметры
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Типы товаров не найдены
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Метод не поддерживается
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить список типов товара
+      tags:
+      - items
+  /stores/{id}/items:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список товаров по ID типа товара
+      parameters:
+      - description: ID типа товара (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/Item'
+            type: array
+        "400":
+          description: Некорректные параметры
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Товары не найдены
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Метод не поддерживается
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить список товаров
+      tags:
+      - items
+  /stores/{id}/reviews:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает отзывы о магазине по его UUID
+      parameters:
+      - description: UUID магазина
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/StoreReview'
+            type: array
+        "400":
+          description: Некорректный ID
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Магазин не найден
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Неверный HTTP-метод
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить отзывы магазина
+      tags:
+      - stores
+  /stores/cities:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает все доступные города
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/CityResponse'
+            type: array
+        "404":
+          description: Города не найдены
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Метод не поддерживается
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить список городов
+      tags:
+      - store-cities
+  /stores/tags:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает все теги магазинов
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/TagResponse'
+            type: array
+        "404":
+          description: Теги не найдены
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Метод не поддерживается
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить список тегов
+      tags:
+      - store-tags
+  /users/{id}/cart:
+    get:
+      consumes:
+        - application/json
+      description: Возвращает корзину с товарами
+      parameters:
+        - description: ID пользователя (UUID)
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/Cart'
+            type: array
+        "400":
+          description: Некорректные параметры
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Пустая корзина
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Метод не поддерживается
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить корзину по ID пользователя
+      tags:
+        - cart
+  /users/{id}/order:
+    post:
+      consumes:
+        - application/json
+      description: Создает заказ и возвращает информацию о заказе
+      parameters:
+        - description: ID пользователя (UUID)
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/OrderInfo'
+            type: array
+        "400":
+          description: Некорректные параметры
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Метод не поддерживается
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Создать заказ пользователя из текущей корзины
+      tags:
+        - order
+  /users/{id}/orders:
+    get:
+      consumes:
+        - application/json
+      description: Краткая информация по заказам пользователя
+      parameters:
+        - description: ID пользователя (UUID)
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Orders'
+        "400":
+          description: Некорректные параетры запроса
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Отсутствуют заказы
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Метод не поддерживается
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить все заказвы пользователя
+      tags:
+        - order
+swagger: "2.0"

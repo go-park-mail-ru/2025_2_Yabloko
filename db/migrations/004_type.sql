@@ -1,5 +1,5 @@
 -- Write your migrate up statements here
-create table if not exists city
+create table if not exists type
 (
     id         uuid primary key,
     name       text        not null unique check (length(name) <= 50),
@@ -7,11 +7,10 @@ create table if not exists city
     created_at timestamptz not null default current_timestamp
 );
 
-CREATE TRIGGER trg_update_city_updated_at
+CREATE TRIGGER trg_update_type_updated_at
     BEFORE UPDATE
-    ON city
+    ON type
     FOR EACH ROW
 EXECUTE FUNCTION update_updated_at();
-
 ---- create above / drop below ----
-drop table if exists city;
+drop table if exists type;
