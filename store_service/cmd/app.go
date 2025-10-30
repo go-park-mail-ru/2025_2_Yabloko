@@ -14,7 +14,7 @@ import (
 )
 
 func Run(appLog, accessLog *logger.Logger) {
-	conf := config.LoadConfig()
+	conf := config.MustConfig()
 	dbPool, err := pgxpool.New(context.Background(), conf.DBPath())
 	if err != nil {
 		log.Fatal(err)

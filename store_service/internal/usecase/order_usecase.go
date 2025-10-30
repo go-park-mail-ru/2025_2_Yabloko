@@ -39,8 +39,18 @@ func (uc *OrderUsecase) CreateOrder(ctx context.Context, userID string) (*domain
 }
 
 func (uc *OrderUsecase) UpdateOrderStatus(ctx context.Context, id, status string) error {
-	err := uc.repo.UpdateOrderStatus(ctx, id, status)
-	return err
+	statuses := map[string]bool{
+		"pending":    true,
+		"paid":       true,
+		"delivered":  true,
+		"cancelled":  true,
+		"on the way": true,
+	}
+	if !statuses[status] {
+		return domain.ErrRequestParams
+	}
+
+	return uc.repo.UpdateOrderStatus(ctx, id, status)
 }
 
 func (uc *OrderUsecase) GetOrder(ctx context.Context, id string) (*domain.OrderInfo, error) {

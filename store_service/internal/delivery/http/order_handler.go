@@ -12,6 +12,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
 
@@ -23,14 +24,16 @@ type OrderUsecaseInterface interface {
 }
 
 type OrderHandler struct {
-	uc OrderUsecaseInterface
-	rs *http_response.ResponseSender
+	uc        OrderUsecaseInterface
+	rs        *http_response.ResponseSender
+	validator *validator.Validate
 }
 
 func NewOrderHandler(uc OrderUsecaseInterface, log *logger.Logger) *OrderHandler {
 	return &OrderHandler{
-		uc: uc,
-		rs: http_response.NewResponseSender(log),
+		uc:        uc,
+		rs:        http_response.NewResponseSender(log),
+		validator: validator.New(),
 	}
 }
 
@@ -53,7 +56,7 @@ func NewOrderRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string
 // @Accept       json
 // @Produce      json
 // @Param        id   path      string  true  "ID пользователя (UUID)"
-// @Success      200  {array}   transport.OrderInfo
+// @Success      200  {object}   transport.OrderInfo
 // @Failure      400  {object}   http_response.ErrResponse  "Некорректные параметры"
 // @Failure      405  {object}   http_response.ErrResponse  "Метод не поддерживается"
 // @Failure      500  {object}   http_response.ErrResponse  "Внутренняя ошибка сервера"
@@ -126,7 +129,6 @@ func (h *OrderHandler) GetOrdersUser(w http.ResponseWriter, r *http.Request) {
 // @Accept       json
 // @Produce      json
 // @Param        id   path      string  true  "ID заказа (UUID)"
-// @Param cart_items body transport.CartUpdate true "Список товаров в корзине"
 // @Success      200  {object}   transport.OrderInfo
 // @Failure      400  {object}   http_response.ErrResponse  "Некорректные параетры запроса"
 // @Failure      404  {object}   http_response.ErrResponse  "Отсутствует заказ"
@@ -166,8 +168,8 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 // @Accept       json
 // @Produce      json
 // @Param        id   path      string  true  "ID заказа (UUID)"
-// @Param cart_items body transport.OrderStatus true "Новый статус заказа"
-// @Success      200  {object}   transport.OrderInfo
+// @Param new_status body transport.OrderStatus true "Новый статус заказа"
+// @Success      204  {object}
 // @Failure      400  {object}   http_response.ErrResponse  "Некорректные параетры запроса"
 // @Failure      404  {object}   http_response.ErrResponse  "Отсутствует заказ"
 // @Failure      405  {object}   http_response.ErrResponse  "Метод не поддерживается"
@@ -191,15 +193,23 @@ func (h *OrderHandler) UpdateOrderStatus(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if err := h.validator.Struct(status); err != nil {
+		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateOrderStatus", domain.ErrRequestParams, err)
+		return
+	}
+
 	err := h.uc.UpdateOrderStatus(r.Context(), id, status.Status)
 	if err != nil {
 		if errors.Is(err, domain.ErrRowsNotFound) {
 			h.rs.Error(r.Context(), w, http.StatusNotFound, "UpdateOrderStatus", domain.ErrRowsNotFound, err)
+			return
+		} else if errors.Is(err, domain.ErrRequestParams) {
+			h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateOrderStatus", domain.ErrRequestParams, err)
 			return
 		}
 		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "UpdateOrderStatus", domain.ErrInternalServer, err)
 		return
 	}
 
-	h.rs.Send(r.Context(), w, http.StatusOK, nil)
+	h.rs.Send(r.Context(), w, http.StatusNoContent, nil)
 }

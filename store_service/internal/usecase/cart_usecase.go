@@ -40,7 +40,7 @@ func (uc *CartUsecase) UpdateCart(ctx context.Context, cartID string, cartUpdate
 	return uc.repo.UpdateCartItems(ctx, cartID, cartUpdate)
 }
 
-// применятся после оформления заказа
+// применятся после оформления заказа (если будем распиливать)
 func (uc *CartUsecase) DeleteCart(ctx context.Context, cartID string) error {
 	return uc.repo.DeleteCartItems(ctx, cartID)
 }
