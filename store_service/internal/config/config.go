@@ -14,6 +14,8 @@ type Config struct {
 	DBPort     string `validate:"required"`
 	DBName     string `validate:"required"`
 	AppPort    string `validate:"required"`
+	AuthURL    string `validate:"required"`
+	JWTSecret  string `validate:"required"`
 }
 
 func MustConfig() *Config {
@@ -24,6 +26,8 @@ func MustConfig() *Config {
 		DBPort:     os.Getenv("POSTGRES_PORT"),
 		DBName:     os.Getenv("DB_NAME"),
 		AppPort:    os.Getenv("APP_PORT"),
+		AuthURL:    os.Getenv("AUTH_URL"),
+		JWTSecret:  os.Getenv("SECRET_KEY"),
 	}
 
 	if err := validator.New().Struct(conf); err != nil {

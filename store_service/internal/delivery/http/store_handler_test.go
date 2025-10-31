@@ -1,7 +1,7 @@
 package http
 
 import (
-	"apple_backend/handlers"
+	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
 	"apple_backend/store_service/internal/delivery/mock"
 	"apple_backend/store_service/internal/delivery/transport"
@@ -26,7 +26,7 @@ func TestStoreHandler_GetStore(t *testing.T) {
 		mockSetup         func(uc *mock.MockStoreUsecaseInterface)
 		expectedCode      int
 		expectedResult    *transport.StoreResponse
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	uid1 := "00000000-0000-0000-0000-000000000001"
@@ -72,7 +72,7 @@ func TestStoreHandler_GetStore(t *testing.T) {
 			id:                uid1,
 			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
 			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
 		},
 		{
 			name:              "GetStore неверный формат id",
@@ -80,7 +80,7 @@ func TestStoreHandler_GetStore(t *testing.T) {
 			id:                "00000000-1",
 			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
 		},
 		{
 			name:   "GetStore не найдено данных",
@@ -92,7 +92,7 @@ func TestStoreHandler_GetStore(t *testing.T) {
 					Return(nil, domain.ErrRowsNotFound)
 			},
 			expectedCode:      http.StatusNotFound,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
 		},
 		{
 			name:   "GetStore внутренняя ошибка",
@@ -104,7 +104,7 @@ func TestStoreHandler_GetStore(t *testing.T) {
 					Return(nil, domain.ErrInternalServer)
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
 		},
 	}
 
@@ -146,7 +146,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 		mockSetup         func(uc *mock.MockStoreUsecaseInterface)
 		expectedCode      int
 		expectedResult    []*transport.StoreResponse
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	uid1 := "00000000-0000-0000-0000-000000000001"
@@ -283,7 +283,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 			body:              parseJSON(&domain.StoreFilter{Limit: 10}),
 			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
 			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
 		},
 		{
 			name:              "GetStores неверный формат json",
@@ -291,7 +291,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 			body:              "запрос",
 			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
 		},
 		{
 			name:   "GetStores не найдено данных",
@@ -303,7 +303,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 					Return(nil, domain.ErrRowsNotFound)
 			},
 			expectedCode:      http.StatusNotFound,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
 		},
 		{
 			name:   "GetStores некорректные данные фильтра",
@@ -315,7 +315,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 					Return(nil, domain.ErrRequestParams)
 			},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
 		},
 		{
 			name:   "GetStores внутренняя ошибка",
@@ -327,7 +327,7 @@ func TestStoreHandler_GetStores(t *testing.T) {
 					Return(nil, domain.ErrInternalServer)
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
 		},
 	}
 
@@ -368,7 +368,7 @@ func TestStoreHandler_CreateStore(t *testing.T) {
 		mockSetup         func(uc *mock.MockStoreUsecaseInterface)
 		expectedCode      int
 		expectedResult    []*transport.StoreResponse
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	store := &domain.Store{
@@ -402,7 +402,7 @@ func TestStoreHandler_CreateStore(t *testing.T) {
 			body:              parseJSON(store),
 			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
 			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
 		},
 		{
 			name:              "CreateStore неверный формат json",
@@ -410,7 +410,7 @@ func TestStoreHandler_CreateStore(t *testing.T) {
 			body:              "запрос",
 			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
 		},
 		{
 			name:   "CreateStore уже существующий магазин",
@@ -423,7 +423,7 @@ func TestStoreHandler_CreateStore(t *testing.T) {
 					Return(domain.ErrStoreExist)
 			},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrStoreExist.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrStoreExist.Error()},
 		},
 		{
 			name:   "CreateStore внутренняя ошибка",
@@ -436,7 +436,7 @@ func TestStoreHandler_CreateStore(t *testing.T) {
 					Return(domain.ErrInternalServer)
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
 		},
 	}
 
@@ -477,7 +477,7 @@ func TestStoreHandler_GetStoreReview(t *testing.T) {
 		mockSetup         func(uc *mock.MockStoreUsecaseInterface)
 		expectedCode      int
 		expectedResult    []*transport.StoreReview
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	storeID := "00000000-0000-0000-0000-000000000001"
@@ -535,7 +535,7 @@ func TestStoreHandler_GetStoreReview(t *testing.T) {
 			id:                storeID,
 			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
 			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
 		},
 		{
 			name:              "GetStore неверный формат id",
@@ -543,7 +543,7 @@ func TestStoreHandler_GetStoreReview(t *testing.T) {
 			id:                "00000000-1",
 			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
 		},
 		{
 			name:   "не найдено данных",
@@ -555,7 +555,7 @@ func TestStoreHandler_GetStoreReview(t *testing.T) {
 					Return(nil, domain.ErrRowsNotFound)
 			},
 			expectedCode:      http.StatusNotFound,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
 		},
 		{
 			name:   "внутренняя ошибка",
@@ -567,7 +567,7 @@ func TestStoreHandler_GetStoreReview(t *testing.T) {
 					Return(nil, domain.ErrInternalServer)
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
 		},
 	}
 
@@ -609,7 +609,7 @@ func TestStoreHandler_GetCities(t *testing.T) {
 		mockSetup         func(uc *mock.MockStoreUsecaseInterface)
 		expectedCode      int
 		expectedResult    []*transport.CityResponse
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	uid1 := "00000000-0000-0000-0000-000000000001"
@@ -652,7 +652,7 @@ func TestStoreHandler_GetCities(t *testing.T) {
 			method:            http.MethodPost,
 			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
 			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
 		},
 		{
 			name:   "GetCities не найдено данных",
@@ -663,7 +663,7 @@ func TestStoreHandler_GetCities(t *testing.T) {
 					Return(nil, domain.ErrRowsNotFound)
 			},
 			expectedCode:      http.StatusNotFound,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
 		},
 		{
 			name:   "GetCities внутренняя ошибка",
@@ -674,7 +674,7 @@ func TestStoreHandler_GetCities(t *testing.T) {
 					Return(nil, domain.ErrInternalServer)
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
 		},
 	}
 
@@ -714,7 +714,7 @@ func TestStoreHandler_GetTags(t *testing.T) {
 		mockSetup         func(uc *mock.MockStoreUsecaseInterface)
 		expectedCode      int
 		expectedResult    []*transport.TagResponse
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	uid1 := "00000000-0000-0000-0000-000000000001"
@@ -757,7 +757,7 @@ func TestStoreHandler_GetTags(t *testing.T) {
 			method:            http.MethodPost,
 			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
 			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
 		},
 		{
 			name:   "GetTags не найдено данных",
@@ -768,7 +768,7 @@ func TestStoreHandler_GetTags(t *testing.T) {
 					Return(nil, domain.ErrRowsNotFound)
 			},
 			expectedCode:      http.StatusNotFound,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
 		},
 		{
 			name:   "GetTags внутренняя ошибка",
@@ -779,7 +779,7 @@ func TestStoreHandler_GetTags(t *testing.T) {
 					Return(nil, domain.ErrInternalServer)
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
 		},
 	}
 

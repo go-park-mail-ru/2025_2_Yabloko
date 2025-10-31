@@ -1,14 +1,14 @@
 package http
 
 import (
-	"apple_backend/handlers"
+	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
+	"apple_backend/store_service/internal/delivery/middlewares"
 	"apple_backend/store_service/internal/delivery/mock"
 	"apple_backend/store_service/internal/delivery/transport"
 	"apple_backend/store_service/internal/domain"
 	"bytes"
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,15 +18,15 @@ import (
 )
 
 func TestCartHandler_GetCart(t *testing.T) {
-	url := "/users/%s/cart"
+	url := "/cart"
 	type testCase struct {
 		name              string
 		method            string
 		id                string
-		mockSetup         func(uc *mock.MockCartUsecaseInterface)
+		mockSetup         func(uc *mock.MockCartUsecaseInterface, method, userID string) *http.Request
 		expectedCode      int
 		expectedResult    *transport.Cart
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	uid1 := "00000000-0000-0000-0000-000000000001"
@@ -73,22 +73,26 @@ func TestCartHandler_GetCart(t *testing.T) {
 	tests := []testCase{
 		{
 			name:   "успешный вызов",
-			method: http.MethodGet,
 			id:     uid1,
-			mockSetup: func(uc *mock.MockCartUsecaseInterface) {
+			method: http.MethodGet,
+			mockSetup: func(uc *mock.MockCartUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					GetCart(context.Background(), uid1).
+					GetCart(ctx, userID).
 					Return(&domain.Cart{
-						ID: uid1,
 						Items: []*domain.CartItem{
 							itemUC1,
 							itemUC2,
 						},
 					}, nil)
+
+				return req
 			},
 			expectedCode: http.StatusOK,
 			expectedResult: &transport.Cart{
-				ID: uid1,
 				Items: []*transport.CartItem{
 					item1,
 					item2,
@@ -97,44 +101,68 @@ func TestCartHandler_GetCart(t *testing.T) {
 			expectedErrResult: nil,
 		},
 		{
-			name:              "метод не разрешен",
-			method:            http.MethodPost,
-			id:                uid1,
-			mockSetup:         func(uc *mock.MockCartUsecaseInterface) {},
+			name:   "метод не разрешен",
+			method: http.MethodPost,
+			id:     uid1,
+			mockSetup: func(uc *mock.MockCartUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
 			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
 		},
 		{
-			name:              "неверный формат id",
-			method:            http.MethodGet,
-			id:                "00000000-1",
-			mockSetup:         func(uc *mock.MockCartUsecaseInterface) {},
-			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			name:   "неверный формат id",
+			method: http.MethodGet,
+			id:     "00000000-1",
+			mockSetup: func(uc *mock.MockCartUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
+			expectedCode:      http.StatusUnauthorized,
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrUnauthorized.Error()},
 		},
 		{
 			name:   "не найдено данных",
 			method: http.MethodGet,
 			id:     uid1,
-			mockSetup: func(uc *mock.MockCartUsecaseInterface) {
+			mockSetup: func(uc *mock.MockCartUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					GetCart(context.Background(), uid1).
+					GetCart(ctx, userID).
 					Return(nil, domain.ErrRowsNotFound)
+
+				return req
 			},
 			expectedCode:      http.StatusNotFound,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
 		},
 		{
-			name:   "GetItemTypes внутренняя ошибка",
+			name:   "внутренняя ошибка",
 			method: http.MethodGet,
 			id:     uid1,
-			mockSetup: func(uc *mock.MockCartUsecaseInterface) {
+			mockSetup: func(uc *mock.MockCartUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					GetCart(context.Background(), uid1).
+					GetCart(ctx, userID).
 					Return(nil, domain.ErrInternalServer)
+
+				return req
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
 		},
 	}
 
@@ -148,12 +176,7 @@ func TestCartHandler_GetCart(t *testing.T) {
 			uc := mock.NewMockCartUsecaseInterface(ctrl)
 			handler := NewCartHandler(uc, logger.NewNilLogger())
 
-			tt.mockSetup(uc)
-
-			req := httptest.NewRequest(tt.method, fmt.Sprintf(url, tt.id), bytes.NewBuffer(nil))
-			req = req.WithContext(context.Background())
-			req.SetPathValue("id", tt.id)
-
+			req := tt.mockSetup(uc, tt.method, tt.id)
 			w := httptest.NewRecorder()
 
 			handler.GetCart(w, req)
@@ -170,16 +193,15 @@ func TestCartHandler_GetCart(t *testing.T) {
 }
 
 func TestCartHandler_UpdateCart(t *testing.T) {
-	url := "/carts/%s"
+	url := "/carts"
 	type testCase struct {
 		name              string
 		method            string
 		id                string
 		body              string
-		mockSetup         func(uc *mock.MockCartUsecaseInterface)
+		mockSetup         func(uc *mock.MockCartUsecaseInterface, method, userID, body string) *http.Request
 		expectedCode      int
-		expectedResult    *transport.UpdateResponse
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	uid1 := "00000000-0000-0000-0000-000000000001"
@@ -211,63 +233,98 @@ func TestCartHandler_UpdateCart(t *testing.T) {
 			method: http.MethodPut,
 			id:     uid1,
 			body:   parseJSON(&transport.CartUpdate{Items: []*transport.ItemUpdate{item1, item2}}),
-			mockSetup: func(uc *mock.MockCartUsecaseInterface) {
+			mockSetup: func(uc *mock.MockCartUsecaseInterface, method, userID, body string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					UpdateCart(context.Background(), uid1, &domain.CartUpdate{Items: []*domain.ItemUpdate{itemUC1, itemUC2}}).
+					UpdateCart(ctx, userID, &domain.CartUpdate{Items: []*domain.ItemUpdate{itemUC1, itemUC2}}).
 					Return(nil)
+
+				return req
 			},
-			expectedCode:      http.StatusOK,
-			expectedResult:    &transport.UpdateResponse{ID: uid1},
+			expectedCode:      http.StatusNoContent,
 			expectedErrResult: nil,
 		},
 		{
-			name:              "метод не разрешен",
-			method:            http.MethodPost,
-			id:                uid1,
-			body:              parseJSON(&transport.CartUpdate{Items: []*transport.ItemUpdate{item1, item2}}),
-			mockSetup:         func(uc *mock.MockCartUsecaseInterface) {},
+			name:   "метод не разрешен",
+			method: http.MethodPost,
+			id:     uid1,
+			body:   parseJSON(&transport.CartUpdate{Items: []*transport.ItemUpdate{item1, item2}}),
+			mockSetup: func(uc *mock.MockCartUsecaseInterface, method, userID, body string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
 			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
 		},
 		{
-			name:              "неверный формат id",
-			method:            http.MethodPut,
-			id:                "00000000-1",
-			body:              parseJSON(&transport.CartUpdate{Items: []*transport.ItemUpdate{item1, item2}}),
-			mockSetup:         func(uc *mock.MockCartUsecaseInterface) {},
-			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			name:   "неверный формат id",
+			method: http.MethodPut,
+			id:     "00000000-1",
+			body:   parseJSON(&transport.CartUpdate{Items: []*transport.ItemUpdate{item1, item2}}),
+			mockSetup: func(uc *mock.MockCartUsecaseInterface, method, userID, body string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
+			expectedCode:      http.StatusUnauthorized,
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrUnauthorized.Error()},
 		},
 		{
-			name:              "неверное тело запроса",
-			method:            http.MethodPut,
-			id:                uid1,
-			body:              "{\"ID\": \"010210\"}",
-			mockSetup:         func(uc *mock.MockCartUsecaseInterface) {},
+			name:   "неверное тело запроса",
+			method: http.MethodPut,
+			id:     uid1,
+			body:   "{\"ID\": \"010210\"}",
+			mockSetup: func(uc *mock.MockCartUsecaseInterface, method, userID, body string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
 		},
 		{
-			name:              "некорректный json",
-			method:            http.MethodPut,
-			id:                uid1,
-			body:              "{\"ID\" \"010210\"}",
-			mockSetup:         func(uc *mock.MockCartUsecaseInterface) {},
+			name:   "некорректный json",
+			method: http.MethodPut,
+			id:     uid1,
+			body:   "{\"ID\" \"010210\"}",
+			mockSetup: func(uc *mock.MockCartUsecaseInterface, method, userID, body string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
 		},
 		{
 			name:   "внутренняя ошибка",
 			method: http.MethodPut,
 			id:     uid1,
 			body:   parseJSON(&transport.CartUpdate{Items: []*transport.ItemUpdate{item1, item2}}),
-			mockSetup: func(uc *mock.MockCartUsecaseInterface) {
+			mockSetup: func(uc *mock.MockCartUsecaseInterface, method, userID, body string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					UpdateCart(context.Background(), uid1, &domain.CartUpdate{Items: []*domain.ItemUpdate{itemUC1, itemUC2}}).
+					UpdateCart(ctx, userID, &domain.CartUpdate{Items: []*domain.ItemUpdate{itemUC1, itemUC2}}).
 					Return(domain.ErrInternalServer)
+
+				return req
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
 		},
 	}
 
@@ -281,20 +338,14 @@ func TestCartHandler_UpdateCart(t *testing.T) {
 			uc := mock.NewMockCartUsecaseInterface(ctrl)
 			handler := NewCartHandler(uc, logger.NewNilLogger())
 
-			tt.mockSetup(uc)
-
-			req := httptest.NewRequest(tt.method, fmt.Sprintf(url, tt.id), bytes.NewBuffer([]byte(tt.body)))
-			req = req.WithContext(context.Background())
-			req.SetPathValue("id", tt.id)
+			req := tt.mockSetup(uc, tt.method, tt.id, tt.body)
 
 			w := httptest.NewRecorder()
 
 			handler.UpdateCart(w, req)
 
 			require.Equal(t, tt.expectedCode, w.Code)
-			if tt.expectedResult != nil {
-				require.JSONEq(t, w.Body.String(), parseJSON(tt.expectedResult))
-			}
+
 			if tt.expectedErrResult != nil {
 				require.JSONEq(t, w.Body.String(), parseJSON(tt.expectedErrResult))
 			}

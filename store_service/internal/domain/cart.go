@@ -10,7 +10,6 @@ type CartItem struct {
 }
 
 type Cart struct {
-	ID    string
 	Items []*CartItem
 }
 

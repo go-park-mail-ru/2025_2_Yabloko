@@ -4,8 +4,10 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/store_service/internal/domain"
 	"context"
+	"regexp"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/pashagolub/pgxmock/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -308,9 +310,9 @@ func TestOrderRepoPostgres_UpdateOrderStatus(t *testing.T) {
 			id:     orderID,
 			status: status,
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				mock.ExpectQuery(query).
+				mock.ExpectExec(query).
 					WithArgs(orderID, status).
-					WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(orderID))
+					WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 			},
 			expectedError: nil,
 		},
@@ -319,9 +321,9 @@ func TestOrderRepoPostgres_UpdateOrderStatus(t *testing.T) {
 			id:     orderID,
 			status: status,
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				mock.ExpectQuery(query).
+				mock.ExpectExec(query).
 					WithArgs(orderID, status).
-					WillReturnRows(pgxmock.NewRows([]string{"id"}))
+					WillReturnError(pgx.ErrNoRows)
 			},
 			expectedError: domain.ErrRowsNotFound,
 		},
@@ -330,7 +332,7 @@ func TestOrderRepoPostgres_UpdateOrderStatus(t *testing.T) {
 			id:     orderID,
 			status: status,
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
-				mock.ExpectQuery(query).
+				mock.ExpectExec(query).
 					WithArgs(orderID, status).
 					WillReturnError(domain.ErrInternalServer)
 			},
@@ -380,20 +382,18 @@ func TestOrderRepoPostgres_CreateOrder(t *testing.T) {
 		join store_item si on si.id = ci.store_item_id
 		where c.user_id = \$2;
 	`
-	updateTotalQuery := `
+	updateTotalQuery := regexp.QuoteMeta(`
 		update "order"
-		set total_price = \(
-			select sum\(si.price \* ci.quantity\)
-			from cart_item ci
-			join cart c ON c.id = ci.cart_id
-			join store_item si ON si.id = ci.store_item_id
-			where c.user_id = \$1
-		\)
-		where id = \$2;
-	`
+		set total_price = (select sum(si.price * ci.quantity)
+						   from cart_item ci
+									join cart c on c.id = ci.cart_id
+									join store_item si on si.id = ci.store_item_id
+						   where c.user_id = $1)
+		where id = $2;`)
 	deleteCartQuery := `
 		delete from cart_item
-		where cart_id = \(select id from cart where user_id = \$1\);
+		where cart_id = \(select id from cart where user_id = \$1\)
+		returning cart_id
 	`
 
 	userID := "00000000-0000-0000-0000-000000000123"

@@ -43,10 +43,9 @@ func TestCartUsecase_GetCart(t *testing.T) {
 			mockSetup: func(repo *mock.MockCartRepository) {
 				repo.EXPECT().
 					GetCartItems(context.Background(), uid).
-					Return(uid, []*domain.CartItem{item}, nil)
+					Return([]*domain.CartItem{item}, nil)
 			},
 			expectedResult: &domain.Cart{
-				ID:    uid,
 				Items: []*domain.CartItem{item},
 			},
 			expectedError: nil,
@@ -60,7 +59,7 @@ func TestCartUsecase_GetCart(t *testing.T) {
 			mockSetup: func(repo *mock.MockCartRepository) {
 				repo.EXPECT().
 					GetCartItems(context.Background(), uid).
-					Return(uid, nil, domain.ErrInternalServer)
+					Return(nil, domain.ErrInternalServer)
 			},
 			expectedResult: nil,
 			expectedError:  domain.ErrInternalServer,

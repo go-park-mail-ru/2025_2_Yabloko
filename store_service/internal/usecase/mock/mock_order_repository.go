@@ -51,18 +51,33 @@ func (mr *MockOrderRepositoryMockRecorder) CreateOrder(ctx, userID interface{}) 
 }
 
 // GetOrder mocks base method.
-func (m *MockOrderRepository) GetOrder(ctx context.Context, id string) (*domain.OrderInfo, error) {
+func (m *MockOrderRepository) GetOrder(ctx context.Context, orderID string) (*domain.OrderInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOrder", ctx, id)
+	ret := m.ctrl.Call(m, "GetOrder", ctx, orderID)
 	ret0, _ := ret[0].(*domain.OrderInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetOrder indicates an expected call of GetOrder.
-func (mr *MockOrderRepositoryMockRecorder) GetOrder(ctx, id interface{}) *gomock.Call {
+func (mr *MockOrderRepositoryMockRecorder) GetOrder(ctx, orderID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrder", reflect.TypeOf((*MockOrderRepository)(nil).GetOrder), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrder", reflect.TypeOf((*MockOrderRepository)(nil).GetOrder), ctx, orderID)
+}
+
+// GetOrderUserID mocks base method.
+func (m *MockOrderRepository) GetOrderUserID(ctx context.Context, orderID string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrderUserID", ctx, orderID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrderUserID indicates an expected call of GetOrderUserID.
+func (mr *MockOrderRepositoryMockRecorder) GetOrderUserID(ctx, orderID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrderUserID", reflect.TypeOf((*MockOrderRepository)(nil).GetOrderUserID), ctx, orderID)
 }
 
 // GetOrdersUser mocks base method.
@@ -81,15 +96,15 @@ func (mr *MockOrderRepositoryMockRecorder) GetOrdersUser(ctx, userID interface{}
 }
 
 // UpdateOrderStatus mocks base method.
-func (m *MockOrderRepository) UpdateOrderStatus(ctx context.Context, id, status string) error {
+func (m *MockOrderRepository) UpdateOrderStatus(ctx context.Context, orderID, status string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateOrderStatus", ctx, id, status)
+	ret := m.ctrl.Call(m, "UpdateOrderStatus", ctx, orderID, status)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateOrderStatus indicates an expected call of UpdateOrderStatus.
-func (mr *MockOrderRepositoryMockRecorder) UpdateOrderStatus(ctx, id, status interface{}) *gomock.Call {
+func (mr *MockOrderRepositoryMockRecorder) UpdateOrderStatus(ctx, orderID, status interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrderStatus", reflect.TypeOf((*MockOrderRepository)(nil).UpdateOrderStatus), ctx, id, status)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrderStatus", reflect.TypeOf((*MockOrderRepository)(nil).UpdateOrderStatus), ctx, orderID, status)
 }

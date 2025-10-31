@@ -4,6 +4,7 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/store_service/internal/domain"
 	"context"
+	_ "embed"
 	"fmt"
 	"strings"
 
@@ -107,15 +108,13 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	return stores, nil
 }
 
+//go:embed sql/store/get.sql
+var getStoreQuery string
+
 func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) ([]*domain.Store, error) {
-	query := `
-		select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id
-		from store s left join store_tag st on st.store_id = s.id
-		where id = $1
-	`
 	r.log.Debug(ctx, "GetStore начало обработки", map[string]interface{}{})
 
-	rows, err := r.db.Query(ctx, query, id)
+	rows, err := r.db.Query(ctx, getStoreQuery, id)
 	if err != nil {
 		r.log.Error(ctx, "GetStore ошибка бд", map[string]interface{}{"err": err, "id": id})
 		return nil, err
@@ -150,16 +149,13 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) ([]*domain.
 	return stores, nil
 }
 
+//go:embed sql/store/get_review.sql
+var getStoreReview string
+
 func (r *StoreRepoPostgres) GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error) {
 	r.log.Debug(ctx, "GetStoreReview начало обработки", map[string]interface{}{})
-	query := `
-		select acc.name, r.rating, r.comment, r.created_at 
-		from review r left join account acc on r.user_id = acc.id
-		where r.store_id = $1
-		order by r.created_at desc
-	`
 
-	rows, err := r.db.Query(ctx, query, id)
+	rows, err := r.db.Query(ctx, getStoreReview, id)
 	if err != nil {
 		r.log.Error(ctx, "GetStoreReview ошибка бд", map[string]interface{}{"err": err, "id": id})
 		return nil, err
@@ -193,16 +189,15 @@ func (r *StoreRepoPostgres) GetStoreReview(ctx context.Context, id string) ([]*d
 	return reviews, nil
 }
 
+//go:embed sql/store/create.sql
+var createStore string
+
 // CreateStore не используется
 func (r *StoreRepoPostgres) CreateStore(ctx context.Context, store *domain.Store) error {
-	addStore := `
-		insert into store (id, name, description, city_id, address, card_img, rating, open_at, closed_at)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`
 	r.log.Debug(ctx, "CreateStore начало обработки", map[string]interface{}{})
 
 	store.ID = uuid.New().String()
-	_, err := r.db.Exec(ctx, addStore, store.ID, store.Name, store.Description,
+	_, err := r.db.Exec(ctx, createStore, store.ID, store.Name, store.Description,
 		store.CityID, store.Address, store.CardImg, store.Rating, store.OpenAt, store.ClosedAt)
 	if err != nil {
 		if strings.Contains(err.Error(), "SQLSTATE 23505") {
@@ -217,14 +212,13 @@ func (r *StoreRepoPostgres) CreateStore(ctx context.Context, store *domain.Store
 	return nil
 }
 
+//go:embed sql/store/get_tag.sql
+var getTags string
+
 func (r *StoreRepoPostgres) GetTags(ctx context.Context) ([]*domain.StoreTag, error) {
 	r.log.Debug(ctx, "GetTags начало обработки", map[string]interface{}{})
-	query := `
-		select id, name
-		from tag
-	`
 
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.db.Query(ctx, getTags)
 	if err != nil {
 		r.log.Error(ctx, "GetTags ошибка бд", map[string]interface{}{"err": err})
 		return nil, err
@@ -258,14 +252,13 @@ func (r *StoreRepoPostgres) GetTags(ctx context.Context) ([]*domain.StoreTag, er
 	return tags, nil
 }
 
+//go:embed sql/store/get_city.sql
+var getCity string
+
 func (r *StoreRepoPostgres) GetCities(ctx context.Context) ([]*domain.City, error) {
 	r.log.Debug(ctx, "GetCities начало обработки", map[string]interface{}{})
-	query := `
-		select id, name
-		from city
-	`
 
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.db.Query(ctx, getCity)
 	if err != nil {
 		r.log.Error(ctx, "GetCities ошибка бд", map[string]interface{}{"err": err})
 		return nil, err

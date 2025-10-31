@@ -12,7 +12,6 @@ type CartItem struct {
 } // @name CartItem
 
 type Cart struct {
-	ID    string      `json:"id"`
 	Items []*CartItem `json:"items"`
 } // @name Cart
 
@@ -25,10 +24,6 @@ type ItemUpdate struct {
 type CartUpdate struct {
 	Items []*ItemUpdate `json:"items" validate:"required"`
 } // @name CartUpdate
-
-type UpdateResponse struct {
-	ID string `json:"id"`
-} // @name UpdateResponse
 
 func toCartItemResponse(item *domain.CartItem) *CartItem {
 	return &CartItem{
@@ -46,7 +41,6 @@ func ToCartResponse(cart *domain.Cart) *Cart {
 		items = append(items, toCartItemResponse(item))
 	}
 	respCart := &Cart{
-		ID:    cart.ID,
 		Items: items,
 	}
 

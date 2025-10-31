@@ -6,7 +6,7 @@ create table if not exists account
     hash       text        not null,
     name       text check (length(name) <= 60),
     phone      text,
-    city_id    uuid references city (id) on delete set null,
+    city_id uuid references city (id) on delete set null,
     address    text check (length(address) <= 200),
     updated_at timestamptz not null default current_timestamp,
     created_at timestamptz not null default current_timestamp,

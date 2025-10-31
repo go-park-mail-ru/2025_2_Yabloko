@@ -15,7 +15,6 @@ func TestCartRepoPostgres_GetCartItems(t *testing.T) {
 		name          string
 		id            string
 		mockSetup     func(mock pgxmock.PgxPoolIface)
-		cartID        string
 		expectedRes   []*domain.CartItem
 		expectedError error
 	}
@@ -32,8 +31,8 @@ func TestCartRepoPostgres_GetCartItems(t *testing.T) {
 		join cart_item ci on ci.cart_id = c.id
 		join store_item si on si.id = ci.store_item_id
 		join item it on it.id = si.item_id
-		WHERE c.user_id = \$1
-		ORDER BY ci.created_at;
+		where c.user_id = \$1
+		order by ci.created_at;
 	`
 
 	uid1 := "00000000-0000-0000-0000-000000000001"
@@ -74,7 +73,6 @@ func TestCartRepoPostgres_GetCartItems(t *testing.T) {
 					WithArgs(uid1).
 					WillReturnRows(rows)
 			},
-			cartID:        uid1,
 			expectedRes:   []*domain.CartItem{item1, item2},
 			expectedError: nil,
 		},
@@ -88,7 +86,6 @@ func TestCartRepoPostgres_GetCartItems(t *testing.T) {
 					WithArgs(uid1).
 					WillReturnRows(rows)
 			},
-			cartID:        uid1,
 			expectedRes:   []*domain.CartItem{item1},
 			expectedError: nil,
 		},
@@ -101,7 +98,6 @@ func TestCartRepoPostgres_GetCartItems(t *testing.T) {
 					WithArgs(uid1).
 					WillReturnRows(rows)
 			},
-			cartID:        "",
 			expectedRes:   nil,
 			expectedError: domain.ErrRowsNotFound,
 		},
@@ -113,7 +109,6 @@ func TestCartRepoPostgres_GetCartItems(t *testing.T) {
 					WithArgs(uid1).
 					WillReturnError(domain.ErrInternalServer)
 			},
-			cartID:        "",
 			expectedRes:   nil,
 			expectedError: domain.ErrInternalServer,
 		},
@@ -129,7 +124,6 @@ func TestCartRepoPostgres_GetCartItems(t *testing.T) {
 					WithArgs(uid1).
 					WillReturnRows(rows)
 			},
-			cartID:        "",
 			expectedRes:   nil,
 			expectedError: domain.ErrInternalServer,
 		},
@@ -148,11 +142,10 @@ func TestCartRepoPostgres_GetCartItems(t *testing.T) {
 
 			tt.mockSetup(mockPool)
 
-			cartID, res, err := repo.GetCartItems(context.Background(), tt.id)
+			res, err := repo.GetCartItems(context.Background(), tt.id)
 
 			require.Equal(t, tt.expectedError, err)
 			require.Equal(t, tt.expectedRes, res)
-			require.Equal(t, tt.cartID, cartID)
 		})
 	}
 }
@@ -167,28 +160,29 @@ func TestCartRepoPostgres_DeleteCartItems(t *testing.T) {
 
 	query := `
 		delete from cart_item
-		where cart_id = \$1;
+		where cart_id = \(select id from cart where user_id = \$1\)
+		returning cart_id
 	`
 
-	cartID := "00000000-0000-0000-0000-000000000111"
+	userID := "00000000-0000-0000-0000-000000000111"
 
 	tests := []testCase{
 		{
 			name: "успешное удаление",
-			id:   cartID,
+			id:   userID,
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
 				mock.ExpectExec(query).
-					WithArgs(cartID).
+					WithArgs(userID).
 					WillReturnResult(pgxmock.NewResult("DELETE", 1))
 			},
 			expectedError: nil,
 		},
 		{
 			name: "ошибка базы данных",
-			id:   cartID,
+			id:   userID,
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
 				mock.ExpectExec(query).
-					WithArgs(cartID).
+					WithArgs(userID).
 					WillReturnError(domain.ErrInternalServer)
 			},
 			expectedError: domain.ErrInternalServer,
@@ -226,14 +220,16 @@ func TestCartRepoPostgres_UpdateCartItems(t *testing.T) {
 
 	deleteQuery := `
 		delete from cart_item
-		where cart_id = \$1;
+		where cart_id = \(select id from cart where user_id = \$1\)
+		returning cart_id
 	`
 	insertQuery := `
 		insert into cart_item \(id, cart_id, store_item_id, quantity\)
 		values \(\$1, \$2, \$3, \$4\);
 	`
 
-	cartID := "00000000-0000-0000-0000-000000000111"
+	userID := "00000000-0000-0000-0000-000000000111"
+	cartID := "00000000-0000-0000-0000-000000000222"
 
 	item1 := &domain.ItemUpdate{
 		ID:       "00000000-0000-0000-0000-000000000121",
@@ -251,14 +247,14 @@ func TestCartRepoPostgres_UpdateCartItems(t *testing.T) {
 	tests := []testCase{
 		{
 			name:     "успешное обновление корзины",
-			id:       cartID,
+			id:       userID,
 			newItems: update,
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
 				mock.ExpectBegin()
 
-				mock.ExpectExec(deleteQuery).
-					WithArgs(cartID).
-					WillReturnResult(pgxmock.NewResult("DELETE", 2))
+				mock.ExpectQuery(deleteQuery).
+					WithArgs(userID).
+					WillReturnRows(pgxmock.NewRows([]string{"cart_id"}).AddRow(cartID))
 
 				mock.ExpectExec(insertQuery).
 					WithArgs(pgxmock.AnyArg(), cartID, item1.ID, item1.Quantity).
@@ -273,12 +269,12 @@ func TestCartRepoPostgres_UpdateCartItems(t *testing.T) {
 		},
 		{
 			name:     "ошибка при удалении",
-			id:       cartID,
+			id:       userID,
 			newItems: update,
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
 				mock.ExpectBegin()
-				mock.ExpectExec(deleteQuery).
-					WithArgs(cartID).
+				mock.ExpectQuery(deleteQuery).
+					WithArgs(userID).
 					WillReturnError(domain.ErrInternalServer)
 				mock.ExpectRollback()
 			},
@@ -286,13 +282,13 @@ func TestCartRepoPostgres_UpdateCartItems(t *testing.T) {
 		},
 		{
 			name:     "ошибка при вставке",
-			id:       cartID,
+			id:       userID,
 			newItems: update,
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
 				mock.ExpectBegin()
-				mock.ExpectExec(deleteQuery).
-					WithArgs(cartID).
-					WillReturnResult(pgxmock.NewResult("DELETE", 1))
+				mock.ExpectQuery(deleteQuery).
+					WithArgs(userID).
+					WillReturnRows(pgxmock.NewRows([]string{"cart_id"}).AddRow(cartID))
 
 				mock.ExpectExec(insertQuery).
 					WithArgs(pgxmock.AnyArg(), cartID, item1.ID, item1.Quantity).

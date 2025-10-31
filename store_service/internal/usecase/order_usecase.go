@@ -6,12 +6,14 @@ import (
 )
 
 type OrderRepository interface {
+	// GetOrderUserID получить юзерИД заказа
+	GetOrderUserID(ctx context.Context, orderID string) (string, error)
 	// CreateOrder создает новый заказ пользователя
 	CreateOrder(ctx context.Context, userID string) (string, error)
 	// UpdateOrderStatus обновляет статус заказа
-	UpdateOrderStatus(ctx context.Context, id, status string) error
+	UpdateOrderStatus(ctx context.Context, orderID, status string) error
 	// GetOrder получить информацию о заказе по ID
-	GetOrder(ctx context.Context, id string) (*domain.OrderInfo, error)
+	GetOrder(ctx context.Context, orderID string) (*domain.OrderInfo, error)
 	// GetOrdersUser получить все заказы пользователя
 	GetOrdersUser(ctx context.Context, userID string) ([]*domain.Order, error)
 }
@@ -38,7 +40,7 @@ func (uc *OrderUsecase) CreateOrder(ctx context.Context, userID string) (*domain
 	return orderInfo, nil
 }
 
-func (uc *OrderUsecase) UpdateOrderStatus(ctx context.Context, id, status string) error {
+func (uc *OrderUsecase) UpdateOrderStatus(ctx context.Context, id, userID, status string) error {
 	statuses := map[string]bool{
 		"pending":    true,
 		"paid":       true,
@@ -50,11 +52,28 @@ func (uc *OrderUsecase) UpdateOrderStatus(ctx context.Context, id, status string
 		return domain.ErrRequestParams
 	}
 
+	trueUserID, err := uc.repo.GetOrderUserID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if trueUserID != userID {
+		return domain.ErrForbidden
+	}
+
 	return uc.repo.UpdateOrderStatus(ctx, id, status)
 }
 
-func (uc *OrderUsecase) GetOrder(ctx context.Context, id string) (*domain.OrderInfo, error) {
-	order, err := uc.repo.GetOrder(ctx, id)
+func (uc *OrderUsecase) GetOrder(ctx context.Context, orderID, userID string) (*domain.OrderInfo, error) {
+	// заказ может получить только пользователь, совершивший заказ
+	orderUserID, err := uc.repo.GetOrderUserID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if orderUserID != userID {
+		return nil, domain.ErrForbidden
+	}
+
+	order, err := uc.repo.GetOrder(ctx, orderID)
 	if err != nil {
 		return nil, err
 	}

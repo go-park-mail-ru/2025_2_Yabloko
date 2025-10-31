@@ -4,6 +4,7 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/store_service/internal/domain"
 	"context"
+	_ "embed"
 
 	"github.com/google/uuid"
 )
@@ -20,28 +21,16 @@ func NewCartRepoPostgres(db PgxIface, log *logger.Logger) *CartRepoPostgres {
 	}
 }
 
-func (r *CartRepoPostgres) GetCartItems(ctx context.Context, userID string) (string, []*domain.CartItem, error) {
-	r.log.Debug(ctx, "GetCartItems начало обработки", map[string]interface{}{})
-	query := `
-		select
-		    c.id as cart_id,
-		    si.id as id,
-			it.name as name,
-			it.card_img as card_img,
-			si.price as price,
-			ci.quantity as quantity
-		from cart c
-		join cart_item ci on ci.cart_id = c.id
-		join store_item si on si.id = ci.store_item_id
-		join item it on it.id = si.item_id
-		WHERE c.user_id = $1
-		ORDER BY ci.created_at;
-	`
+//go:embed sql/cart/get_items.sql
+var getCartItems string
 
-	rows, err := r.db.Query(ctx, query, userID)
+func (r *CartRepoPostgres) GetCartItems(ctx context.Context, userID string) ([]*domain.CartItem, error) {
+	r.log.Debug(ctx, "GetCartItems начало обработки", map[string]interface{}{})
+
+	rows, err := r.db.Query(ctx, getCartItems, userID)
 	if err != nil {
 		r.log.Error(ctx, "GetCartItems ошибка бд", map[string]interface{}{"err": err, "id": userID})
-		return "", nil, err
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -54,7 +43,7 @@ func (r *CartRepoPostgres) GetCartItems(ctx context.Context, userID string) (str
 		if err != nil {
 			r.log.Error(ctx, "GetCartItems ошибка при декодировании данных",
 				map[string]interface{}{"err": err, "rows": rows})
-			return "", nil, err
+			return nil, err
 		}
 
 		if cartID == "" {
@@ -66,28 +55,27 @@ func (r *CartRepoPostgres) GetCartItems(ctx context.Context, userID string) (str
 	if err = rows.Err(); err != nil {
 		r.log.Error(ctx, "GetCartItems ошибка после чтения строк",
 			map[string]interface{}{"err": err, "id": userID})
-		return "", nil, err
+		return nil, err
 	}
 
 	if len(items) == 0 {
 		r.log.Warn(ctx, "GetCartItems пустой ответ", map[string]interface{}{"id": userID})
-		return "", nil, domain.ErrRowsNotFound
+		return nil, domain.ErrRowsNotFound
 	}
 
 	r.log.Debug(ctx, "GetCartItems завершено успешно", map[string]interface{}{})
-	return cartID, items, nil
+	return items, nil
 }
 
-func (r *CartRepoPostgres) DeleteCartItems(ctx context.Context, id string) error {
-	r.log.Debug(ctx, "DeleteCartItems начало обработки", map[string]interface{}{})
-	query := `
-		delete from cart_item
-		where cart_id = $1;
-	`
+//go:embed sql/cart/delete_items.sql
+var deleteCartItems string
 
-	_, err := r.db.Exec(ctx, query, id)
+func (r *CartRepoPostgres) DeleteCartItems(ctx context.Context, userID string) error {
+	r.log.Debug(ctx, "DeleteCartItems начало обработки", map[string]interface{}{})
+
+	_, err := r.db.Exec(ctx, deleteCartItems, userID)
 	if err != nil {
-		r.log.Error(ctx, "DeleteCartItems ошибка бд", map[string]interface{}{"err": err, "id": id})
+		r.log.Error(ctx, "DeleteCartItems ошибка бд", map[string]interface{}{"err": err, "id": userID})
 		return err
 	}
 
@@ -95,7 +83,10 @@ func (r *CartRepoPostgres) DeleteCartItems(ctx context.Context, id string) error
 	return nil
 }
 
-func (r *CartRepoPostgres) UpdateCartItems(ctx context.Context, id string, newItems *domain.CartUpdate) error {
+//go:embed sql/cart/insert_item.sql
+var insertCartItems string
+
+func (r *CartRepoPostgres) UpdateCartItems(ctx context.Context, userID string, newItems *domain.CartUpdate) error {
 	r.log.Debug(ctx, "UpdateCartItems начало обработки", map[string]interface{}{})
 	// выполняем два действия
 	tx, err := r.db.Begin(ctx)
@@ -104,29 +95,27 @@ func (r *CartRepoPostgres) UpdateCartItems(ctx context.Context, id string, newIt
 	}
 	defer tx.Rollback(ctx)
 
-	query := `
-		delete from cart_item
-		where cart_id = $1;
-	`
-	_, err = tx.Exec(ctx, query, id)
+	var cartID string
+	err = tx.QueryRow(ctx, deleteCartItems, userID).Scan(&cartID)
 	if err != nil {
-		r.log.Error(ctx, "UpdateCartItems ошибка удаления записи", map[string]interface{}{"err": err, "id": id})
+		r.log.Error(ctx, "UpdateCartItems ошибка удаления записи", map[string]interface{}{"err": err, "id": userID})
 		return err
 	}
 
-	query = `
-		insert into cart_item (id, cart_id, store_item_id, quantity)
-		values ($1, $2, $3, $4);
-	`
 	for _, item := range newItems.Items {
-		_, err := tx.Exec(ctx, query, uuid.New().String(), id, item.ID, item.Quantity)
+		_, err = tx.Exec(ctx, insertCartItems, uuid.New().String(), cartID, item.ID, item.Quantity)
 		if err != nil {
-			r.log.Error(ctx, "UpdateCartItems ошибка бд", map[string]interface{}{"err": err, "id": id})
+			r.log.Error(ctx, "UpdateCartItems ошибка бд", map[string]interface{}{"err": err, "id": userID})
 			return err
 		}
 	}
 
-	tx.Commit(ctx)
+	err = tx.Commit(ctx)
+	if err != nil {
+		r.log.Error(ctx, "UpdateCartItems ошибка закрытия транзакции", map[string]interface{}{"err": err, "id": userID})
+		return domain.ErrInternalServer
+	}
+
 	r.log.Debug(ctx, "UpdateCartItems завершено успешно", map[string]interface{}{})
 	return nil
 }
