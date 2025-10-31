@@ -12,7 +12,8 @@ ___
 * address — адрес по умолчанию для доставки
 
 **Соотношение:**  
-{id} → {email, password, name, phone, city_id, address}  
+{id} → {email, password, name, phone, city_id, address}
+{email} → {id, password, name, phone, city_id, address}
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓ 
 
 
@@ -39,7 +40,8 @@ ___
 * name — название города
 
 **Соотношение:**  
-{id} → {name}  
+{id} → {name}
+{name} → {id}
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓
 
 
@@ -50,7 +52,8 @@ ___
 * account_2_id — id второго пользователя
 
 **Соотношение:**  
-{id} → {account_1_id, account_2_id}  
+{id} → {account_1_id, account_2_id}
+{account_1_id, account_2_id} → {id}
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓ 
 
 
@@ -61,6 +64,7 @@ ___
 
 **Соотношение:**  
 {id} → {user_id}  
+{user_id} → {id}  
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓ 
 
 
@@ -73,6 +77,7 @@ ___
 
 **Соотношение:**  
 {id} → {cart_id, store_item_id, quantity}  
+{cart_id, store_item_id} → {id, quantity}
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓ 
 
 
@@ -98,7 +103,8 @@ ___
 * quantity — количество единиц товара
 
 **Соотношение:**  
-{id} → {order_id, store_item_id, price, quantity}  
+{id} → {order_id, store_item_id, price, quantity}
+{order_id, store_item_id} → {id, price, quantity}
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓ 
 
 
@@ -109,6 +115,7 @@ ___
 
 **Соотношение:**  
 {id} → {name}  
+{name} → {id}  
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓ 
 
 
@@ -120,6 +127,7 @@ ___
 
 **Соотношение:**  
 {id} → {store_id, tag_id}  
+{store_id, tag_id} → {id}
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓
 
 
@@ -130,6 +138,7 @@ ___
 
 **Соотношение:**  
 {id} → {name}  
+{name} → {id}  
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓ 
 
 
@@ -141,6 +150,7 @@ ___
 
 **Соотношение:**  
 {id} → {store_id, category_id}  
+{store_id, category_id} → {id}
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓ 
 
 
@@ -165,6 +175,7 @@ ___
 
 **Соотношение:**  
 {id} → {store_id, item_id, price}  
+{store_id, item_id} → {id, price}
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓ 
 
 
@@ -174,7 +185,8 @@ ___
 * name — название типа
 
 **Соотношение:**  
-{id} → {name}  
+{id} → {name}
+{name} → {id}
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓
 
 
@@ -185,7 +197,8 @@ ___
 * type_id — id типа
 
 **Соотношение:**  
-{id} → {item_id, type_id}  
+{id} → {item_id, type_id}
+{item_id, type_id} → {id}
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓
 
 
@@ -214,7 +227,7 @@ ___
 * end_at — дата и время окончания действия
 
 **Соотношение:**  
-{id} → {code, relative_discount, absolute_discount, user_id, start_at, end_at}  
+{id} → {code, relative_discount, absolute_discount, user_id, start_at, end_at}
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓ 
 
 
@@ -225,7 +238,8 @@ ___
 * promotion_id — id акции
 
 **Соотношение:**  
-{id} → {item_id, promotion_id}  
+{id} → {item_id, promotion_id}
+{item_id, promotion_id} → {id}
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓ 
 
 
@@ -236,7 +250,8 @@ ___
 * promocode_id — id промокода
 
 **Соотношение:**  
-{id} → {item_id, promocode_id}  
+{id} → {item_id, promocode_id}
+{item_id, promocode_id} → {id}
 1NF: ✓ 2NF: ✓ 3NF: ✓ BCNF: ✓ 
 
 

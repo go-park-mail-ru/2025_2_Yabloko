@@ -259,7 +259,7 @@ func TestStoreRepoPostgres_GetStores(t *testing.T) {
 				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at", "tag_id"}).
 					AddRow(store1.ID, store1.Name, store1.Description, store1.CityID, store1.Address, store1.CardImg, store1.Rating, store1.OpenAt, store1.ClosedAt, store1.TagID)
 
-				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id from store s left join store_tag st on st.store_id = s.id where st.tag_id = \$1 and s.city_id = \$2 order by s.id limit \$3`).
+				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id from store s left join store_tag st on st.store_id = s.id where exists \(select 1 from store_tag st2 where st2.store_id = s.id and st2.tag_id = \$1\) and s.city_id = \$2 order by s.id limit \$3`).
 					WithArgs(uid1, uid1, 10).
 					WillReturnRows(rows)
 			},

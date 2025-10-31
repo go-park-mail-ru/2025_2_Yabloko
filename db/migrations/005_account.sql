@@ -27,6 +27,8 @@ create table if not exists friend
     id        uuid primary key,
     user_id_1 uuid not null references account (id) on delete cascade,
     user_id_2 uuid not null references account (id) on delete cascade,
+    updated_at timestamptz not null default current_timestamp,
+    created_at timestamptz not null default current_timestamp,
     constraint no_self_friend check (user_id_1 <> user_id_2),
     unique (user_id_1, user_id_2)
 );
