@@ -151,13 +151,13 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) ([]*domain.
 }
 
 func (r *StoreRepoPostgres) GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error) {
+	r.log.Debug(ctx, "GetStoreReview начало обработки", map[string]interface{}{})
 	query := `
 		select acc.name, r.rating, r.comment, r.created_at 
 		from review r left join account acc on r.user_id = acc.id
 		where r.store_id = $1
 		order by r.created_at desc
 	`
-	r.log.Debug(ctx, "GetStoreReview начало обработки", map[string]interface{}{})
 
 	rows, err := r.db.Query(ctx, query, id)
 	if err != nil {

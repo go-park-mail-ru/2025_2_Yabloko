@@ -18,12 +18,12 @@ type Cart struct {
 
 type ItemUpdate struct {
 	// id - store_item_id
-	ID       string `json:"id"`
-	Quantity int    `json:"quantity"`
+	ID       string `json:"id" validate:"required, uuid"`
+	Quantity int    `json:"quantity" validate:"required"`
 } // @name ItemUpdate
 
 type CartUpdate struct {
-	Items []*ItemUpdate `json:"items"`
+	Items []*ItemUpdate `json:"items" validate:"required"`
 } // @name CartUpdate
 
 type UpdateResponse struct {

@@ -1,7 +1,6 @@
 package usecase
 
 import (
-	"apple_backend/custom_errors"
 	"apple_backend/store_service/internal/domain"
 	"apple_backend/store_service/internal/usecase/mock"
 	"context"
@@ -113,7 +112,7 @@ func TestStoreUsecase_GetStore(t *testing.T) {
 				id:  "00000000-0000-0000-0000-000000000001",
 			},
 			expectedResult: nil,
-			expectedError:  custom_errors.InnerErr,
+			expectedError:  domain.ErrInternalServer,
 		},
 	}
 
@@ -126,7 +125,6 @@ func TestStoreUsecase_GetStore(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			mockRepo.EXPECT().
 				GetStore(tt.input.ctx, tt.input.id).
@@ -149,6 +147,7 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 	type testCase struct {
 		name           string
 		input          args
+		mockSetup      func(mock *mock.MockStoreRepository, out []*domain.Store, err error)
 		repoOutput     []*domain.Store
 		expectedResult []*domain.StoreAgg
 		expectedError  error
@@ -162,6 +161,11 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 				filter: &domain.StoreFilter{
 					Limit: 2,
 				},
+			},
+			mockSetup: func(mock *mock.MockStoreRepository, out []*domain.Store, err error) {
+				mock.EXPECT().
+					GetStores(context.Background(), &domain.StoreFilter{Limit: 2}).
+					Return(out, err)
 			},
 			repoOutput: []*domain.Store{
 				{
@@ -218,6 +222,91 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 			expectedError: nil,
 		},
 		{
+			name: "GetStores успешный вызов несколько тегов",
+			input: args{
+				ctx: context.Background(),
+				filter: &domain.StoreFilter{
+					Limit: 2,
+				},
+			},
+			mockSetup: func(mock *mock.MockStoreRepository, out []*domain.Store, err error) {
+				mock.EXPECT().
+					GetStores(context.Background(), &domain.StoreFilter{Limit: 2}).
+					Return(out, err)
+			},
+			repoOutput: []*domain.Store{
+				{
+					ID:          "00000000-0000-0000-0000-000000000001",
+					Name:        "Store",
+					Description: "Description",
+					CityID:      "10000000-0000-0000-0000-000000000001",
+					Address:     "Address",
+					CardImg:     "CardImg",
+					Rating:      3,
+					TagID:       "00000000-0000-0000-0000-000000000001",
+					OpenAt:      "OpenAt",
+					ClosedAt:    "ClosedAt",
+				},
+				{
+					ID:          "00000000-0000-0000-0000-000000000001",
+					Name:        "Store",
+					Description: "Description",
+					CityID:      "10000000-0000-0000-0000-000000000001",
+					Address:     "Address",
+					CardImg:     "CardImg",
+					Rating:      3,
+					TagID:       "00000000-0000-0000-0000-000000000002",
+					OpenAt:      "OpenAt",
+					ClosedAt:    "ClosedAt",
+				},
+			},
+			expectedResult: []*domain.StoreAgg{
+				{
+					ID:          "00000000-0000-0000-0000-000000000001",
+					Name:        "Store",
+					Description: "Description",
+					CityID:      "10000000-0000-0000-0000-000000000001",
+					Address:     "Address",
+					CardImg:     "CardImg",
+					Rating:      3,
+					TagsID: []string{
+						"00000000-0000-0000-0000-000000000001",
+						"00000000-0000-0000-0000-000000000002",
+					},
+					OpenAt:   "OpenAt",
+					ClosedAt: "ClosedAt",
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			name: "некорректный параметр сортировки",
+			input: args{
+				ctx: context.Background(),
+				filter: &domain.StoreFilter{
+					Sorted: "id",
+					Limit:  2,
+				},
+			},
+			mockSetup:      func(mock *mock.MockStoreRepository, out []*domain.Store, err error) {},
+			repoOutput:     nil,
+			expectedResult: nil,
+			expectedError:  domain.ErrRequestParams,
+		},
+		{
+			name: "Limit < 0",
+			input: args{
+				ctx: context.Background(),
+				filter: &domain.StoreFilter{
+					Limit: -10,
+				},
+			},
+			mockSetup:      func(mock *mock.MockStoreRepository, out []*domain.Store, err error) {},
+			repoOutput:     nil,
+			expectedResult: nil,
+			expectedError:  domain.ErrRequestParams,
+		},
+		{
 			name: "GetStores ошбика выполнения",
 			input: args{
 				ctx: context.Background(),
@@ -225,26 +314,27 @@ func TestStoreUsecase_GetStores(t *testing.T) {
 					Limit: 2,
 				},
 			},
+			mockSetup: func(mock *mock.MockStoreRepository, out []*domain.Store, err error) {
+				mock.EXPECT().
+					GetStores(context.Background(), &domain.StoreFilter{Limit: 2}).
+					Return(out, err)
+			},
 			repoOutput:     nil,
 			expectedResult: nil,
-			expectedError:  custom_errors.InnerErr,
+			expectedError:  domain.ErrInternalServer,
 		},
 	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockRepo := mock.NewMockStoreRepository(ctrl)
-
-	uc := NewStoreUsecase(mockRepo)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mockRepo.EXPECT().
-				GetStores(tt.input.ctx, tt.input.filter).
-				Return(tt.repoOutput, tt.expectedError)
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockRepo := mock.NewMockStoreRepository(ctrl)
+			tt.mockSetup(mockRepo, tt.repoOutput, tt.expectedError)
+			uc := NewStoreUsecase(mockRepo)
 
 			store, err := uc.GetStores(tt.input.ctx, tt.input.filter)
 
@@ -272,7 +362,6 @@ func TestStoreUsecase_CreateStore(t *testing.T) {
 		input         args
 		expectedError error
 	}
-
 	tests := []testCase{
 		{
 			name: "CreateStore успешный вызов",
@@ -302,7 +391,7 @@ func TestStoreUsecase_CreateStore(t *testing.T) {
 				closedAt:    "ClosedAt",
 				rating:      3,
 			},
-			expectedError: custom_errors.InnerErr,
+			expectedError: domain.ErrInternalServer,
 		},
 	}
 
@@ -315,7 +404,6 @@ func TestStoreUsecase_CreateStore(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			mockRepo.EXPECT().
 				CreateStore(tt.input.ctx, &domain.Store{Name: tt.input.name, Description: tt.input.description,
@@ -337,7 +425,6 @@ func TestStoreUsecase_GetCities(t *testing.T) {
 		expectedResult []*domain.City
 		expectedError  error
 	}
-
 	ctx := context.Background()
 	tests := []testCase{
 		{
@@ -357,7 +444,7 @@ func TestStoreUsecase_GetCities(t *testing.T) {
 		{
 			name:           "ошбика выполнения",
 			expectedResult: nil,
-			expectedError:  custom_errors.InnerErr,
+			expectedError:  domain.ErrInternalServer,
 		},
 	}
 
@@ -370,7 +457,6 @@ func TestStoreUsecase_GetCities(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			mockRepo.EXPECT().
 				GetCities(ctx).
@@ -390,7 +476,6 @@ func TestStoreUsecase_GetTags(t *testing.T) {
 		expectedResult []*domain.StoreTag
 		expectedError  error
 	}
-
 	ctx := context.Background()
 	tests := []testCase{
 		{
@@ -410,7 +495,7 @@ func TestStoreUsecase_GetTags(t *testing.T) {
 		{
 			name:           "ошбика выполнения",
 			expectedResult: nil,
-			expectedError:  custom_errors.InnerErr,
+			expectedError:  domain.ErrInternalServer,
 		},
 	}
 
@@ -423,13 +508,71 @@ func TestStoreUsecase_GetTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			mockRepo.EXPECT().
 				GetTags(ctx).
 				Return(tt.expectedResult, tt.expectedError)
 
 			store, err := uc.GetTags(ctx)
+
+			require.Equal(t, tt.expectedError, err)
+			require.ElementsMatch(t, tt.expectedResult, store)
+		})
+	}
+}
+
+func TestStoreUsecase_GetStoreReview(t *testing.T) {
+	type testCase struct {
+		name           string
+		inputID        string
+		expectedResult []*domain.StoreReview
+		expectedError  error
+	}
+
+	tests := []testCase{
+		{
+			name:    "успешный вызов",
+			inputID: "00000000-0000-0000-0000-000000000002",
+			expectedResult: []*domain.StoreReview{
+				{
+					UserName:  "Пользователь1",
+					Rating:    5,
+					Comment:   "хороший товар",
+					CreatedAt: "2025-01-01",
+				},
+				{
+					UserName:  "Пользователь2",
+					Rating:    5,
+					Comment:   "хороший товар",
+					CreatedAt: "2025-01-02",
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			name:           "ошбика выполнения",
+			inputID:        "00000000-0000-0000-0000-000000000002",
+			expectedResult: nil,
+			expectedError:  domain.ErrInternalServer,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			mockRepo := mock.NewMockStoreRepository(ctrl)
+			uc := NewStoreUsecase(mockRepo)
+
+			mockRepo.EXPECT().
+				GetStoreReview(ctx, tt.inputID).
+				Return(tt.expectedResult, tt.expectedError)
+
+			store, err := uc.GetStoreReview(ctx, tt.inputID)
 
 			require.Equal(t, tt.expectedError, err)
 			require.ElementsMatch(t, tt.expectedResult, store)

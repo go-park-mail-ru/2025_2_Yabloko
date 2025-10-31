@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"apple_backend/custom_errors"
 	"apple_backend/pkg/logger"
 	"apple_backend/store_service/internal/domain"
 	"context"
@@ -66,6 +65,22 @@ func TestStoreRepoPostgres_GetStore(t *testing.T) {
 			expectedError: domain.ErrRowsNotFound,
 		},
 		{
+			name:    "ошибка при чтении",
+			storeID: storeID,
+			mockSetup: func(mock pgxmock.PgxPoolIface) {
+				rows := pgxmock.NewRows([]string{"id", "name", "description", "city_id", "address", "card_img", "rating", "open_at", "closed_at", "tag_id"}).
+					AddRow(stores[0].ID, stores[0].Name, stores[0].Description, stores[0].CityID, stores[0].Address, stores[0].CardImg, stores[0].Rating, stores[0].OpenAt, stores[0].ClosedAt, stores[0].TagID).
+					RowError(0, domain.ErrInternalServer)
+
+				mock.ExpectQuery(`select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id
+		from store s left join store_tag st on st.store_id = s.id where id = \$1`).
+					WithArgs(storeID).
+					WillReturnRows(rows)
+			},
+			expectedRes:   nil,
+			expectedError: domain.ErrInternalServer,
+		},
+		{
 			name:    "ошибка запроса",
 			storeID: storeID,
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
@@ -81,6 +96,8 @@ func TestStoreRepoPostgres_GetStore(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mockPool, err := pgxmock.NewPool()
 			require.NoError(t, err)
 			defer mockPool.Close()
@@ -155,6 +172,8 @@ func TestStoreRepoPostgres_CreateStore(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mockPool, err := pgxmock.NewPool()
 			require.NoError(t, err)
 			defer mockPool.Close()
@@ -323,6 +342,8 @@ func TestStoreRepoPostgres_GetStores(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mockPool, err := pgxmock.NewPool()
 			require.NoError(t, err)
 			defer mockPool.Close()
@@ -384,28 +405,30 @@ func TestStoreRepoPostgres_GetCities(t *testing.T) {
 			name: "ошибка запроса",
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
 				mock.ExpectQuery(`select id, name from city`).
-					WillReturnError(custom_errors.InnerErr)
+					WillReturnError(domain.ErrInternalServer)
 			},
 			expectedRes:   nil,
-			expectedError: custom_errors.InnerErr,
+			expectedError: domain.ErrInternalServer,
 		},
 		{
 			name: "ошибка при чтении строки",
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
 				rows := pgxmock.NewRows([]string{"id", "name"}).
 					AddRow(city1.ID, city1.Name).
-					RowError(0, custom_errors.InnerErr)
+					RowError(0, domain.ErrInternalServer)
 
 				mock.ExpectQuery(`select id, name from city`).
 					WillReturnRows(rows)
 			},
 			expectedRes:   nil,
-			expectedError: custom_errors.InnerErr,
+			expectedError: domain.ErrInternalServer,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mockPool, err := pgxmock.NewPool()
 			require.NoError(t, err)
 			defer mockPool.Close()
@@ -467,28 +490,30 @@ func TestStoreRepoPostgres_GetTags(t *testing.T) {
 			name: "ошибка запроса",
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
 				mock.ExpectQuery(`select id, name from tag`).
-					WillReturnError(custom_errors.InnerErr)
+					WillReturnError(domain.ErrInternalServer)
 			},
 			expectedRes:   nil,
-			expectedError: custom_errors.InnerErr,
+			expectedError: domain.ErrInternalServer,
 		},
 		{
 			name: "ошибка при чтении строки",
 			mockSetup: func(mock pgxmock.PgxPoolIface) {
 				rows := pgxmock.NewRows([]string{"id", "name"}).
 					AddRow(tag1.ID, tag1.Name).
-					RowError(0, custom_errors.InnerErr)
+					RowError(0, domain.ErrInternalServer)
 
 				mock.ExpectQuery(`select id, name from tag`).
 					WillReturnRows(rows)
 			},
 			expectedRes:   nil,
-			expectedError: custom_errors.InnerErr,
+			expectedError: domain.ErrInternalServer,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mockPool, err := pgxmock.NewPool()
 			require.NoError(t, err)
 			defer mockPool.Close()
@@ -499,6 +524,106 @@ func TestStoreRepoPostgres_GetTags(t *testing.T) {
 			tt.mockSetup(mockPool)
 
 			res, err := repo.GetTags(context.Background())
+			require.Equal(t, tt.expectedError, err)
+			require.Equal(t, tt.expectedRes, res)
+		})
+	}
+}
+
+func TestStoreRepoPostgres_GetStoreReview(t *testing.T) {
+	type testCase struct {
+		name          string
+		mockSetup     func(mock pgxmock.PgxPoolIface)
+		expectedRes   []*domain.StoreReview
+		expectedError error
+	}
+	storeID := "00000000-0000-0000-0000-000000000001"
+	query := `
+		select acc.name, r.rating, r.comment, r.created_at 
+		from review r left join account acc on r.user_id = acc.id
+		where r.store_id = \$1
+		order by r.created_at desc
+	`
+
+	review1 := &domain.StoreReview{
+		UserName:  "пользователь1",
+		Rating:    5,
+		Comment:   "хороший магазин",
+		CreatedAt: "2024-01-01",
+	}
+	review2 := &domain.StoreReview{
+		UserName:  "пользователь2",
+		Rating:    5,
+		Comment:   "хороший магазин",
+		CreatedAt: "2024-01-02",
+	}
+
+	tests := []testCase{
+		{
+			name: "успешный запрос",
+			mockSetup: func(mock pgxmock.PgxPoolIface) {
+				rows := pgxmock.NewRows([]string{"name", "rating", "comment", "created_at"}).
+					AddRow(review1.UserName, review1.Rating, review1.Comment, review1.CreatedAt).
+					AddRow(review2.UserName, review2.Rating, review2.Comment, review2.CreatedAt)
+
+				mock.ExpectQuery(query).
+					WithArgs(storeID).
+					WillReturnRows(rows)
+			},
+			expectedRes:   []*domain.StoreReview{review1, review2},
+			expectedError: nil,
+		},
+		{
+			name: "пустой результат",
+			mockSetup: func(mock pgxmock.PgxPoolIface) {
+				rows := pgxmock.NewRows([]string{"name", "rating", "comment", "created_at"})
+				mock.ExpectQuery(query).
+					WithArgs(storeID).
+					WillReturnRows(rows)
+			},
+			expectedRes:   nil,
+			expectedError: domain.ErrRowsNotFound,
+		},
+		{
+			name: "ошибка запроса",
+			mockSetup: func(mock pgxmock.PgxPoolIface) {
+				mock.ExpectQuery(query).
+					WithArgs(storeID).
+					WillReturnError(domain.ErrInternalServer)
+			},
+			expectedRes:   nil,
+			expectedError: domain.ErrInternalServer,
+		},
+		{
+			name: "ошибка при чтении строки",
+			mockSetup: func(mock pgxmock.PgxPoolIface) {
+				rows := pgxmock.NewRows([]string{"name", "rating", "comment", "created_at"}).
+					AddRow(review1.UserName, review1.Rating, review1.Comment, review1.CreatedAt).
+					RowError(0, domain.ErrInternalServer)
+
+				mock.ExpectQuery(query).
+					WithArgs(storeID).
+					WillReturnRows(rows)
+			},
+			expectedRes:   nil,
+			expectedError: domain.ErrInternalServer,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockPool, err := pgxmock.NewPool()
+			require.NoError(t, err)
+			defer mockPool.Close()
+
+			log := logger.NewNilLogger()
+			repo := NewStoreRepoPostgres(mockPool, log)
+
+			tt.mockSetup(mockPool)
+
+			res, err := repo.GetStoreReview(context.Background(), storeID)
 			require.Equal(t, tt.expectedError, err)
 			require.Equal(t, tt.expectedRes, res)
 		})

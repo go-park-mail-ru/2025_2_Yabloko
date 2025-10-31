@@ -1,7 +1,6 @@
 package usecase
 
 import (
-	"apple_backend/custom_errors"
 	"apple_backend/store_service/internal/domain"
 	"apple_backend/store_service/internal/usecase/mock"
 	"context"
@@ -153,21 +152,21 @@ func TestItemUsecase_GetItems(t *testing.T) {
 				id:  uid1,
 			},
 			repoResponse:   nil,
-			repoError:      custom_errors.InnerErr,
+			repoError:      domain.ErrInternalServer,
 			expectedResult: nil,
-			expectedError:  custom_errors.InnerErr,
+			expectedError:  domain.ErrInternalServer,
 		},
 	}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockRepo := mock.NewMockItemRepository(ctrl)
-	uc := NewItemUsecase(mockRepo)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockRepo := mock.NewMockItemRepository(ctrl)
+			uc := NewItemUsecase(mockRepo)
 
 			mockRepo.EXPECT().
 				GetItems(tt.input.ctx, tt.input.id).

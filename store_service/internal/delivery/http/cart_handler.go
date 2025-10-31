@@ -12,6 +12,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
 
@@ -21,14 +22,16 @@ type CartUsecaseInterface interface {
 }
 
 type CartHandler struct {
-	uc CartUsecaseInterface
-	rs *http_response.ResponseSender
+	uc        CartUsecaseInterface
+	rs        *http_response.ResponseSender
+	validator *validator.Validate
 }
 
 func NewCartHandler(uc CartUsecaseInterface, log *logger.Logger) *CartHandler {
 	return &CartHandler{
-		uc: uc,
-		rs: http_response.NewResponseSender(log),
+		uc:        uc,
+		rs:        http_response.NewResponseSender(log),
+		validator: validator.New(),
 	}
 }
 
@@ -107,6 +110,11 @@ func (h *CartHandler) UpdateCart(w http.ResponseWriter, r *http.Request) {
 
 	cartUpdate := &transport.CartUpdate{}
 	if err := json.NewDecoder(r.Body).Decode(cartUpdate); err != nil {
+		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateCart", domain.ErrRequestParams, err)
+		return
+	}
+
+	if err := h.validator.Struct(cartUpdate); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateCart", domain.ErrRequestParams, err)
 		return
 	}

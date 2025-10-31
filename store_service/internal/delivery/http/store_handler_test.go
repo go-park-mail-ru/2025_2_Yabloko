@@ -306,6 +306,18 @@ func TestStoreHandler_GetStores(t *testing.T) {
 			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
 		},
 		{
+			name:   "GetStores некорректные данные фильтра",
+			method: http.MethodPost,
+			body:   parseJSON(&domain.StoreFilter{Limit: 0}),
+			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
+				uc.EXPECT().
+					GetStores(context.Background(), &domain.StoreFilter{Limit: 0}).
+					Return(nil, domain.ErrRequestParams)
+			},
+			expectedCode:      http.StatusBadRequest,
+			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+		},
+		{
 			name:   "GetStores внутренняя ошибка",
 			method: http.MethodPost,
 			body:   parseJSON(&domain.StoreFilter{Limit: 10}),
@@ -444,6 +456,139 @@ func TestStoreHandler_CreateStore(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			handler.CreateStore(w, req)
+
+			require.Equal(t, tt.expectedCode, w.Code)
+			if tt.expectedResult != nil {
+				require.JSONEq(t, w.Body.String(), parseJSON(tt.expectedResult))
+			}
+			if tt.expectedErrResult != nil {
+				require.JSONEq(t, w.Body.String(), parseJSON(tt.expectedErrResult))
+			}
+		})
+	}
+}
+
+func TestStoreHandler_GetStoreReview(t *testing.T) {
+	url := "/stores/%s/reviews"
+	type testCase struct {
+		name              string
+		method            string
+		id                string
+		mockSetup         func(uc *mock.MockStoreUsecaseInterface)
+		expectedCode      int
+		expectedResult    []*transport.StoreReview
+		expectedErrResult *handlers.ErrResponse
+	}
+
+	storeID := "00000000-0000-0000-0000-000000000001"
+	userName1 := "user1"
+	userName2 := "user1"
+	rating1 := 0.5
+	rating2 := 5.
+	comment1 := "comment1"
+	comment2 := "comment2"
+	createdAt1 := "2024-01-01"
+	createdAt2 := "2024-02-01"
+
+	reviw1 := &domain.StoreReview{
+		UserName:  userName1,
+		Rating:    rating1,
+		Comment:   comment1,
+		CreatedAt: createdAt1,
+	}
+	reviw2 := &domain.StoreReview{
+		UserName:  userName2,
+		Rating:    rating2,
+		Comment:   comment2,
+		CreatedAt: createdAt2,
+	}
+
+	reviewResp1 := &transport.StoreReview{
+		UserName:  userName1,
+		Rating:    rating1,
+		Comment:   comment1,
+		CreatedAt: createdAt1,
+	}
+	reviewResp2 := &transport.StoreReview{
+		UserName:  userName2,
+		Rating:    rating2,
+		Comment:   comment2,
+		CreatedAt: createdAt2,
+	}
+
+	tests := []testCase{
+		{
+			name:   "успешный вызов",
+			method: http.MethodGet,
+			id:     storeID,
+			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
+				uc.EXPECT().
+					GetStoreReview(context.Background(), storeID).
+					Return([]*domain.StoreReview{reviw1, reviw2}, nil)
+			},
+			expectedCode:   http.StatusOK,
+			expectedResult: []*transport.StoreReview{reviewResp1, reviewResp2},
+		},
+		{
+			name:              "метод не разрешен",
+			method:            http.MethodPost,
+			id:                storeID,
+			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
+			expectedCode:      http.StatusMethodNotAllowed,
+			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+		},
+		{
+			name:              "GetStore неверный формат id",
+			method:            http.MethodGet,
+			id:                "00000000-1",
+			mockSetup:         func(uc *mock.MockStoreUsecaseInterface) {},
+			expectedCode:      http.StatusBadRequest,
+			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+		},
+		{
+			name:   "не найдено данных",
+			method: http.MethodGet,
+			id:     storeID,
+			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
+				uc.EXPECT().
+					GetStoreReview(context.Background(), storeID).
+					Return(nil, domain.ErrRowsNotFound)
+			},
+			expectedCode:      http.StatusNotFound,
+			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+		},
+		{
+			name:   "внутренняя ошибка",
+			method: http.MethodGet,
+			id:     storeID,
+			mockSetup: func(uc *mock.MockStoreUsecaseInterface) {
+				uc.EXPECT().
+					GetStoreReview(context.Background(), storeID).
+					Return(nil, domain.ErrInternalServer)
+			},
+			expectedCode:      http.StatusInternalServerError,
+			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			uc := mock.NewMockStoreUsecaseInterface(ctrl)
+			handler := NewStoreHandler(uc, logger.NewNilLogger())
+			tt.mockSetup(uc)
+
+			req := httptest.NewRequest(tt.method, fmt.Sprintf(url, tt.id), bytes.NewBuffer(nil))
+			req = req.WithContext(context.Background())
+			req.SetPathValue("id", tt.id)
+
+			w := httptest.NewRecorder()
+
+			handler.GetStoreReview(w, req)
 
 			require.Equal(t, tt.expectedCode, w.Code)
 			if tt.expectedResult != nil {

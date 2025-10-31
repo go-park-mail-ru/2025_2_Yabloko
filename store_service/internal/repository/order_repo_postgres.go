@@ -4,8 +4,10 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/store_service/internal/domain"
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type OrderRepoPostgres struct {
@@ -108,14 +110,14 @@ func (r *OrderRepoPostgres) UpdateOrderStatus(ctx context.Context, id, status st
 	var orderID string
 	err := r.db.QueryRow(ctx, query, id, status).Scan(&orderID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			r.log.Warn(ctx, "UpdateOrderStatus заказ отсутствует",
+				map[string]interface{}{"err": err, "id": id, "status": status})
+			return domain.ErrRowsNotFound
+		}
 		r.log.Error(ctx, "UpdateOrderStatus ошибка обновления статуса",
 			map[string]interface{}{"err": err, "id": id, "status": status})
 		return err
-	}
-
-	if orderID == "" {
-		r.log.Warn(ctx, "UpdateOrderStatus пустой ответ", map[string]interface{}{"id": id})
-		return domain.ErrRowsNotFound
 	}
 
 	r.log.Debug(ctx, "UpdateOrderStatus завершено успешно", map[string]interface{}{})

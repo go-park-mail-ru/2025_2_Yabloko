@@ -30,7 +30,7 @@ type Orders struct {
 } // @name Orders
 
 type OrderStatus struct {
-	Status string `json:"status"`
+	Status string `json:"status" validate:"required"`
 } // @name Orders
 
 func toOrderResponse(order *domain.Order) *Order {
@@ -42,13 +42,13 @@ func toOrderResponse(order *domain.Order) *Order {
 	}
 }
 
-func ToOrdersResponse(orders []*domain.Order) []*Order {
-	ordersResponse := make([]*Order, len(orders))
+func ToOrdersResponse(orders []*domain.Order) *Orders {
+	ordersList := make([]*Order, 0, len(orders))
 	for _, order := range orders {
-		ordersResponse = append(ordersResponse, toOrderResponse(order))
+		ordersList = append(ordersList, toOrderResponse(order))
 	}
 
-	return ordersResponse
+	return &Orders{Orders: ordersList}
 }
 
 func toOrderItemResponse(item *domain.OrderItemInfo) *OrderItemInfo {
