@@ -1,8 +1,9 @@
 package http
 
 import (
-	"apple_backend/handlers"
+	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
+	"apple_backend/store_service/internal/delivery/middlewares"
 	"apple_backend/store_service/internal/delivery/mock"
 	"apple_backend/store_service/internal/delivery/transport"
 	"apple_backend/store_service/internal/domain"
@@ -18,15 +19,15 @@ import (
 )
 
 func TestOrderHandler_CreateOrder(t *testing.T) {
-	url := "/users/%s/order"
+	url := "/orders"
 	type testCase struct {
 		name              string
 		method            string
 		id                string
-		mockSetup         func(uc *mock.MockOrderUsecaseInterface)
+		mockSetup         func(uc *mock.MockOrderUsecaseInterface, method, userID string) *http.Request
 		expectedCode      int
 		expectedResult    *transport.OrderInfo
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	uid1 := "00000000-0000-0000-0000-000000000001"
@@ -79,9 +80,13 @@ func TestOrderHandler_CreateOrder(t *testing.T) {
 			name:   "успешный вызов",
 			method: http.MethodPost,
 			id:     uid1,
-			mockSetup: func(uc *mock.MockOrderUsecaseInterface) {
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					CreateOrder(context.Background(), uid1).
+					CreateOrder(ctx, userID).
 					Return(&domain.OrderInfo{
 						ID: uid1,
 						Items: []*domain.OrderItemInfo{
@@ -92,6 +97,8 @@ func TestOrderHandler_CreateOrder(t *testing.T) {
 						Total:     total,
 						CreatedAt: createdAt,
 					}, nil)
+
+				return req
 			},
 			expectedCode: http.StatusOK,
 			expectedResult: &transport.OrderInfo{
@@ -107,32 +114,64 @@ func TestOrderHandler_CreateOrder(t *testing.T) {
 			expectedErrResult: nil,
 		},
 		{
-			name:              "метод не разрешен",
-			method:            http.MethodPut,
-			id:                uid1,
-			mockSetup:         func(uc *mock.MockOrderUsecaseInterface) {},
+			name:   "метод не разрешен",
+			method: http.MethodPut,
+			id:     uid1,
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
 			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
 		},
 		{
-			name:              "неверный формат id",
-			method:            http.MethodPost,
-			id:                "00000000-1",
-			mockSetup:         func(uc *mock.MockOrderUsecaseInterface) {},
-			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			name:   "не аутентифицирован",
+			method: http.MethodPost,
+			id:     "",
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
+			expectedCode:      http.StatusUnauthorized,
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrUnauthorized.Error()},
+		},
+		{
+			name:   "неверный формат id",
+			method: http.MethodPost,
+			id:     "00000000-1",
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
+			expectedCode:      http.StatusUnauthorized,
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrUnauthorized.Error()},
 		},
 		{
 			name:   "внутренняя ошибка",
 			method: http.MethodPost,
 			id:     uid1,
-			mockSetup: func(uc *mock.MockOrderUsecaseInterface) {
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					CreateOrder(context.Background(), uid1).
+					CreateOrder(ctx, userID).
 					Return(nil, domain.ErrInternalServer)
+
+				return req
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
 		},
 	}
 
@@ -146,11 +185,7 @@ func TestOrderHandler_CreateOrder(t *testing.T) {
 			uc := mock.NewMockOrderUsecaseInterface(ctrl)
 			handler := NewOrderHandler(uc, logger.NewNilLogger())
 
-			tt.mockSetup(uc)
-
-			req := httptest.NewRequest(tt.method, fmt.Sprintf(url, tt.id), bytes.NewBuffer(nil))
-			req = req.WithContext(context.Background())
-			req.SetPathValue("id", tt.id)
+			req := tt.mockSetup(uc, tt.method, tt.id)
 
 			w := httptest.NewRecorder()
 
@@ -172,11 +207,12 @@ func TestOrderHandler_GetOrder(t *testing.T) {
 	type testCase struct {
 		name              string
 		method            string
-		id                string
-		mockSetup         func(uc *mock.MockOrderUsecaseInterface)
+		userID            string
+		orderID           string
+		mockSetup         func(uc *mock.MockOrderUsecaseInterface, method, orderID, userID string) *http.Request
 		expectedCode      int
 		expectedResult    *transport.OrderInfo
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	uid1 := "00000000-0000-0000-0000-000000000001"
@@ -226,12 +262,17 @@ func TestOrderHandler_GetOrder(t *testing.T) {
 
 	tests := []testCase{
 		{
-			name:   "успешный вызов",
-			method: http.MethodGet,
-			id:     uid1,
-			mockSetup: func(uc *mock.MockOrderUsecaseInterface) {
+			name:    "успешный вызов",
+			method:  http.MethodGet,
+			userID:  uid1,
+			orderID: uid2,
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, orderID, userID string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					GetOrder(context.Background(), uid1).
+					GetOrder(ctx, orderID, userID).
 					Return(&domain.OrderInfo{
 						ID: uid1,
 						Items: []*domain.OrderItemInfo{
@@ -242,6 +283,8 @@ func TestOrderHandler_GetOrder(t *testing.T) {
 						Total:     total,
 						CreatedAt: createdAt,
 					}, nil)
+
+				return req
 			},
 			expectedCode: http.StatusOK,
 			expectedResult: &transport.OrderInfo{
@@ -257,44 +300,107 @@ func TestOrderHandler_GetOrder(t *testing.T) {
 			expectedErrResult: nil,
 		},
 		{
-			name:              "метод не разрешен",
-			method:            http.MethodPost,
-			id:                uid1,
-			mockSetup:         func(uc *mock.MockOrderUsecaseInterface) {},
-			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
-		},
-		{
-			name:              "неверный формат id",
-			method:            http.MethodGet,
-			id:                "00000000-1",
-			mockSetup:         func(uc *mock.MockOrderUsecaseInterface) {},
-			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
-		},
-		{
-			name:   "не найдено заказа",
-			method: http.MethodGet,
-			id:     uid1,
-			mockSetup: func(uc *mock.MockOrderUsecaseInterface) {
+			name:    "ошибка доступа",
+			method:  http.MethodGet,
+			userID:  uid1,
+			orderID: uid2,
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, orderID, userID string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					GetOrder(context.Background(), uid1).
+					GetOrder(ctx, orderID, userID).
+					Return(nil, domain.ErrForbidden)
+
+				return req
+			},
+			expectedCode:      http.StatusForbidden,
+			expectedResult:    nil,
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrForbidden.Error()},
+		},
+		{
+			name:    "метод не разрешен",
+			method:  http.MethodPost,
+			userID:  uid1,
+			orderID: uid2,
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, orderID, userID string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
+			expectedCode:      http.StatusMethodNotAllowed,
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+		},
+		{
+			name:    "неверный формат userID",
+			method:  http.MethodGet,
+			userID:  "00000000-1",
+			orderID: uid2,
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, orderID, userID string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
+			expectedCode:      http.StatusUnauthorized,
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrUnauthorized.Error()},
+		},
+		{
+			name:    "неверный формат orderID",
+			method:  http.MethodGet,
+			userID:  uid1,
+			orderID: "00000000-1",
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, orderID, userID string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
+			expectedCode:      http.StatusBadRequest,
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
+		},
+		{
+			name:    "не найдено заказа",
+			method:  http.MethodGet,
+			userID:  uid1,
+			orderID: uid2,
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, orderID, userID string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				uc.EXPECT().
+					GetOrder(ctx, orderID, userID).
 					Return(nil, domain.ErrRowsNotFound)
+
+				return req
 			},
 			expectedCode:      http.StatusNotFound,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
 		},
 		{
-			name:   "внутренняя ошибка",
-			method: http.MethodGet,
-			id:     uid1,
-			mockSetup: func(uc *mock.MockOrderUsecaseInterface) {
+			name:    "внутренняя ошибка",
+			method:  http.MethodGet,
+			userID:  uid1,
+			orderID: uid2,
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, orderID, userID string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					GetOrder(context.Background(), uid1).
+					GetOrder(ctx, orderID, userID).
 					Return(nil, domain.ErrInternalServer)
+
+				return req
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
 		},
 	}
 
@@ -308,11 +414,8 @@ func TestOrderHandler_GetOrder(t *testing.T) {
 			uc := mock.NewMockOrderUsecaseInterface(ctrl)
 			handler := NewOrderHandler(uc, logger.NewNilLogger())
 
-			tt.mockSetup(uc)
-
-			req := httptest.NewRequest(tt.method, fmt.Sprintf(url, tt.id), bytes.NewBuffer(nil))
-			req = req.WithContext(context.Background())
-			req.SetPathValue("id", tt.id)
+			req := tt.mockSetup(uc, tt.method, tt.orderID, tt.userID)
+			req.SetPathValue("id", tt.orderID)
 
 			w := httptest.NewRecorder()
 
@@ -330,15 +433,15 @@ func TestOrderHandler_GetOrder(t *testing.T) {
 }
 
 func TestOrderHandler_GetOrdersUser(t *testing.T) {
-	url := "/users/%s/orders"
+	url := "/orders"
 	type testCase struct {
 		name              string
 		method            string
 		id                string
-		mockSetup         func(uc *mock.MockOrderUsecaseInterface)
+		mockSetup         func(uc *mock.MockOrderUsecaseInterface, method, userID string) *http.Request
 		expectedCode      int
 		expectedResult    *transport.Orders
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	uid := "00000000-0000-0000-0000-000000000001"
@@ -364,54 +467,98 @@ func TestOrderHandler_GetOrdersUser(t *testing.T) {
 			name:   "успешный вызов",
 			method: http.MethodGet,
 			id:     uid,
-			mockSetup: func(uc *mock.MockOrderUsecaseInterface) {
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					GetOrdersUser(context.Background(), uid).
+					GetOrdersUser(ctx, uid).
 					Return([]*domain.Order{orderUC}, nil)
+
+				return req
 			},
 			expectedCode:      http.StatusOK,
 			expectedResult:    &transport.Orders{Orders: []*transport.Order{order}},
 			expectedErrResult: nil,
 		},
 		{
-			name:              "метод не разрешен",
-			method:            http.MethodPost,
-			id:                uid,
-			mockSetup:         func(uc *mock.MockOrderUsecaseInterface) {},
+			name:   "метод не разрешен",
+			method: http.MethodPost,
+			id:     uid,
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
 			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
 		},
 		{
-			name:              "неверный формат id",
-			method:            http.MethodGet,
-			id:                "00000000-1",
-			mockSetup:         func(uc *mock.MockOrderUsecaseInterface) {},
-			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			name:   "неверный формат id",
+			method: http.MethodGet,
+			id:     "00000000-1",
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
+			expectedCode:      http.StatusUnauthorized,
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrUnauthorized.Error()},
 		},
 		{
 			name:   "не найдено заказов",
 			method: http.MethodGet,
 			id:     uid,
-			mockSetup: func(uc *mock.MockOrderUsecaseInterface) {
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					GetOrdersUser(context.Background(), uid).
+					GetOrdersUser(ctx, uid).
 					Return(nil, domain.ErrRowsNotFound)
+
+				return req
 			},
 			expectedCode:      http.StatusNotFound,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
 		},
 		{
 			name:   "внутренняя ошибка",
 			method: http.MethodGet,
 			id:     uid,
-			mockSetup: func(uc *mock.MockOrderUsecaseInterface) {
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					GetOrdersUser(context.Background(), uid).
+					GetOrdersUser(ctx, uid).
 					Return(nil, domain.ErrInternalServer)
+
+				return req
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
+		},
+		{
+			name:   "нет авторизации",
+			method: http.MethodGet,
+			id:     "",
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID string) *http.Request {
+				req := httptest.NewRequest(method, url, bytes.NewBuffer(nil))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
+			expectedCode:      http.StatusUnauthorized,
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrUnauthorized.Error()},
 		},
 	}
 
@@ -425,11 +572,7 @@ func TestOrderHandler_GetOrdersUser(t *testing.T) {
 			uc := mock.NewMockOrderUsecaseInterface(ctrl)
 			handler := NewOrderHandler(uc, logger.NewNilLogger())
 
-			tt.mockSetup(uc)
-
-			req := httptest.NewRequest(tt.method, fmt.Sprintf(url, tt.id), bytes.NewBuffer(nil))
-			req = req.WithContext(context.Background())
-			req.SetPathValue("id", tt.id)
+			req := tt.mockSetup(uc, tt.method, tt.id)
 
 			w := httptest.NewRecorder()
 
@@ -451,11 +594,12 @@ func TestOrderHandler_UpdateOrderStatus(t *testing.T) {
 	type testCase struct {
 		name              string
 		method            string
-		id                string
+		userID            string
+		orderID           string
 		body              string
-		mockSetup         func(uc *mock.MockOrderUsecaseInterface)
+		mockSetup         func(uc *mock.MockOrderUsecaseInterface, method, userID, orderID, body string) *http.Request
 		expectedCode      int
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	uid1 := "00000000-0000-0000-0000-000000000001"
@@ -463,92 +607,164 @@ func TestOrderHandler_UpdateOrderStatus(t *testing.T) {
 
 	tests := []testCase{
 		{
-			name:   "успешный вызов",
-			method: http.MethodPatch,
-			id:     uid1,
-			body:   parseJSON(status),
-			mockSetup: func(uc *mock.MockOrderUsecaseInterface) {
+			name:    "успешный вызов",
+			method:  http.MethodPatch,
+			userID:  uid1,
+			orderID: uid1,
+			body:    parseJSON(status),
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID, orderID, body string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					UpdateOrderStatus(context.Background(), uid1, status.Status).
+					UpdateOrderStatus(ctx, orderID, userID, status.Status).
 					Return(nil)
+
+				return req
 			},
 			expectedCode:      http.StatusNoContent,
 			expectedErrResult: nil,
 		},
 		{
-			name:              "метод не разрешен",
-			method:            http.MethodPost,
-			id:                uid1,
-			body:              parseJSON(status),
-			mockSetup:         func(uc *mock.MockOrderUsecaseInterface) {},
+			name:    "метод не разрешен",
+			method:  http.MethodPost,
+			userID:  uid1,
+			orderID: uid1,
+			body:    parseJSON(status),
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID, orderID, body string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
 			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
 		},
 		{
-			name:              "неверный формат id",
-			method:            http.MethodPatch,
-			id:                "00000000-1",
-			body:              parseJSON(status),
-			mockSetup:         func(uc *mock.MockOrderUsecaseInterface) {},
+			name:    "неверный формат user_id",
+			method:  http.MethodPatch,
+			userID:  "00000000-1",
+			orderID: uid1,
+			body:    parseJSON(status),
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID, orderID, body string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
+			expectedCode:      http.StatusUnauthorized,
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrUnauthorized.Error()},
+		},
+		{
+			name:    "неверный формат order_id",
+			method:  http.MethodPatch,
+			userID:  uid1,
+			orderID: "00000000-1",
+			body:    parseJSON(status),
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID, orderID, body string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
 		},
 		{
-			name:   "не найдено заказа",
-			method: http.MethodPatch,
-			id:     uid1,
-			body:   parseJSON(status),
-			mockSetup: func(uc *mock.MockOrderUsecaseInterface) {
+			name:    "не найдено заказа",
+			method:  http.MethodPatch,
+			userID:  uid1,
+			orderID: uid1,
+			body:    parseJSON(status),
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID, orderID, body string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					UpdateOrderStatus(context.Background(), uid1, status.Status).
+					UpdateOrderStatus(ctx, orderID, userID, status.Status).
 					Return(domain.ErrRowsNotFound)
+
+				return req
 			},
 			expectedCode:      http.StatusNotFound,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
 		},
 		{
-			name:   "некорректный статус",
-			method: http.MethodPatch,
-			id:     uid1,
-			body:   "{\"status\": \"on\"}",
-			mockSetup: func(uc *mock.MockOrderUsecaseInterface) {
+			name:    "некорректный статус",
+			method:  http.MethodPatch,
+			userID:  uid1,
+			orderID: uid1,
+			body:    "{\"status\": \"on\"}",
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID, orderID, body string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					UpdateOrderStatus(context.Background(), uid1, "on").
+					UpdateOrderStatus(ctx, orderID, userID, "on").
 					Return(domain.ErrRequestParams)
+
+				return req
 			},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
 		},
 		{
-			name:              "некорректное тело запроса",
-			method:            http.MethodPatch,
-			id:                uid1,
-			body:              "{\"stat\": \"on\"}",
-			mockSetup:         func(uc *mock.MockOrderUsecaseInterface) {},
+			name:    "некорректное тело запроса",
+			method:  http.MethodPatch,
+			userID:  uid1,
+			orderID: uid1,
+			body:    "{\"stat\": \"on\"}",
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID, orderID, body string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
 		},
 		{
-			name:              "некорректный json",
-			method:            http.MethodPatch,
-			id:                uid1,
-			body:              "{\"status\" \"on\"}",
-			mockSetup:         func(uc *mock.MockOrderUsecaseInterface) {},
+			name:    "некорректный json",
+			method:  http.MethodPatch,
+			userID:  uid1,
+			orderID: uid1,
+			body:    "{\"status\" \"on\"}",
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID, orderID, body string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
+				return req
+			},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
 		},
 		{
-			name:   "внутренняя ошибка",
-			method: http.MethodPatch,
-			id:     uid1,
-			body:   parseJSON(status),
-			mockSetup: func(uc *mock.MockOrderUsecaseInterface) {
+			name:    "внутренняя ошибка",
+			method:  http.MethodPatch,
+			userID:  uid1,
+			orderID: uid1,
+			body:    parseJSON(status),
+			mockSetup: func(uc *mock.MockOrderUsecaseInterface, method, userID, orderID, body string) *http.Request {
+				req := httptest.NewRequest(method, fmt.Sprintf(url, orderID), bytes.NewBuffer([]byte(body)))
+				ctx := context.WithValue(req.Context(), middlewares.UserIDKey, userID)
+				req = req.WithContext(ctx)
+
 				uc.EXPECT().
-					UpdateOrderStatus(context.Background(), uid1, status.Status).
+					UpdateOrderStatus(ctx, orderID, userID, status.Status).
 					Return(domain.ErrInternalServer)
+
+				return req
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
 		},
 	}
 
@@ -562,11 +778,8 @@ func TestOrderHandler_UpdateOrderStatus(t *testing.T) {
 			uc := mock.NewMockOrderUsecaseInterface(ctrl)
 			handler := NewOrderHandler(uc, logger.NewNilLogger())
 
-			tt.mockSetup(uc)
-
-			req := httptest.NewRequest(tt.method, fmt.Sprintf(url, tt.id), bytes.NewBuffer([]byte(tt.body)))
-			req = req.WithContext(context.Background())
-			req.SetPathValue("id", tt.id)
+			req := tt.mockSetup(uc, tt.method, tt.userID, tt.orderID, tt.body)
+			req.SetPathValue("id", tt.orderID)
 
 			w := httptest.NewRecorder()
 

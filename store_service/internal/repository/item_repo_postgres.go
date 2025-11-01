@@ -4,6 +4,7 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/store_service/internal/domain"
 	"context"
+	_ "embed"
 )
 
 type ItemRepoPostgres struct {
@@ -18,16 +19,13 @@ func NewItemRepoPostgres(db PgxIface, log *logger.Logger) *ItemRepoPostgres {
 	}
 }
 
+//go:embed sql/item/get_types.sql
+var getItemTypes string
+
 func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, id string) ([]*domain.ItemType, error) {
 	r.log.Debug(ctx, "GetItemTypes начало обработки", map[string]interface{}{})
-	query := `
-		select type.id, type.name
-		from store_item join item_type on store_item.item_id = item_type.item_id
-		join type on store_item.type_id = type.id
-		where store_item.store_id = $1
-	`
 
-	rows, err := r.db.Query(ctx, query, id)
+	rows, err := r.db.Query(ctx, getItemTypes, id)
 	if err != nil {
 		r.log.Error(ctx, "GetItemTypes ошибка бд", map[string]interface{}{"err": err, "id": id})
 		return nil, err
@@ -61,17 +59,14 @@ func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, id string) ([]*doma
 	return itemTypes, nil
 }
 
+//go:embed sql/item/get_items.sql
+var getItems string
+
 func (r *ItemRepoPostgres) GetItems(ctx context.Context, id string) ([]*domain.Item, error) {
 	r.log.Debug(ctx, "GetItems начало обработки", map[string]interface{}{})
-	query := `
-		select store_item.id, item.name, store_item.price, item.description, item.card_img, item_type.type_id
-		from store_item join item on store_item.item_id = item.id
-		join item_type on item.id = item_type.item_id
-		where store_item.store_id = $1
-	`
 
 	// если у товара несколько типов, то будет несколько строк с этим товаром
-	rows, err := r.db.Query(ctx, query, id)
+	rows, err := r.db.Query(ctx, getItems, id)
 	if err != nil {
 		r.log.Error(ctx, "GetItems ошибка бд", map[string]interface{}{"err": err, "id": id})
 		return nil, err

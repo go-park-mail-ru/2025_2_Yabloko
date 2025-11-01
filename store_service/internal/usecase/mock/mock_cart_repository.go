@@ -36,27 +36,26 @@ func (m *MockCartRepository) EXPECT() *MockCartRepositoryMockRecorder {
 }
 
 // DeleteCartItems mocks base method.
-func (m *MockCartRepository) DeleteCartItems(ctx context.Context, id string) error {
+func (m *MockCartRepository) DeleteCartItems(ctx context.Context, userID string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteCartItems", ctx, id)
+	ret := m.ctrl.Call(m, "DeleteCartItems", ctx, userID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteCartItems indicates an expected call of DeleteCartItems.
-func (mr *MockCartRepositoryMockRecorder) DeleteCartItems(ctx, id interface{}) *gomock.Call {
+func (mr *MockCartRepositoryMockRecorder) DeleteCartItems(ctx, userID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCartItems", reflect.TypeOf((*MockCartRepository)(nil).DeleteCartItems), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCartItems", reflect.TypeOf((*MockCartRepository)(nil).DeleteCartItems), ctx, userID)
 }
 
 // GetCartItems mocks base method.
-func (m *MockCartRepository) GetCartItems(ctx context.Context, userID string) (string, []*domain.CartItem, error) {
+func (m *MockCartRepository) GetCartItems(ctx context.Context, userID string) ([]*domain.CartItem, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetCartItems", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].([]*domain.CartItem)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].([]*domain.CartItem)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // GetCartItems indicates an expected call of GetCartItems.
@@ -66,15 +65,15 @@ func (mr *MockCartRepositoryMockRecorder) GetCartItems(ctx, userID interface{}) 
 }
 
 // UpdateCartItems mocks base method.
-func (m *MockCartRepository) UpdateCartItems(ctx context.Context, id string, newItems *domain.CartUpdate) error {
+func (m *MockCartRepository) UpdateCartItems(ctx context.Context, userID string, newItems *domain.CartUpdate) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateCartItems", ctx, id, newItems)
+	ret := m.ctrl.Call(m, "UpdateCartItems", ctx, userID, newItems)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateCartItems indicates an expected call of UpdateCartItems.
-func (mr *MockCartRepositoryMockRecorder) UpdateCartItems(ctx, id, newItems interface{}) *gomock.Call {
+func (mr *MockCartRepositoryMockRecorder) UpdateCartItems(ctx, userID, newItems interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateCartItems", reflect.TypeOf((*MockCartRepository)(nil).UpdateCartItems), ctx, id, newItems)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateCartItems", reflect.TypeOf((*MockCartRepository)(nil).UpdateCartItems), ctx, userID, newItems)
 }

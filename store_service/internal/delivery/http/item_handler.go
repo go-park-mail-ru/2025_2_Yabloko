@@ -36,8 +36,8 @@ func NewItemRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string,
 	itemUC := usecase.NewItemUsecase(itemRepo)
 	itemHandler := NewItemHandler(itemUC, appLog)
 
-	mux.HandleFunc(apiPrefix+"/stores/{id}/items", itemHandler.GetItems)
-	mux.HandleFunc(apiPrefix+"/stores/{id}/item-types", itemHandler.GetItemTypes)
+	mux.HandleFunc(apiPrefix+"stores/{id}/items", itemHandler.GetItems)
+	mux.HandleFunc(apiPrefix+"stores/{id}/item-types", itemHandler.GetItemTypes)
 }
 
 // GetItemTypes godoc

@@ -18,8 +18,8 @@ EXECUTE FUNCTION update_updated_at();
 create table if not exists item_type
 (
     id         uuid primary key,
-    item_id    uuid        not null references item(id) on delete cascade,
-    type_id    uuid        not null references type(id) on delete cascade,
+    item_id uuid not null references item (id) on delete cascade,
+    type_id uuid not null references type (id) on delete cascade,
     updated_at timestamptz not null default current_timestamp,
     created_at timestamptz not null default current_timestamp
 );

@@ -1,7 +1,7 @@
 package http
 
 import (
-	"apple_backend/handlers"
+	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
 	"apple_backend/store_service/internal/delivery/mock"
 	"apple_backend/store_service/internal/delivery/transport"
@@ -36,7 +36,7 @@ func TestItemHandler_GetItemTypes(t *testing.T) {
 		mockSetup         func(uc *mock.MockItemUsecaseInterface)
 		expectedCode      int
 		expectedResult    []*transport.ItemType
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	uid1 := "00000000-0000-0000-0000-000000000001"
@@ -67,7 +67,7 @@ func TestItemHandler_GetItemTypes(t *testing.T) {
 			id:                uid1,
 			mockSetup:         func(uc *mock.MockItemUsecaseInterface) {},
 			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
 		},
 		{
 			name:              "GetItemTypes неверный формат id",
@@ -75,7 +75,7 @@ func TestItemHandler_GetItemTypes(t *testing.T) {
 			id:                "00000000-1",
 			mockSetup:         func(uc *mock.MockItemUsecaseInterface) {},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
 		},
 		{
 			name:   "GetItemTypes не найдено данных",
@@ -87,7 +87,7 @@ func TestItemHandler_GetItemTypes(t *testing.T) {
 					Return(nil, domain.ErrRowsNotFound)
 			},
 			expectedCode:      http.StatusNotFound,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
 		},
 		{
 			name:   "GetItemTypes внутренняя ошибка",
@@ -99,7 +99,7 @@ func TestItemHandler_GetItemTypes(t *testing.T) {
 					Return(nil, domain.ErrInternalServer)
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
 		},
 	}
 
@@ -141,7 +141,7 @@ func TestItemHandler_GetItems(t *testing.T) {
 		mockSetup         func(uc *mock.MockItemUsecaseInterface)
 		expectedCode      int
 		expectedResult    []*transport.Item
-		expectedErrResult *handlers.ErrResponse
+		expectedErrResult *http_response.ErrResponse
 	}
 
 	uid1 := "00000000-0000-0000-0000-000000000001"
@@ -200,7 +200,7 @@ func TestItemHandler_GetItems(t *testing.T) {
 			id:                uid1,
 			mockSetup:         func(uc *mock.MockItemUsecaseInterface) {},
 			expectedCode:      http.StatusMethodNotAllowed,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrHTTPMethod.Error()},
 		},
 		{
 			name:              "GetItems неверный формат id",
@@ -208,7 +208,7 @@ func TestItemHandler_GetItems(t *testing.T) {
 			id:                "00000000-1",
 			mockSetup:         func(uc *mock.MockItemUsecaseInterface) {},
 			expectedCode:      http.StatusBadRequest,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRequestParams.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRequestParams.Error()},
 		},
 		{
 			name:   "GetItems не найдено данных",
@@ -220,7 +220,7 @@ func TestItemHandler_GetItems(t *testing.T) {
 					Return(nil, domain.ErrRowsNotFound)
 			},
 			expectedCode:      http.StatusNotFound,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrRowsNotFound.Error()},
 		},
 		{
 			name:   "GetItems внутренняя ошибка",
@@ -232,7 +232,7 @@ func TestItemHandler_GetItems(t *testing.T) {
 					Return(nil, domain.ErrInternalServer)
 			},
 			expectedCode:      http.StatusInternalServerError,
-			expectedErrResult: &handlers.ErrResponse{Err: domain.ErrInternalServer.Error()},
+			expectedErrResult: &http_response.ErrResponse{Err: domain.ErrInternalServer.Error()},
 		},
 	}
 

@@ -51,15 +51,15 @@ func (mr *MockCartUsecaseInterfaceMockRecorder) GetCart(ctx, userID interface{})
 }
 
 // UpdateCart mocks base method.
-func (m *MockCartUsecaseInterface) UpdateCart(ctx context.Context, cartID string, updateCart *domain.CartUpdate) error {
+func (m *MockCartUsecaseInterface) UpdateCart(ctx context.Context, userId string, updateCart *domain.CartUpdate) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateCart", ctx, cartID, updateCart)
+	ret := m.ctrl.Call(m, "UpdateCart", ctx, userId, updateCart)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateCart indicates an expected call of UpdateCart.
-func (mr *MockCartUsecaseInterfaceMockRecorder) UpdateCart(ctx, cartID, updateCart interface{}) *gomock.Call {
+func (mr *MockCartUsecaseInterfaceMockRecorder) UpdateCart(ctx, userId, updateCart interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateCart", reflect.TypeOf((*MockCartUsecaseInterface)(nil).UpdateCart), ctx, cartID, updateCart)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateCart", reflect.TypeOf((*MockCartUsecaseInterface)(nil).UpdateCart), ctx, userId, updateCart)
 }

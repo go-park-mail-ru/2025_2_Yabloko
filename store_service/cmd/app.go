@@ -15,18 +15,26 @@ import (
 
 func Run(appLog, accessLog *logger.Logger) {
 	conf := config.MustConfig()
+	apiV0Prefix := "/api/v0/"
 	dbPool, err := pgxpool.New(context.Background(), conf.DBPath())
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer dbPool.Close()
+	openMux := http.NewServeMux()
+	protectedMux := http.NewServeMux()
+
+	shttp.NewStoreRouter(openMux, dbPool, apiV0Prefix, appLog)
+	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix, appLog)
+
+	shttp.NewCartRouter(protectedMux, dbPool, apiV0Prefix, appLog)
+	shttp.NewOrderRouter(protectedMux, dbPool, apiV0Prefix, appLog)
+	protectedHandler := middlewares.AuthMiddleware(protectedMux, conf.JWTSecret)
 
 	mux := http.NewServeMux()
-
-	shttp.NewStoreRouter(mux, dbPool, "/api/v0", appLog)
-	shttp.NewItemRouter(mux, dbPool, "/api/v0", appLog)
-	shttp.NewCartRouter(mux, dbPool, "/api/v0", appLog)
-	shttp.NewOrderRouter(mux, dbPool, "/api/v0", appLog)
+	mux.Handle(apiV0Prefix+"cart/", protectedHandler)
+	mux.Handle(apiV0Prefix+"orders/", protectedHandler)
+	mux.Handle(apiV0Prefix, openMux)
 
 	handler := middlewares.CorsMiddleware(middlewares.AccessLog(accessLog, mux))
 

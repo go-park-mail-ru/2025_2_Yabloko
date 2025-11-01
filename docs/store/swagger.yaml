@@ -1,8 +1,6 @@
 definitions:
   Cart:
     properties:
-      id:
-        type: string
       items:
         items:
           $ref: '#/definitions/CartItem'
@@ -28,6 +26,8 @@ definitions:
         items:
           $ref: '#/definitions/ItemUpdate'
         type: array
+    required:
+      - items
     type: object
   CityResponse:
     properties:
@@ -68,6 +68,9 @@ definitions:
         type: string
       quantity:
         type: integer
+    required:
+      - id
+      - quantity
     type: object
   Order:
     properties:
@@ -112,6 +115,8 @@ definitions:
     properties:
       status:
         type: string
+    required:
+      - status
     type: object
   StoreResponse:
     properties:
@@ -156,11 +161,6 @@ definitions:
       name:
         type: string
     type: object
-  UpdateResponse:
-    properties:
-      id:
-        type: string
-    type: object
   domain.StoreFilter:
     properties:
       cityID:
@@ -184,17 +184,44 @@ definitions:
 info:
   contact: {}
 paths:
-  /carts/{id}:
+  /cart:
+    get:
+      consumes:
+        - application/json
+      description: Возвращает корзину с товарами
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/Cart'
+            type: array
+        "401":
+          description: Ошибка авторизации
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Пустая корзина
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Метод не поддерживается
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить корзину пользователя
+      tags:
+        - cart
     put:
       consumes:
         - application/json
       description: Очищает корзину и добавляет новый набор товаров
       parameters:
-        - description: ID корзины (UUID)
-          in: path
-          name: id
-          required: true
-          type: string
         - description: Список товаров в корзине
           in: body
           name: cart_items
@@ -204,12 +231,14 @@ paths:
       produces:
         - application/json
       responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/UpdateResponse'
+        "204":
+          description: Успешное обновление
         "400":
           description: Некорректные параетры запроса
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "401":
+          description: Ошибка авторизации
           schema:
             $ref: '#/definitions/http_response.ErrResponse'
         "405":
@@ -223,23 +252,74 @@ paths:
       summary: Заменить товары в корзине
       tags:
         - cart
+  /orders:
+    get:
+      consumes:
+        - application/json
+      description: Краткая информация по заказам пользователя
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Orders'
+        "401":
+          description: Ошибка авторизации
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Отсутствуют заказы
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Метод не поддерживается
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить все заказы пользователя
+      tags:
+        - order
+    post:
+      consumes:
+        - application/json
+      description: Создает заказ и возвращает информацию о заказе
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/OrderInfo'
+        "401":
+          description: Ошибка авторизации
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Метод не поддерживается
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Создать заказ пользователя из текущей корзины
+      tags:
+        - order
   /orders/{id}:
     get:
       consumes:
         - application/json
-      description: Подробная информация о заказе
+      description: Подробная информация о заказе (только пренадлежащие пользователю)
       parameters:
         - description: ID заказа (UUID)
           in: path
           name: id
           required: true
           type: string
-        - description: Список товаров в корзине
-          in: body
-          name: cart_items
-          required: true
-          schema:
-            $ref: '#/definitions/CartUpdate'
       produces:
         - application/json
       responses:
@@ -248,7 +328,15 @@ paths:
           schema:
             $ref: '#/definitions/OrderInfo'
         "400":
-          description: Некорректные параетры запроса
+          description: Некорректные параметры запроса
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "401":
+          description: Ошибка авторизации
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "403":
+          description: Ошибка доступа
           schema:
             $ref: '#/definitions/http_response.ErrResponse'
         "404":
@@ -280,19 +368,25 @@ paths:
           type: string
         - description: Новый статус заказа
           in: body
-          name: cart_items
+          name: new_status
           required: true
           schema:
             $ref: '#/definitions/Orders'
       produces:
         - application/json
       responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/OrderInfo'
+        "204":
+          description: Статус успешно изменен
         "400":
-          description: Некорректные параетры запроса
+          description: Некорректные параметры запроса
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "401":
+          description: Ошибка авторизации
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "403":
+          description: Ошибка доступа
           schema:
             $ref: '#/definitions/http_response.ErrResponse'
         "404":
@@ -562,115 +656,4 @@ paths:
       summary: Получить список тегов
       tags:
       - store-tags
-  /users/{id}/cart:
-    get:
-      consumes:
-        - application/json
-      description: Возвращает корзину с товарами
-      parameters:
-        - description: ID пользователя (UUID)
-          in: path
-          name: id
-          required: true
-          type: string
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/Cart'
-            type: array
-        "400":
-          description: Некорректные параметры
-          schema:
-            $ref: '#/definitions/http_response.ErrResponse'
-        "404":
-          description: Пустая корзина
-          schema:
-            $ref: '#/definitions/http_response.ErrResponse'
-        "405":
-          description: Метод не поддерживается
-          schema:
-            $ref: '#/definitions/http_response.ErrResponse'
-        "500":
-          description: Внутренняя ошибка сервера
-          schema:
-            $ref: '#/definitions/http_response.ErrResponse'
-      summary: Получить корзину по ID пользователя
-      tags:
-        - cart
-  /users/{id}/order:
-    post:
-      consumes:
-        - application/json
-      description: Создает заказ и возвращает информацию о заказе
-      parameters:
-        - description: ID пользователя (UUID)
-          in: path
-          name: id
-          required: true
-          type: string
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/OrderInfo'
-            type: array
-        "400":
-          description: Некорректные параметры
-          schema:
-            $ref: '#/definitions/http_response.ErrResponse'
-        "405":
-          description: Метод не поддерживается
-          schema:
-            $ref: '#/definitions/http_response.ErrResponse'
-        "500":
-          description: Внутренняя ошибка сервера
-          schema:
-            $ref: '#/definitions/http_response.ErrResponse'
-      summary: Создать заказ пользователя из текущей корзины
-      tags:
-        - order
-  /users/{id}/orders:
-    get:
-      consumes:
-        - application/json
-      description: Краткая информация по заказам пользователя
-      parameters:
-        - description: ID пользователя (UUID)
-          in: path
-          name: id
-          required: true
-          type: string
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/Orders'
-        "400":
-          description: Некорректные параетры запроса
-          schema:
-            $ref: '#/definitions/http_response.ErrResponse'
-        "404":
-          description: Отсутствуют заказы
-          schema:
-            $ref: '#/definitions/http_response.ErrResponse'
-        "405":
-          description: Метод не поддерживается
-          schema:
-            $ref: '#/definitions/http_response.ErrResponse'
-        "500":
-          description: Внутренняя ошибка сервера
-          schema:
-            $ref: '#/definitions/http_response.ErrResponse'
-      summary: Получить все заказвы пользователя
-      tags:
-        - order
 swagger: "2.0"
