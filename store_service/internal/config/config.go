@@ -13,9 +13,12 @@ type Config struct {
 	DBHost     string `validate:"required"`
 	DBPort     string `validate:"required"`
 	DBName     string `validate:"required"`
-	AppPort    string `validate:"required"`
-	AuthURL    string `validate:"required"`
-	JWTSecret  string `validate:"required"`
+
+	AppPort string `validate:"required"`
+
+	JWTSecret string `validate:"required"`
+
+	ImageDir string `validate:"required"`
 }
 
 func MustConfig() *Config {
@@ -25,9 +28,9 @@ func MustConfig() *Config {
 		DBHost:     os.Getenv("POSTGRES_HOST"),
 		DBPort:     os.Getenv("POSTGRES_PORT"),
 		DBName:     os.Getenv("DB_NAME"),
-		AppPort:    os.Getenv("APP_PORT"),
-		AuthURL:    os.Getenv("AUTH_URL"),
+		AppPort:    os.Getenv("STORE_PORT"),
 		JWTSecret:  os.Getenv("SECRET_KEY"),
+		ImageDir:   os.Getenv("IMAGE_PATH"),
 	}
 
 	if err := validator.New().Struct(conf); err != nil {

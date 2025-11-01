@@ -60,7 +60,7 @@ func NewCartRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string,
 // @Tags         cart
 // @Accept       json
 // @Produce      json
-// @Success      200  {array}    transport.Cart
+// @Success      200  {object}    transport.Cart
 // @Failure      401  {object}   http_response.ErrResponse  "Ошибка авторизации"
 // @Failure      404  {object}   http_response.ErrResponse  "Пустая корзина"
 // @Failure      405  {object}   http_response.ErrResponse  "Метод не поддерживается"
