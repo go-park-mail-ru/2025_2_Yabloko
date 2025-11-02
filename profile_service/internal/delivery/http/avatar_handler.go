@@ -3,6 +3,7 @@ package http
 import (
 	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
+	"apple_backend/profile_service/internal/delivery/middlewares"
 	"apple_backend/profile_service/internal/domain"
 	"context"
 	"errors"
@@ -48,7 +49,6 @@ func (h *AvatarHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// поддержка .../avatar и .../avatar/
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.Split(path, "/")
 	if len(parts) < 3 || parts[len(parts)-1] != "avatar" {
@@ -56,6 +56,19 @@ func (h *AvatarHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := parts[len(parts)-2]
+
+	if userID == "me" {
+		if sub, _ := r.Context().Value(middlewares.CtxUserID).(string); sub != "" {
+			userID = sub
+		} else {
+			h.rs.Error(r.Context(), w, http.StatusUnauthorized, "UploadAvatar", domain.ErrUnauthorized, nil)
+			return
+		}
+	}
+	if sub, _ := r.Context().Value(middlewares.CtxUserID).(string); sub == "" || sub != userID {
+		h.rs.Error(r.Context(), w, http.StatusForbidden, "UploadAvatar", domain.ErrForbidden, nil)
+		return
+	}
 
 	const maxUpload = 10 << 20 // 10 MiB
 	r.Body = http.MaxBytesReader(w, r.Body, maxUpload)

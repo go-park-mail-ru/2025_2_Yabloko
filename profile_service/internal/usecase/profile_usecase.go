@@ -8,7 +8,6 @@ import (
 	"apple_backend/profile_service/internal/domain"
 
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type ProfileUsecase struct {
@@ -24,33 +23,6 @@ func (uc *ProfileUsecase) GetProfile(ctx context.Context, id string) (*domain.Pr
 		return nil, domain.ErrInvalidProfileData
 	}
 	return uc.repo.GetProfile(ctx, id)
-}
-
-func (uc *ProfileUsecase) CreateProfile(ctx context.Context, email, password string) (string, error) {
-	email = strings.TrimSpace(email)
-	if email == "" || password == "" {
-		return "", domain.ErrInvalidProfileData
-	}
-	if !strings.Contains(email, "@") || len(email) > 100 {
-		return "", domain.ErrInvalidProfileData
-	}
-	if len(password) < 8 || len(password) > 72 {
-		return "", domain.ErrInvalidProfileData
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", err
-	}
-	id := uuid.NewString()
-	p := &domain.Profile{
-		ID:           id,
-		Email:        email,
-		PasswordHash: string(hash),
-	}
-	if err := uc.repo.CreateProfile(ctx, p); err != nil {
-		return "", err
-	}
-	return id, nil
 }
 
 func (uc *ProfileUsecase) UpdateProfile(ctx context.Context, in *domain.Profile) error {

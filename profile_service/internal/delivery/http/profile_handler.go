@@ -18,16 +18,13 @@ import (
 
 type ProfileUsecaseInterface interface {
 	GetProfile(ctx context.Context, id string) (*domain.Profile, error)
-	CreateProfile(ctx context.Context, email, password string) (string, error) // исправлено: передаём открытый пароль
 	UpdateProfile(ctx context.Context, profile *domain.Profile) error
 	DeleteProfile(ctx context.Context, id string) error
 }
 
 type ProfileHandler struct {
-	uc ProfileUsecaseInterface
-	rs *http_response.ResponseSender
-
-	// префикс пути "/{apiPrefix}/profiles/"
+	uc           ProfileUsecaseInterface
+	rs           *http_response.ResponseSender
 	profilesPath string
 }
 
@@ -56,17 +53,24 @@ func NewProfileRouter(
 
 	chain := func(h http.Handler) http.Handler {
 		return middlewares.AccessLog(appLog,
-			middlewares.CSRFTokenMiddleware(
-				middlewares.CSRFMiddleware(h),
+			middlewares.CorsMiddleware( // добавлен CORS
+				middlewares.CSRFTokenMiddleware( // выдаём CSRF токен (cookie) на GET
+					middlewares.JWT()( // сначала аутентификация
+						middlewares.CSRFMiddleware(h), // затем проверка CSRF на state-changing
+					),
+				),
 			),
 		)
 	}
 
-	mux.Handle(apiPrefix+"/profiles", chain(http.HandlerFunc(profileHandler.CreateProfile)))
+	authChain := func(h http.Handler) http.Handler {
+		return chain(h)
+	}
 
 	mux.Handle(apiPrefix+"/profiles/",
-		chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if strings.HasSuffix(strings.TrimRight(r.URL.Path, "/"), "/avatar") {
+		authChain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path := strings.TrimRight(r.URL.Path, "/")
+			if strings.HasSuffix(path, "/avatar") {
 				avatarHandler.UploadAvatar(w, r)
 				return
 			}
@@ -76,11 +80,11 @@ func NewProfileRouter(
 }
 
 func (h *ProfileHandler) extractIDFromRequest(r *http.Request) string {
+
 	path := strings.TrimPrefix(r.URL.Path, h.profilesPath)
 	if path == "" {
 		return ""
 	}
-	// берем первый сегмент после "/profiles/"
 	if i := strings.IndexByte(path, '/'); i >= 0 {
 		return path[:i]
 	}
@@ -88,11 +92,23 @@ func (h *ProfileHandler) extractIDFromRequest(r *http.Request) string {
 }
 
 func (h *ProfileHandler) handleProfileRoutes(w http.ResponseWriter, r *http.Request) {
+
 	id := h.extractIDFromRequest(r)
+
+	if id == "me" {
+		if sub, _ := r.Context().Value(middlewares.CtxUserID).(string); sub != "" {
+			id = sub
+		} else {
+			h.rs.Error(r.Context(), w, http.StatusUnauthorized, "ProfileRoutes", domain.ErrUnauthorized, nil)
+			return
+		}
+	}
+
 	if id == "" {
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "ProfileRoutes", domain.ErrRequestParams, nil)
 		return
 	}
+
 	switch r.Method {
 	case http.MethodGet:
 		h.GetProfile(w, r, id)
@@ -120,6 +136,16 @@ func (h *ProfileHandler) handleProfileRoutes(w http.ResponseWriter, r *http.Requ
 // @Router /profiles/{id} [get]
 func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request, id string) {
 
+	sub, _ := r.Context().Value(middlewares.CtxUserID).(string)
+	if sub == "" {
+		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "GetProfile", domain.ErrUnauthorized, nil)
+		return
+	}
+	if sub != id {
+		h.rs.Error(r.Context(), w, http.StatusForbidden, "GetProfile", domain.ErrForbidden, nil)
+		return
+	}
+
 	profile, err := h.uc.GetProfile(r.Context(), id)
 	if err != nil {
 		switch {
@@ -139,52 +165,6 @@ func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request, id s
 	h.rs.Send(r.Context(), w, http.StatusOK, responseProfile)
 }
 
-// CreateProfile godoc
-// @Summary Создать профиль
-// @Description Создает новый профиль пользователя
-// @Tags profiles
-// @Accept json
-// @Produce json
-// @Param request body transport.CreateProfileRequest true "Данные для создания профиля"
-// @Success 201 {object} transport.CreateProfileResponse
-// @Failure 400 {object} http_response.ErrResponse "Ошибка входных данных"
-// @Failure 409 {object} http_response.ErrResponse "Профиль уже существует"
-// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
-// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
-// @Router /profiles [post]
-func (h *ProfileHandler) CreateProfile(w http.ResponseWriter, r *http.Request) {
-
-	if r.Method != http.MethodPost {
-		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "CreateProfile", domain.ErrHTTPMethod, nil)
-		return
-
-	}
-
-	var req transport.CreateProfileRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.rs.Error(r.Context(), w, http.StatusBadRequest, "CreateProfile", domain.ErrRequestParams, err)
-		return
-	}
-
-	id, err := h.uc.CreateProfile(r.Context(), req.Email, req.Password) // передаём открытый пароль
-	if err != nil {
-		switch {
-		case errors.Is(err, domain.ErrProfileExist):
-			h.rs.Error(r.Context(), w, http.StatusConflict, "CreateProfile", err, nil)
-			return
-		case errors.Is(err, domain.ErrInvalidProfileData):
-			h.rs.Error(r.Context(), w, http.StatusBadRequest, "CreateProfile", err, nil)
-			return
-		default:
-			h.rs.Error(r.Context(), w, http.StatusInternalServerError, "CreateProfile", domain.ErrInternalServer, err)
-			return
-		}
-	}
-
-	h.rs.Send(r.Context(), w, http.StatusCreated, &transport.CreateProfileResponse{ID: id})
-}
-
 // UpdateProfile godoc
 // @Summary Обновить профиль
 // @Description Обновляет информацию о профиле пользователя
@@ -200,16 +180,22 @@ func (h *ProfileHandler) CreateProfile(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
 // @Router /profiles/{id} [put]
 func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, id string) {
+	sub, _ := r.Context().Value(middlewares.CtxUserID).(string)
+	if sub == "" {
+		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "UpdateProfile", domain.ErrUnauthorized, nil)
+		return
+	}
+
+	targetID := sub
 
 	var req transport.UpdateProfileRequest
-
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateProfile", domain.ErrRequestParams, err)
 		return
 	}
 
 	profile := &domain.Profile{
-		ID:      id,
+		ID:      targetID,
 		Name:    req.Name,
 		Phone:   req.Phone,
 		CityID:  req.CityID,
@@ -248,6 +234,15 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, i
 // @Failure 500 {object} map[string]string "Внутренняя ошибка сервера"
 // @Router /profiles/{id} [delete]
 func (h *ProfileHandler) DeleteProfile(w http.ResponseWriter, r *http.Request, id string) {
+	sub, _ := r.Context().Value(middlewares.CtxUserID).(string)
+	if sub == "" {
+		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "DeleteProfile", domain.ErrUnauthorized, nil)
+		return
+	}
+	if sub != id {
+		h.rs.Error(r.Context(), w, http.StatusForbidden, "DeleteProfile", domain.ErrForbidden, nil)
+		return
+	}
 
 	err := h.uc.DeleteProfile(r.Context(), id)
 	if err != nil {

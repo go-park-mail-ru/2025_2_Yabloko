@@ -4,9 +4,10 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/trace"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
-	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -33,15 +34,14 @@ func generateJWTCSRFToken(sessionID string, userAgent string) (string, error) {
 		SessionID: sessionID,
 		UserAgent: userAgent,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			ID:        uuid.New().String(),
 		},
 	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(CSRFSecret)
+	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return t.SignedString(CSRFSecret)
 }
 
 func verifyJWTCSRFToken(tokenString, sessionID, userAgent string) bool {
@@ -54,11 +54,9 @@ func verifyJWTCSRFToken(tokenString, sessionID, userAgent string) bool {
 	if err != nil {
 		return false
 	}
-
 	if claims, ok := token.Claims.(*CSRFClaims); ok && token.Valid {
 		return claims.SessionID == sessionID && claims.UserAgent == userAgent
 	}
-
 	return false
 }
 
@@ -72,7 +70,6 @@ func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
 }
-
 func (w *statusWriter) Write(b []byte) (int, error) {
 	if w.status == 0 {
 		w.status = http.StatusOK
@@ -95,34 +92,16 @@ func AccessLog(log *logger.Logger, next http.Handler) http.Handler {
 		sw := &statusWriter{ResponseWriter: w}
 		start := time.Now()
 
-		log.Info(ctx, "request started", map[string]interface{}{
-			"method": r.Method,
-			"url":    r.URL.Path,
-		})
-
+		log.Info(ctx, "request started", map[string]interface{}{"method": r.Method, "url": r.URL.Path})
 		next.ServeHTTP(sw, r)
-
-		duration := time.Since(start)
 		log.Info(ctx, "request completed", map[string]interface{}{
-			"method":   r.Method,
-			"url":      r.URL.Path,
-			"status":   sw.status,
-			"bytes":    sw.bytes,
-			"duration": duration.Milliseconds(),
+			"method": r.Method, "url": r.URL.Path, "status": sw.status, "bytes": sw.bytes, "duration_ms": time.Since(start).Milliseconds(),
 		})
 	})
 }
 
 func CSRFMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if h := r.Header.Get("Authorization"); h != "" {
-			ps := strings.SplitN(h, " ", 2)
-			if len(ps) == 2 && strings.EqualFold(ps[0], "Bearer") && ps[1] != "" {
-				next.ServeHTTP(w, r)
-				return
-			}
-		}
-
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
 			next.ServeHTTP(w, r)
 			return
@@ -132,13 +111,11 @@ func CSRFMiddleware(next http.Handler) http.Handler {
 			http.Error(w, "CSRF token required", http.StatusForbidden)
 			return
 		}
-
 		sessionCookie, err := r.Cookie("session_id")
 		if err != nil {
 			http.Error(w, "Session required", http.StatusForbidden)
 			return
 		}
-
 		if !verifyJWTCSRFToken(clientToken, sessionCookie.Value, r.UserAgent()) {
 			http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 			return
@@ -151,29 +128,26 @@ func CSRFTokenMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sessionCookie, err := r.Cookie("session_id")
 		var sessionID string
-
 		if err != nil {
 			sessionID = uuid.New().String()
 			http.SetCookie(w, &http.Cookie{
 				Name:     "session_id",
 				Value:    sessionID,
 				Path:     "/",
-				HttpOnly: true,  // недоступен из javascript
-				Secure:   false, // для разработки
-				MaxAge:   86400, // 24 часа
+				HttpOnly: true,
+				Secure:   false,
+				MaxAge:   86400,
 				SameSite: http.SameSiteStrictMode,
 			})
 		} else {
 			sessionID = sessionCookie.Value
 		}
-
 		if _, err := r.Cookie("csrf_token"); err != nil {
 			csrfToken, err := generateJWTCSRFToken(sessionID, r.UserAgent())
 			if err != nil {
 				http.Error(w, "Failed to generate CSRF token", http.StatusInternalServerError)
 				return
 			}
-
 			http.SetCookie(w, &http.Cookie{
 				Name:     "csrf_token",
 				Value:    csrfToken,
@@ -184,24 +158,58 @@ func CSRFTokenMiddleware(next http.Handler) http.Handler {
 				MaxAge:   86400,
 			})
 		}
-
 		next.ServeHTTP(w, r)
 	})
 }
 
 func CorsMiddleware(next http.Handler) http.Handler {
+	origin := getenv("SERVER_BASE_URL", "http://localhost:3000")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := getenv("SERVER_BASE_URL", "http://localhost:3000")
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token")
-
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// Простой rate limit по IP: N запросов за window
+func RateLimit(max int, window time.Duration) func(http.Handler) http.Handler {
+	type bucket struct {
+		tokens int
+		reset  time.Time
+	}
+	var mu sync.Mutex
+	store := make(map[string]*bucket)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+			if ip == "" {
+				ip = r.RemoteAddr
+			}
+
+			now := time.Now()
+			mu.Lock()
+			b, ok := store[ip]
+			if !ok || now.After(b.reset) {
+				b = &bucket{tokens: max, reset: now.Add(window)}
+				store[ip] = b
+			}
+			if b.tokens <= 0 {
+				mu.Unlock()
+				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+				return
+			}
+			b.tokens--
+			mu.Unlock()
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }

@@ -13,4 +13,6 @@ var (
 
 	ErrFileTooLarge    = errors.New("слишком большой размер файла")
 	ErrInvalidFileType = errors.New("недопустимый формат файла")
+	ErrUnauthorized    = errors.New("неавторизованный доступ")
+	ErrForbidden       = errors.New("доступ запрещен")
 )

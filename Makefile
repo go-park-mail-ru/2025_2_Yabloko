@@ -19,6 +19,9 @@ mocks:
 	@mockgen -source=store_service/internal/delivery/http/store_handler.go -destination=store_service/internal/delivery/mock/mock_store_usecase.go -package=mock StoreUsecaseInterface
 	@mockgen -source=store_service/internal/delivery/http/cart_handler.go -destination=store_service/internal/delivery/mock/mock_cart_usecase.go -package=mock CartUsecaseInterface
 	@mockgen -source=store_service/internal/delivery/http/order_handler.go -destination=store_service/internal/delivery/mock/mock_order_usecase.go -package=mock OrderUsecaseInterface
+	@mockgen -source=profile_service/internal/usecase/interfaces.go -destination=profile_service/internal/usecase/mock/profile_repository_mock.go -package=mock ProfileRepository
+	@mockgen -source=profile_service/internal/delivery/http/profile_handler.go -destination=profile_service/internal/delivery/http/mock/profile_usecase_mock.go -package=mock ProfileUsecaseInterface
+	@mockgen -source=auth_service/internal/delivery/http/auth_handler.go -destination=auth_service/internal/delivery/http/mock/auth_usecase_mock.go -package=mock AuthUsecaseInterface
 	@echo "======== Моки созданы ========"
 
 test:
