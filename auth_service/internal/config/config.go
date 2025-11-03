@@ -29,7 +29,7 @@ func LoadConfig() *Config {
 		DBHost:         getEnv("DB_HOST", "localhost"),
 		DBPort:         getEnv("DB_PORT", "5432"),
 		DBName:         getEnv("DB_NAME", "postgres"),
-		AppPort:        getEnv("APP_PORT", "8082"),
+		AppPort:        getEnv("AUTH_PORT", "8082"),
 		SecretKey:      getEnv("SECRET_KEY", "dev-secret"),
 		CSRFSecret:     getEnv("CSRF_SECRET", "dev-csrf-secret"),
 		AllowedOrigins: getEnv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"),
