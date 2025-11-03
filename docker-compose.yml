@@ -29,7 +29,14 @@ services:
       POSTGRES_USER: "${POSTGRES_USER}"
       POSTGRES_DB: "${POSTGRES_DB}"
       POSTGRES_PORT: "${POSTGRES_PORT}"
-    command: [ "migrate", "--config", "/migrations/tern.conf", "--migrations", "/migrations", "up" ]
+    # вместо tern.conf — передаём DSN через -c
+    command: [
+      "migrate",
+      "-m", "/migrations",
+      "-c", "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable",
+      "up"
+    ]
+    restart: "no"
 
   auth_service:
     build:
@@ -40,7 +47,7 @@ services:
       db:
         condition: service_healthy
       migrator:
-        condition: service_started
+        condition: service_completed_successfully   # было: service_started
     ports:
       - "8082:8080"
     env_file:
@@ -67,7 +74,7 @@ services:
       db:
         condition: service_healthy
       migrator:
-        condition: service_started
+        condition: service_completed_successfully
     ports:
       - "8081:8080"
     env_file:
@@ -97,7 +104,7 @@ services:
       db:
         condition: service_healthy
       migrator:
-        condition: service_started
+        condition: service_completed_successfully
     ports:
       - "8080:8080"
     env_file:
