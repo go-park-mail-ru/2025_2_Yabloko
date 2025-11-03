@@ -5,6 +5,7 @@ import (
 	"apple_backend/pkg/trace"
 	"context"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -75,11 +76,13 @@ func AuthMiddleware(next http.Handler, jwtSecret string) http.HandlerFunc {
 }
 
 func CorsMiddleware(next http.Handler) http.Handler {
-
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := os.Getenv("SERVER_BASE_URL")
+		if origin == "" {
+			origin = "http://localhost:3000"
+		}
 
-		//w.Header().Set("Access-Control-Allow-Origin", "http://90.156.218.233")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")

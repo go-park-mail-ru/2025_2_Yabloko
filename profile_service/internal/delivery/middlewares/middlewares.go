@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -115,14 +114,6 @@ func AccessLog(log *logger.Logger, next http.Handler) http.Handler {
 
 func CSRFMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if h := r.Header.Get("Authorization"); h != "" {
-			ps := strings.SplitN(h, " ", 2)
-			if len(ps) == 2 && strings.EqualFold(ps[0], "Bearer") && ps[1] != "" {
-				next.ServeHTTP(w, r)
-				return
-			}
-		}
-
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
 			next.ServeHTTP(w, r)
 			return
@@ -151,17 +142,16 @@ func CSRFTokenMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sessionCookie, err := r.Cookie("session_id")
 		var sessionID string
-
 		if err != nil {
 			sessionID = uuid.New().String()
 			http.SetCookie(w, &http.Cookie{
 				Name:     "session_id",
 				Value:    sessionID,
 				Path:     "/",
-				HttpOnly: true,  // недоступен из javascript
-				Secure:   false, // для разработки
-				MaxAge:   86400, // 24 часа
-				SameSite: http.SameSiteStrictMode,
+				HttpOnly: true,
+				Secure:   false,
+				SameSite: http.SameSiteLaxMode,
+				MaxAge:   86400,
 			})
 		} else {
 			sessionID = sessionCookie.Value
@@ -173,25 +163,27 @@ func CSRFTokenMiddleware(next http.Handler) http.Handler {
 				http.Error(w, "Failed to generate CSRF token", http.StatusInternalServerError)
 				return
 			}
-
 			http.SetCookie(w, &http.Cookie{
 				Name:     "csrf_token",
 				Value:    csrfToken,
 				Path:     "/",
 				HttpOnly: false,
 				Secure:   false,
-				SameSite: http.SameSiteStrictMode,
+				SameSite: http.SameSiteLaxMode,
 				MaxAge:   86400,
 			})
 		}
-
 		next.ServeHTTP(w, r)
 	})
 }
 
 func CorsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := getenv("SERVER_BASE_URL", "http://localhost:3000")
+		origin := os.Getenv("SERVER_BASE_URL")
+		if origin == "" {
+			origin = "http://localhost:3000"
+		}
+
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")

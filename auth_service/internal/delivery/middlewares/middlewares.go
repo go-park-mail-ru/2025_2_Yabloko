@@ -136,8 +136,8 @@ func CSRFTokenMiddleware(next http.Handler) http.Handler {
 				Path:     "/",
 				HttpOnly: true,
 				Secure:   false,
+				SameSite: http.SameSiteLaxMode,
 				MaxAge:   86400,
-				SameSite: http.SameSiteStrictMode,
 			})
 		} else {
 			sessionID = sessionCookie.Value
@@ -154,7 +154,7 @@ func CSRFTokenMiddleware(next http.Handler) http.Handler {
 				Path:     "/",
 				HttpOnly: false,
 				Secure:   false,
-				SameSite: http.SameSiteStrictMode,
+				SameSite: http.SameSiteLaxMode,
 				MaxAge:   86400,
 			})
 		}
@@ -163,8 +163,12 @@ func CSRFTokenMiddleware(next http.Handler) http.Handler {
 }
 
 func CorsMiddleware(next http.Handler) http.Handler {
-	origin := getenv("SERVER_BASE_URL", "http://localhost:3000")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := os.Getenv("SERVER_BASE_URL")
+		if origin == "" {
+			origin = "http://localhost:3000"
+		}
+
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
