@@ -26,7 +26,13 @@ func Run(appLog, accessLog *logger.Logger) {
 
 	phttp.NewProfileRouter(mux, dbPool, "/api/v0", appLog, conf.UploadPath, conf.BaseURL)
 
-	handler := middlewares.CorsMiddleware(middlewares.AccessLog(accessLog, mux))
+	handler := middlewares.CorsMiddleware(
+		middlewares.AccessLog(accessLog,
+			middlewares.CSRFTokenMiddleware(
+				middlewares.CSRFMiddleware(mux),
+			),
+		),
+	)
 
 	log.Println(fmt.Sprintf("Profile service running on %s", conf.AppPort))
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("0.0.0.0:%s", conf.AppPort), handler))

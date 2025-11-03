@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -76,22 +77,34 @@ func AuthMiddleware(next http.Handler, jwtSecret string) http.HandlerFunc {
 }
 
 func CorsMiddleware(next http.Handler) http.Handler {
+	origins := os.Getenv("ALLOWED_ORIGINS")
+	if origins == "" {
+		origins = "http://localhost:3000,http://127.0.0.1:3000"
+	}
+	allowed := parseAllowedOrigins(origins)
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := os.Getenv("SERVER_BASE_URL")
-		if origin == "" {
-			origin = "http://localhost:3000"
+		reqOrigin := r.Header.Get("Origin")
+		if reqOrigin != "" && allowed[reqOrigin] {
+			w.Header().Set("Access-Control-Allow-Origin", reqOrigin)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token")
 		}
-
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Vary", "Origin")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token")
-
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+func parseAllowedOrigins(v string) map[string]bool {
+	m := map[string]bool{}
+	for _, s := range strings.Split(v, ",") {
+		if s = strings.TrimSpace(s); s != "" {
+			m[s] = true
+		}
+	}
+	return m
 }

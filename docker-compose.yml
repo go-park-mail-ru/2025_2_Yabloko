@@ -1,23 +1,18 @@
 services:
-  store_service:
-    build:
-      context: .
-      dockerfile: ./store_service/Dockerfile
-    container_name: store_service
-    ports:
-      - "8080:8080"
-    env_file:
-      .env
-    depends_on:
-      - db
-
   db:
     image: postgres:18-alpine
     container_name: db
     env_file:
-      .env
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+    volumes:
+      - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres -d postgres" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}" ]
       interval: 2s
       timeout: 2s
       retries: 10
@@ -32,6 +27,94 @@ services:
     environment:
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
       POSTGRES_USER: "${POSTGRES_USER}"
-      POSTGRES_DB: "${DB_NAME}"
+      POSTGRES_DB: "${POSTGRES_DB}"     # было неверно: DB_NAME
       POSTGRES_PORT: "${POSTGRES_PORT}"
     command: [ "migrate", "--config", "/migrations/tern.conf", "--migrations", "/migrations", "up" ]
+
+  auth_service:
+    build:
+      context: .
+      dockerfile: ./auth_service/Dockerfile
+    container_name: auth_service
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_started
+    ports:
+      - "8082:8080"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: ${POSTGRES_PORT}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      APP_PORT: "8080"
+      SECRET_KEY: ${SECRET_KEY}
+      CSRF_SECRET: ${CSRF_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      COOKIE_SECURE: ${COOKIE_SECURE}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE}
+
+  profile_service:
+    build:
+      context: .
+      dockerfile: ./profile_service/Dockerfile
+    container_name: profile_service
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_started
+    ports:
+      - "8081:8080"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: ${POSTGRES_PORT}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      APP_PORT: "8080"
+      SECRET_KEY: ${SECRET_KEY}
+      CSRF_SECRET: ${CSRF_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      COOKIE_SECURE: ${COOKIE_SECURE}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE}
+      UPLOAD_DIR: ${UPLOAD_DIR}
+    volumes:
+      - ./.data/avatars:/app/avatars
+
+  store_service:
+    build:
+      context: .
+      dockerfile: ./store_service/Dockerfile
+    container_name: store_service
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: ${POSTGRES_PORT}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      AUTH_URL: http://auth_service:8080
+      APP_PORT: "8080"
+      SECRET_KEY: ${SECRET_KEY}
+      CSRF_SECRET: ${CSRF_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      COOKIE_SECURE: ${COOKIE_SECURE}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE}
+
+volumes:
+  db_data: {}

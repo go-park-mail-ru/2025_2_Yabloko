@@ -65,6 +65,20 @@ func clearAuthCookie(w http.ResponseWriter) {
 	})
 }
 
+// Register godoc
+// @Summary Регистрация нового пользователя
+// @Description Создает нового пользователя и возвращает JWT токен
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body transport.RegisterRequest true "Данные для регистрации"
+// @Success 200 {object} transport.AuthResult "Успешная регистрация"
+// @Failure 400 {object} http_response.ErrResponse "Некорректные данные"
+// @Failure 409 {object} http_response.ErrResponse "Пользователь уже существует"
+// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
+// @Failure 415 {object} http_response.ErrResponse "Неверный Content-Type"
+// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
+// @Router /auth/signup [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "Register", domain.ErrHTTPMethod, nil)
@@ -101,6 +115,20 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, res)
 }
 
+// Login godoc
+// @Summary Аутентификация пользователя
+// @Description Выполняет вход пользователя и возвращает JWT токен
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body transport.LoginRequest true "Данные для входа"
+// @Success 200 {object} transport.AuthResult "Успешный вход"
+// @Failure 400 {object} http_response.ErrResponse "Некорректные данные"
+// @Failure 401 {object} http_response.ErrResponse "Неверные учетные данные"
+// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
+// @Failure 415 {object} http_response.ErrResponse "Неверный Content-Type"
+// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "Login", domain.ErrHTTPMethod, nil)
@@ -137,6 +165,16 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, res)
 }
 
+// RefreshToken godoc
+// @Summary Обновление JWT токена
+// @Description Обновляет access token с помощью refresh token из cookies
+// @Tags auth
+// @Produce json
+// @Success 200 {object} transport.AuthResult "Токен успешно обновлен"
+// @Failure 401 {object} http_response.ErrResponse "Невалидный или отсутствующий токен"
+// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
+// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
+// @Router /auth/refresh [post]
 func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "RefreshToken", domain.ErrHTTPMethod, nil)
@@ -158,6 +196,14 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, res)
 }
 
+// Logout godoc
+// @Summary Выход из системы
+// @Description Очищает JWT токен из cookies
+// @Tags auth
+// @Produce json
+// @Success 200 {object} map[string]string "Успешный выход"
+// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
+// @Router /auth/logout [post]
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "Logout", domain.ErrHTTPMethod, nil)
