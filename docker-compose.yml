@@ -22,17 +22,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    working_dir: /migrations
     volumes:
       - ./db/migrations:/migrations
-    env_file: [.env]
-    command:
-      - sh
-      - -lc
-      - |
-        cat > /tmp/tern.conf <<EOF
-        database = "postgres://${DB_USER}:${DB_PASSWORD}@db:${DB_PORT}/${DB_NAME}?sslmode=disable"
-        EOF
-        tern migrate -m /migrations -c /tmp/tern.conf up
+    env_file: [.env]  # нужно для {{ env "..."}}
+    command: ["migrate", "-m", "/migrations", "-c", "/migrations/tern.conf", "up"]
     restart: "no"
 
   auth_service:
@@ -45,7 +39,6 @@ services:
         condition: service_healthy
       migrator:
         condition: service_completed_successfully
-    # внешний порт = внутренний порт = AUTH_PORT
     ports:
       - "${AUTH_PORT}:${AUTH_PORT}"
     env_file: [.env]
@@ -73,7 +66,6 @@ services:
         condition: service_healthy
       migrator:
         condition: service_completed_successfully
-    # внешний порт = внутренний порт = PROFILE_SERVICE_PORT
     ports:
       - "${PROFILE_SERVICE_PORT}:${PROFILE_SERVICE_PORT}"
     env_file: [.env]
@@ -107,12 +99,10 @@ services:
         condition: service_completed_successfully
       auth_service:
         condition: service_started
-    # внешний порт = внутренний порт = STORE_SERVICE_PORT
     ports:
       - "${STORE_SERVICE_PORT}:${STORE_SERVICE_PORT}"
     env_file: [.env]
     environment:
-      # store конфиг читает POSTGRES_* и DB_NAME
       POSTGRES_HOST: ${DB_HOST}
       POSTGRES_PORT: ${DB_PORT}
       POSTGRES_USER: ${DB_USER}

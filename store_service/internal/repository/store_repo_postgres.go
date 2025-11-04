@@ -25,8 +25,8 @@ func NewStoreRepoPostgres(db PgxIface, log *logger.Logger) *StoreRepoPostgres {
 
 func generateQuery(filter *domain.StoreFilter) (string, []any) {
 	query := `
-		select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id
-		from store s left join store_tag st on st.store_id = s.id
+	    select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at
+    from store s
 	`
 	args := []any{}
 	where := []string{}
@@ -84,7 +84,7 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	for rows.Next() {
 		var store domain.Store
 		err = rows.Scan(&store.ID, &store.Name, &store.Description,
-			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt, &store.TagID)
+			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt)
 		if err != nil {
 			r.log.Error(ctx, "GetStores ошибка при декодировании данных",
 				map[string]interface{}{"err": err, "rows": rows})

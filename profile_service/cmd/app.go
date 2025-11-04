@@ -22,18 +22,23 @@ func Run(appLog, accessLog *logger.Logger) {
 	}
 	defer dbPool.Close()
 
-	mux := http.NewServeMux()
+	protectedMux := http.NewServeMux()
+	phttp.NewProfileRouter(protectedMux, dbPool, "/api/v0", appLog, conf.UploadPath, conf.BaseURL)
 
-	phttp.NewProfileRouter(mux, dbPool, "/api/v0", appLog, conf.UploadPath, conf.BaseURL)
+	jwtSecret := conf.JWTSecret
+	protectedHandler := middlewares.AuthMiddleware(protectedMux, jwtSecret)
 
-	handler := middlewares.CorsMiddleware(
-		middlewares.AccessLog(accessLog,
+	handler := middlewares.AccessLog(accessLog,
+		middlewares.CorsMiddleware(
 			middlewares.CSRFTokenMiddleware(
-				middlewares.CSRFMiddleware(mux),
+				middlewares.CSRFMiddleware(
+					protectedHandler,
+				),
 			),
 		),
 	)
 
+	addr := fmt.Sprintf("0.0.0.0:%s", conf.AppPort)
 	log.Println(fmt.Sprintf("Profile service running on %s", conf.AppPort))
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("0.0.0.0:%s", conf.AppPort), handler))
+	log.Fatal(http.ListenAndServe(addr, handler))
 }

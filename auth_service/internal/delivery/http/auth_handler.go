@@ -218,11 +218,32 @@ func NewAuthRouter(mux *http.ServeMux, apiPrefix string, appLog *logger.Logger, 
 
 	base := strings.TrimRight(apiPrefix, "/") + "/auth"
 
-	// публичные с rate limit
-	mux.Handle(base+"/signup", authmw.RateLimit(5, time.Minute)(http.HandlerFunc(h.Register)))
-	mux.Handle(base+"/login", authmw.RateLimit(10, time.Minute)(http.HandlerFunc(h.Login)))
-
-	// cookie-поток: защищаем CSRF
+	// 🔧 ДОБАВЬ CSRF middleware ко всем endpoint'ам
+	mux.Handle(base+"/signup",
+		authmw.CSRFMiddleware(
+			authmw.RateLimit(5, time.Minute)(
+				http.HandlerFunc(h.Register),
+			),
+		),
+	)
+	mux.Handle(base+"/login",
+		authmw.CSRFMiddleware(
+			authmw.RateLimit(10, time.Minute)(
+				http.HandlerFunc(h.Login),
+			),
+		),
+	)
 	mux.Handle(base+"/refresh", authmw.CSRFMiddleware(http.HandlerFunc(h.RefreshToken)))
 	mux.Handle(base+"/logout", authmw.CSRFMiddleware(http.HandlerFunc(h.Logout)))
+
+	// CSRF endpoint
+	mux.Handle(apiPrefix+"/csrf",
+		authmw.CSRFTokenMiddleware(
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				h.rs.Send(r.Context(), w, http.StatusOK, map[string]string{
+					"message": "CSRF token set in cookies",
+				})
+			}),
+		),
+	)
 }

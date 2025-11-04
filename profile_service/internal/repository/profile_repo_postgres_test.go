@@ -455,7 +455,7 @@ func (s *ProfileRepoPostgresTestSuite) TestGetProfile_RowError() {
 	profileID := "550e8400-e29b-41d4-a716-446655440000"
 
 	rows := s.mock.NewRows([]string{
-		"id", "email", "name", "phone", "city_id", "address", "avatar_url", "created_at", "updated_at", // добавлен avatar_url
+		"id", "email", "name", "phone", "city_id", "address", "avatar_url", "created_at", "updated_at",
 	}).AddRow(
 		profileID, "test@example.com", "John", nil, nil, nil, nil, time.Now(), time.Now(),
 	)
