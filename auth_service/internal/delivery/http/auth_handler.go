@@ -218,19 +218,16 @@ func NewAuthRouter(mux *http.ServeMux, apiPrefix string, appLog *logger.Logger, 
 
 	base := strings.TrimRight(apiPrefix, "/") + "/auth"
 
-	// 🔧 ДОБАВЬ CSRF middleware ко всем endpoint'ам
 	mux.Handle(base+"/signup",
-		authmw.CSRFMiddleware(
-			authmw.RateLimit(5, time.Minute)(
-				http.HandlerFunc(h.Register),
-			),
+
+		authmw.RateLimit(5, time.Minute)(
+			http.HandlerFunc(h.Register),
 		),
 	)
 	mux.Handle(base+"/login",
-		authmw.CSRFMiddleware(
-			authmw.RateLimit(10, time.Minute)(
-				http.HandlerFunc(h.Login),
-			),
+
+		authmw.RateLimit(10, time.Minute)(
+			http.HandlerFunc(h.Login),
 		),
 	)
 	mux.Handle(base+"/refresh", authmw.CSRFMiddleware(http.HandlerFunc(h.RefreshToken)))
