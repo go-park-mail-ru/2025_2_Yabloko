@@ -23,7 +23,7 @@ func LoadConfig() *Config {
 		dbHost = "db"
 	}
 
-	uploadPath := os.Getenv("UPLOAD_PATH")
+	uploadPath := os.Getenv("UPLOAD_DIR")
 	if uploadPath == "" {
 		uploadPath = "uploads"
 	}

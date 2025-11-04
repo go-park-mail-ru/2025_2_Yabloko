@@ -21,20 +21,26 @@ func Run(appLog, accessLog *logger.Logger) {
 		log.Fatal(err)
 	}
 	defer dbPool.Close()
-	openMux := http.NewServeMux()
-	protectedMux := http.NewServeMux()
 
+	openMux := http.NewServeMux()
+
+	// ПУБЛИЧНЫЕ ручки
 	shttp.NewStoreRouter(openMux, dbPool, apiV0Prefix, appLog)
-	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix, appLog)
+	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix, appLog) // ВАЖНО: регистрация items
+
+	protectedMux := http.NewServeMux()
 
 	shttp.NewCartRouter(protectedMux, dbPool, apiV0Prefix, appLog)
 	shttp.NewOrderRouter(protectedMux, dbPool, apiV0Prefix, appLog)
+
 	protectedHandler := middlewares.AuthMiddleware(protectedMux, conf.JWTSecret)
 
 	mux := http.NewServeMux()
-	mux.Handle(apiV0Prefix+"cart", protectedHandler)
-	mux.Handle(apiV0Prefix+"orders", protectedHandler)
-	mux.Handle(apiV0Prefix, openMux)
+
+	mux.Handle(apiV0Prefix+"cart", protectedHandler)    // /api/v0/cart
+	mux.Handle(apiV0Prefix+"orders", protectedHandler)  // /api/v0/orders
+	mux.Handle(apiV0Prefix+"orders/", protectedHandler) // ВАЖНО: поддерево /api/v0/orders/*
+	mux.Handle(apiV0Prefix, openMux)                    // /api/v0/* (stores, items, cities, tags)
 
 	handler := middlewares.CorsMiddleware(middlewares.AccessLog(accessLog, mux))
 
