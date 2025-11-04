@@ -51,7 +51,6 @@ func NewProfileRouter(
 	profileHandler := NewProfileHandler(profileUC, appLog, apiPrefix)
 	avatarHandler := NewAvatarHandler(avatarUC, appLog)
 
-	// Как в store: без обёрток мидлварями — они навешиваются в cmd на весь mux
 	mux.Handle(apiPrefix+"/profiles/",
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			path := strings.TrimRight(r.URL.Path, "/")
@@ -244,7 +243,3 @@ func (h *ProfileHandler) DeleteProfile(w http.ResponseWriter, r *http.Request, i
 
 	h.rs.Send(r.Context(), w, http.StatusNoContent, nil)
 }
-
-// userIDFromRequest — одинаково с магазином: достаём user_id, который положил AuthMiddleware
-// УДАЛЕНО: локальная реализация; теперь общий хелпер в auth_helpers.go
-// func userIDFromRequest(r *http.Request) (string, bool) { ... }

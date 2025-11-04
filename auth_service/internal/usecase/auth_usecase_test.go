@@ -38,7 +38,6 @@ func TestLogin_OK(t *testing.T) {
 	repo := mocks.NewMockAuthRepository(ctrl)
 	uc := NewAuthUseCase(repo, "test-secret")
 
-	// подготовим хеш пароля
 	hash, _ := bcrypt.GenerateFromPassword([]byte("Str0ng!Pass"), bcrypt.DefaultCost)
 	user := &domain.User{ID: "u1", Email: "u@ex.com", PasswordHash: string(hash)}
 

@@ -32,8 +32,8 @@ func Run(appLog, accessLog *logger.Logger) {
 	protectedHandler := middlewares.AuthMiddleware(protectedMux, conf.JWTSecret)
 
 	mux := http.NewServeMux()
-	mux.Handle(apiV0Prefix+"cart/", protectedHandler)
-	mux.Handle(apiV0Prefix+"orders/", protectedHandler)
+	mux.Handle(apiV0Prefix+"cart", protectedHandler)
+	mux.Handle(apiV0Prefix+"orders", protectedHandler)
 	mux.Handle(apiV0Prefix, openMux)
 
 	handler := middlewares.CorsMiddleware(middlewares.AccessLog(accessLog, mux))
