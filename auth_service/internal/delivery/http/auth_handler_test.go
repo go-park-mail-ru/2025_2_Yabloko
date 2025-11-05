@@ -5,7 +5,7 @@ import (
 	"apple_backend/auth_service/internal/domain"
 	"apple_backend/pkg/logger"
 	"bytes"
-	"context" // добавлено
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -51,7 +51,6 @@ type hUC struct{}
 
 func (h *hUC) Register(_ interface{}, _ ...interface{}) {}
 
-// Реальная заглушка под интерфейс usecase.AuthUseCase
 type handlerUC struct{}
 
 func (handlerUC) Register(_ context.Context, email, password string) (*transport.AuthResult, error) {
@@ -86,7 +85,6 @@ func (handlerUC) GetUserByID(_ context.Context, id string) (*domain.User, error)
 	return &domain.User{ID: id, Email: "u@ex.com"}, nil
 }
 
-// Убедимся, что handlerUC реализует интерфейс
 var _ AuthUseCaseInterface = handlerUC{}
 
 func TestAuthHandler_Register(t *testing.T) {
@@ -95,7 +93,7 @@ func TestAuthHandler_Register(t *testing.T) {
 
 	body, _ := json.Marshal(transport.RegisterRequest{Email: "u@ex.com", Password: "Str0ng!Pass"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/signup", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json") // важно для 415
+	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
 	h.Register(w, req)
@@ -118,7 +116,7 @@ func TestAuthHandler_Login(t *testing.T) {
 
 	body, _ := json.Marshal(transport.LoginRequest{Email: "u@ex.com", Password: "Str0ng!Pass"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/login", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json") // важно для 415
+	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
 	h.Login(w, req)

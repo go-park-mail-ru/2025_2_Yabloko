@@ -51,31 +51,15 @@ func NewProfileRouter(
 	profileHandler := NewProfileHandler(profileUC, appLog, apiPrefix)
 	avatarHandler := NewAvatarHandler(avatarUC, appLog)
 
-	chain := func(h http.Handler) http.Handler {
-		return middlewares.AccessLog(appLog,
-			middlewares.CorsMiddleware( // добавлен CORS
-				middlewares.CSRFTokenMiddleware( // выдаём CSRF токен (cookie) на GET
-					middlewares.JWT()( // сначала аутентификация
-						middlewares.CSRFMiddleware(h), // затем проверка CSRF на state-changing
-					),
-				),
-			),
-		)
-	}
-
-	authChain := func(h http.Handler) http.Handler {
-		return chain(h)
-	}
-
 	mux.Handle(apiPrefix+"/profiles/",
-		authChain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			path := strings.TrimRight(r.URL.Path, "/")
 			if strings.HasSuffix(path, "/avatar") {
 				avatarHandler.UploadAvatar(w, r)
 				return
 			}
 			profileHandler.handleProfileRoutes(w, r)
-		})),
+		}),
 	)
 }
 
@@ -92,11 +76,10 @@ func (h *ProfileHandler) extractIDFromRequest(r *http.Request) string {
 }
 
 func (h *ProfileHandler) handleProfileRoutes(w http.ResponseWriter, r *http.Request) {
-
 	id := h.extractIDFromRequest(r)
 
 	if id == "me" {
-		if sub, _ := r.Context().Value(middlewares.CtxUserID).(string); sub != "" {
+		if sub, ok := middlewares.UserIDFromContext(r.Context()); ok && sub != "" {
 			id = sub
 		} else {
 			h.rs.Error(r.Context(), w, http.StatusUnauthorized, "ProfileRoutes", domain.ErrUnauthorized, nil)
@@ -136,8 +119,8 @@ func (h *ProfileHandler) handleProfileRoutes(w http.ResponseWriter, r *http.Requ
 // @Router /profiles/{id} [get]
 func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request, id string) {
 
-	sub, _ := r.Context().Value(middlewares.CtxUserID).(string)
-	if sub == "" {
+	sub, ok := middlewares.UserIDFromContext(r.Context())
+	if !ok || sub == "" {
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "GetProfile", domain.ErrUnauthorized, nil)
 		return
 	}
@@ -180,12 +163,11 @@ func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request, id s
 // @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
 // @Router /profiles/{id} [put]
 func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, id string) {
-	sub, _ := r.Context().Value(middlewares.CtxUserID).(string)
-	if sub == "" {
+	sub, ok := middlewares.UserIDFromContext(r.Context())
+	if !ok || sub == "" {
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "UpdateProfile", domain.ErrUnauthorized, nil)
 		return
 	}
-
 	targetID := sub
 
 	var req transport.UpdateProfileRequest
@@ -234,8 +216,8 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, i
 // @Failure 500 {object} map[string]string "Внутренняя ошибка сервера"
 // @Router /profiles/{id} [delete]
 func (h *ProfileHandler) DeleteProfile(w http.ResponseWriter, r *http.Request, id string) {
-	sub, _ := r.Context().Value(middlewares.CtxUserID).(string)
-	if sub == "" {
+	sub, ok := middlewares.UserIDFromContext(r.Context())
+	if !ok || sub == "" {
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "DeleteProfile", domain.ErrUnauthorized, nil)
 		return
 	}

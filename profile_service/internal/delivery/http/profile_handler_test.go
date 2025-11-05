@@ -32,7 +32,7 @@ func TestProfileHandler_GetProfile(t *testing.T) {
 		mockUC.EXPECT().GetProfile(gomock.Any(), "id1").Return(profile, nil)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/profiles/id1", nil)
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id1")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id1")) // добавлено
 
 		w := httptest.NewRecorder()
 		handler.GetProfile(w, req, "id1")
@@ -47,7 +47,7 @@ func TestProfileHandler_GetProfile(t *testing.T) {
 	t.Run("Профиль не найден → 404", func(t *testing.T) {
 		mockUC.EXPECT().GetProfile(gomock.Any(), "id2").Return(nil, domain.ErrProfileNotFound)
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/profiles/id2", nil)
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id2")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id2")) // добавлено
 		w := httptest.NewRecorder()
 		handler.GetProfile(w, req, "id2")
 		require.Equal(t, http.StatusNotFound, w.Code)
@@ -56,7 +56,7 @@ func TestProfileHandler_GetProfile(t *testing.T) {
 	t.Run("Некорректный UUID → 400", func(t *testing.T) {
 		mockUC.EXPECT().GetProfile(gomock.Any(), "bad").Return(nil, domain.ErrInvalidProfileData)
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/profiles/bad", nil)
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "bad")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "bad")) // добавлено
 		w := httptest.NewRecorder()
 		handler.GetProfile(w, req, "bad")
 		require.Equal(t, http.StatusBadRequest, w.Code)
@@ -65,7 +65,7 @@ func TestProfileHandler_GetProfile(t *testing.T) {
 	t.Run("Неизвестная ошибка сервера → 500", func(t *testing.T) {
 		mockUC.EXPECT().GetProfile(gomock.Any(), "id3").Return(nil, errors.New("internal error"))
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/profiles/id3", nil)
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id3")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id3")) // добавлено
 		w := httptest.NewRecorder()
 		handler.GetProfile(w, req, "id3")
 		require.Equal(t, http.StatusInternalServerError, w.Code)
@@ -91,7 +91,7 @@ func TestProfileHandler_UpdateProfile(t *testing.T) {
 		mockUC.EXPECT().UpdateProfile(gomock.Any(), gomock.Any()).Return(nil)
 
 		req := httptest.NewRequest(http.MethodPut, "/api/v0/profiles/id1", bytes.NewReader(body))
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id1")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id1")) // добавлено
 		w := httptest.NewRecorder()
 		handler.UpdateProfile(w, req, "id1")
 		require.Equal(t, http.StatusOK, w.Code)
@@ -104,7 +104,7 @@ func TestProfileHandler_UpdateProfile(t *testing.T) {
 		mockUC.EXPECT().UpdateProfile(gomock.Any(), gomock.Any()).Return(domain.ErrProfileNotFound)
 
 		req := httptest.NewRequest(http.MethodPut, "/api/v0/profiles/id2", bytes.NewReader(body))
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id2")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id2")) // добавлено
 		w := httptest.NewRecorder()
 		handler.UpdateProfile(w, req, "id2")
 		require.Equal(t, http.StatusNotFound, w.Code)
@@ -112,7 +112,7 @@ func TestProfileHandler_UpdateProfile(t *testing.T) {
 
 	t.Run("Неверный JSON → 400", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/api/v0/profiles/id3", bytes.NewReader([]byte("bad")))
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id3")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id3")) // добавлено
 		w := httptest.NewRecorder()
 		handler.UpdateProfile(w, req, "id3")
 		require.Equal(t, http.StatusBadRequest, w.Code)
@@ -124,7 +124,7 @@ func TestProfileHandler_UpdateProfile(t *testing.T) {
 		mockUC.EXPECT().UpdateProfile(gomock.Any(), gomock.Any()).Return(domain.ErrInvalidProfileData)
 
 		req := httptest.NewRequest(http.MethodPut, "/api/v0/profiles/id4", bytes.NewReader(body))
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id4")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id4")) // добавлено
 		w := httptest.NewRecorder()
 		handler.UpdateProfile(w, req, "id4")
 		require.Equal(t, http.StatusBadRequest, w.Code)
@@ -136,7 +136,7 @@ func TestProfileHandler_UpdateProfile(t *testing.T) {
 		mockUC.EXPECT().UpdateProfile(gomock.Any(), gomock.Any()).Return(errors.New("err"))
 
 		req := httptest.NewRequest(http.MethodPut, "/api/v0/profiles/id5", bytes.NewReader(body))
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id5")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id5")) // добавлено
 		w := httptest.NewRecorder()
 		handler.UpdateProfile(w, req, "id5")
 		require.Equal(t, http.StatusInternalServerError, w.Code)
@@ -153,7 +153,7 @@ func TestProfileHandler_DeleteProfile(t *testing.T) {
 	t.Run("Успешное удаление → 204", func(t *testing.T) {
 		mockUC.EXPECT().DeleteProfile(gomock.Any(), "id1").Return(nil)
 		req := httptest.NewRequest(http.MethodDelete, "/api/v0/profiles/id1", nil)
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id1")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id1")) // добавлено
 		w := httptest.NewRecorder()
 		handler.DeleteProfile(w, req, "id1")
 		require.Equal(t, http.StatusNoContent, w.Code)
@@ -162,7 +162,7 @@ func TestProfileHandler_DeleteProfile(t *testing.T) {
 	t.Run("Профиль не найден → 404", func(t *testing.T) {
 		mockUC.EXPECT().DeleteProfile(gomock.Any(), "id2").Return(domain.ErrProfileNotFound)
 		req := httptest.NewRequest(http.MethodDelete, "/api/v0/profiles/id2", nil)
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id2")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id2")) // добавлено
 		w := httptest.NewRecorder()
 		handler.DeleteProfile(w, req, "id2")
 		require.Equal(t, http.StatusNotFound, w.Code)
@@ -171,7 +171,7 @@ func TestProfileHandler_DeleteProfile(t *testing.T) {
 	t.Run("Некорректный UUID → 400", func(t *testing.T) {
 		mockUC.EXPECT().DeleteProfile(gomock.Any(), "bad").Return(domain.ErrInvalidProfileData)
 		req := httptest.NewRequest(http.MethodDelete, "/api/v0/profiles/bad", nil)
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "bad")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "bad")) // добавлено
 		w := httptest.NewRecorder()
 		handler.DeleteProfile(w, req, "bad")
 		require.Equal(t, http.StatusBadRequest, w.Code)
@@ -180,7 +180,7 @@ func TestProfileHandler_DeleteProfile(t *testing.T) {
 	t.Run("Неизвестная ошибка сервера → 500", func(t *testing.T) {
 		mockUC.EXPECT().DeleteProfile(gomock.Any(), "id3").Return(errors.New("err"))
 		req := httptest.NewRequest(http.MethodDelete, "/api/v0/profiles/id3", nil)
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id3")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id3")) // добавлено
 		w := httptest.NewRecorder()
 		handler.DeleteProfile(w, req, "id3")
 		require.Equal(t, http.StatusInternalServerError, w.Code)
@@ -201,20 +201,20 @@ func TestProfileHandler_HandleProfileRoutes(t *testing.T) {
 
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/profiles/id1", nil)
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id1")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id1")) // добавлено
 		handler.handleProfileRoutes(w, req)
 		require.Equal(t, http.StatusOK, w.Code)
 
 		w = httptest.NewRecorder()
 		updateBody, _ := json.Marshal(transport.UpdateProfileRequest{Name: stringPtr("X")})
 		req = httptest.NewRequest(http.MethodPut, "/api/v0/profiles/id1", bytes.NewReader(updateBody))
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id1")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id1")) // добавлено
 		handler.handleProfileRoutes(w, req)
 		require.Equal(t, http.StatusOK, w.Code)
 
 		w = httptest.NewRecorder()
 		req = httptest.NewRequest(http.MethodDelete, "/api/v0/profiles/id1", nil)
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id1")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id1")) // добавлено
 		handler.handleProfileRoutes(w, req)
 		require.Equal(t, http.StatusNoContent, w.Code)
 	})
@@ -228,7 +228,7 @@ func TestProfileHandler_HandleProfileRoutes(t *testing.T) {
 	t.Run("Неподдерживаемый метод → 405", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPatch, "/api/v0/profiles/id1", nil)
-		req = req.WithContext(context.WithValue(req.Context(), middlewares.CtxUserID, "id1")) // добавлено
+		req = req.WithContext(context.WithValue(req.Context(), middlewares.UserIDKey, "id1")) // добавлено
 		handler.handleProfileRoutes(w, req)
 		require.Equal(t, http.StatusMethodNotAllowed, w.Code)
 	})

@@ -152,7 +152,7 @@ func (s *ProfileRepoPostgresTestSuite) TestGetProfile_ScanError() {
 		"id", "email", "name", "phone", "city_id", "address", "avatar_url", "created_at", "updated_at",
 	}).AddRow(
 		profileID, "test@example.com", "John", "+123456789", "city-1", "Addr 1",
-		nil, "not-a-time", "not-a-time", // avatar_url=nil
+		nil, "not-a-time", "not-a-time",
 	)
 
 	s.mock.ExpectQuery(regexp.QuoteMeta(selectProfileSQL)).
@@ -411,7 +411,7 @@ func (s *ProfileRepoPostgresTestSuite) TestGetProfile_PartialNullMix() {
 		nil,
 		"city-mix",
 		nil,
-		nil, // avatar_url
+		nil,
 		created,
 		updated,
 	)
@@ -455,7 +455,7 @@ func (s *ProfileRepoPostgresTestSuite) TestGetProfile_RowError() {
 	profileID := "550e8400-e29b-41d4-a716-446655440000"
 
 	rows := s.mock.NewRows([]string{
-		"id", "email", "name", "phone", "city_id", "address", "avatar_url", "created_at", "updated_at", // добавлен avatar_url
+		"id", "email", "name", "phone", "city_id", "address", "avatar_url", "created_at", "updated_at",
 	}).AddRow(
 		profileID, "test@example.com", "John", nil, nil, nil, nil, time.Now(), time.Now(),
 	)

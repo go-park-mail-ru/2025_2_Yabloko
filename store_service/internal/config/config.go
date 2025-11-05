@@ -20,12 +20,12 @@ type Config struct {
 
 func MustConfig() *Config {
 	conf := &Config{
-		DBUser:     os.Getenv("POSTGRES_USER"),
-		DBPassword: os.Getenv("POSTGRES_PASSWORD"),
-		DBHost:     os.Getenv("POSTGRES_HOST"),
-		DBPort:     os.Getenv("POSTGRES_PORT"),
+		DBUser:     os.Getenv("DB_USER"),
+		DBPassword: os.Getenv("DB_PASSWORD"),
+		DBHost:     os.Getenv("DB_HOST"),
+		DBPort:     os.Getenv("DB_PORT"),
 		DBName:     os.Getenv("DB_NAME"),
-		AppPort:    os.Getenv("APP_PORT"),
+		AppPort:    os.Getenv("STORE_SERVICE_PORT"),
 		AuthURL:    os.Getenv("AUTH_URL"),
 		JWTSecret:  os.Getenv("SECRET_KEY"),
 	}

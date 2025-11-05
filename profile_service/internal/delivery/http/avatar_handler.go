@@ -57,15 +57,17 @@ func (h *AvatarHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := parts[len(parts)-2]
 
-	if userID == "me" {
-		if sub, _ := r.Context().Value(middlewares.CtxUserID).(string); sub != "" {
-			userID = sub
-		} else {
-			h.rs.Error(r.Context(), w, http.StatusUnauthorized, "UploadAvatar", domain.ErrUnauthorized, nil)
-			return
-		}
+	subject, ok := middlewares.UserIDFromContext(r.Context())
+	if !ok || subject == "" {
+		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "UploadAvatar", domain.ErrUnauthorized, nil)
+		return
 	}
-	if sub, _ := r.Context().Value(middlewares.CtxUserID).(string); sub == "" || sub != userID {
+
+	if userID == "me" {
+		userID = subject
+	}
+
+	if subject != userID {
 		h.rs.Error(r.Context(), w, http.StatusForbidden, "UploadAvatar", domain.ErrForbidden, nil)
 		return
 	}
