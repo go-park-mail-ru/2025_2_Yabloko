@@ -130,35 +130,49 @@ func SessionMiddleware(next http.Handler) http.Handler {
 
 func SmartCSRFMiddleware(next http.Handler) http.Handler {
 	skipPaths := map[string]bool{
-		"/api/v0/csrf": true, // ← путь зависит от apiPrefix — можно параметризовать, но для простоты жёстко
+		"/api/v0/csrf": true,
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Пропустить GET/HEAD/OPTIONS
+		slog.Debug("CSRF middleware",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"ua", r.UserAgent(),
+		)
+
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
+			slog.Debug("CSRF: skipped (safe method)")
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Пропустить явно разрешённые пути (например, /csrf)
 		if skipPaths[r.URL.Path] {
+			slog.Debug("CSRF: skipped (skip path)")
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Обязательно должен быть session_id — SessionMiddleware уже отработал!
 		sessionCookie, err := r.Cookie("session_id")
 		if err != nil {
+			slog.Warn("CSRF: no session_id", "err", err)
 			http.Error(w, "Session required", http.StatusForbidden)
 			return
 		}
 
 		clientToken := r.Header.Get("X-CSRF-Token")
 		if clientToken == "" {
+			slog.Warn("CSRF: missing X-CSRF-Token")
 			http.Error(w, "CSRF token required in X-CSRF-Token header", http.StatusForbidden)
 			return
 		}
 
-		if !verifyJWTCSRFToken(clientToken, sessionCookie.Value, r.UserAgent()) {
+		ok := verifyJWTCSRFToken(clientToken, sessionCookie.Value, r.UserAgent())
+		slog.Debug("CSRF verify", "ok", ok)
+		if !ok {
+			slog.Warn("CSRF: invalid token",
+				"token", clientToken[:min(len(clientToken), 20)]+"...",
+				"session", sessionCookie.Value,
+				"ua", r.UserAgent(),
+			)
 			http.Error(w, "Invalid or expired CSRF token", http.StatusForbidden)
 			return
 		}
