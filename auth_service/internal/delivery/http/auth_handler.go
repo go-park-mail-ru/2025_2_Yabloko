@@ -218,20 +218,29 @@ func NewAuthRouter(mux *http.ServeMux, apiPrefix string, appLog logger.Logger, u
 
 	base := strings.TrimRight(apiPrefix, "/") + "/auth"
 
+	// Публичные маршруты (без CSRF)
 	mux.Handle(base+"/signup",
-
 		authmw.RateLimit(5, time.Minute)(
 			http.HandlerFunc(h.Register),
 		),
 	)
 	mux.Handle(base+"/login",
-
 		authmw.RateLimit(10, time.Minute)(
 			http.HandlerFunc(h.Login),
 		),
 	)
-	mux.Handle(base+"/refresh", authmw.CSRFMiddleware(http.HandlerFunc(h.RefreshToken)))
-	mux.Handle(base+"/logout", authmw.CSRFMiddleware(http.HandlerFunc(h.Logout)))
+
+	// Защищенные маршруты (с CSRF)
+	mux.Handle(base+"/refresh",
+		authmw.CSRFMiddleware(
+			http.HandlerFunc(h.RefreshToken),
+		),
+	)
+	mux.Handle(base+"/logout",
+		authmw.CSRFMiddleware(
+			http.HandlerFunc(h.Logout),
+		),
+	)
 
 	// CSRF endpoint
 	mux.Handle(apiPrefix+"/csrf",

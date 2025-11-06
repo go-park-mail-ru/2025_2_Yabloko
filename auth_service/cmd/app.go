@@ -35,26 +35,19 @@ func Run(appLog, accessLog logger.Logger) {
 	uc := usecase.NewAuthUseCase(repo, conf.SecretKeyStr())
 	h := authhttp.NewAuthHandler(uc, appLog)
 
-	publicMux := http.NewServeMux()
-	authhttp.NewAuthRouter(publicMux, "/api/v0", appLog, uc)
-
-	protectedMux := http.NewServeMux()
-	protectedMux.HandleFunc("/api/v0/auth/refresh", h.RefreshToken)
-	protectedMux.HandleFunc("/api/v0/auth/logout", h.Logout)
-
 	mainMux := http.NewServeMux()
-	// Защищенные маршруты
-	mainMux.Handle("/api/v0/auth/refresh", protectedMux)
-	mainMux.Handle("/api/v0/auth/logout", protectedMux)
-	// Публичные маршруты
-	mainMux.Handle("/api/v0/", publicMux)
 
+	authhttp.NewAuthRouter(mainMux, "/api/v0", appLog, uc)
+
+	// Правильный порядок middleware:
+	// 1. CORS
+	// 2. Access Log
+	// 3. CSRF Token (устанавливает сессию и CSRF токен)
+	// 4. Остальная логика
 	handler := authmw.CorsMiddleware(
 		authmw.AccessLog(accessLog,
 			authmw.CSRFTokenMiddleware(
-				authmw.CSRFMiddleware(
-					mainMux,
-				),
+				mainMux,
 			),
 		),
 	)
