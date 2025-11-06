@@ -57,7 +57,7 @@ func verifyJWTCSRFToken(tokenString, sessionID, userAgent string) bool {
 		return false
 	}
 	if claims, ok := token.Claims.(*CSRFClaims); ok && token.Valid {
-		return claims.SessionID == sessionID && claims.UserAgent == userAgent
+		return claims.SessionID == sessionID // claims.UserAgent == userAgent
 	}
 	return false
 }
