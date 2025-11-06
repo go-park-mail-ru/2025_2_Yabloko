@@ -15,7 +15,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Run(appLog, accessLog *logger.Logger) {
+func Run(appLog, accessLog logger.Logger) {
+	if appLog == nil {
+		log.Fatal("app log is nil")
+	}
+	if accessLog == nil {
+		log.Fatal("access log is nil")
+	}
+
 	conf := config.LoadConfig()
 
 	dbPool, err := pgxpool.New(context.Background(), conf.DBPath())

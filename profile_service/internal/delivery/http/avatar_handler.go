@@ -22,7 +22,7 @@ type AvatarHandler struct {
 	rs       *http_response.ResponseSender
 }
 
-func NewAvatarHandler(avatarUC AvatarUsecaseInterface, log *logger.Logger) *AvatarHandler {
+func NewAvatarHandler(avatarUC AvatarUsecaseInterface, log logger.Logger) *AvatarHandler {
 	return &AvatarHandler{
 		avatarUC: avatarUC,
 		rs:       http_response.NewResponseSender(log),

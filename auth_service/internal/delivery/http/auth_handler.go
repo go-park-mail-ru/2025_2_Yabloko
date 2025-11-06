@@ -28,7 +28,7 @@ type AuthHandler struct {
 	rs *http_response.ResponseSender
 }
 
-func NewAuthHandler(uc AuthUseCaseInterface, log *logger.Logger) *AuthHandler {
+func NewAuthHandler(uc AuthUseCaseInterface, log logger.Logger) *AuthHandler {
 	return &AuthHandler{uc: uc, rs: http_response.NewResponseSender(log)}
 }
 
@@ -213,7 +213,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, map[string]string{"message": "logged out"})
 }
 
-func NewAuthRouter(mux *http.ServeMux, apiPrefix string, appLog *logger.Logger, uc AuthUseCaseInterface) {
+func NewAuthRouter(mux *http.ServeMux, apiPrefix string, appLog logger.Logger, uc AuthUseCaseInterface) {
 	h := NewAuthHandler(uc, appLog)
 
 	base := strings.TrimRight(apiPrefix, "/") + "/auth"

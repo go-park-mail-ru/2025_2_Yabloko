@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Run(appLog, accessLog *logger.Logger) {
+func Run(appLog, accessLog logger.Logger) {
 	conf := config.LoadConfig()
 
 	dbPool, err := pgxpool.New(context.Background(), conf.DBPath())

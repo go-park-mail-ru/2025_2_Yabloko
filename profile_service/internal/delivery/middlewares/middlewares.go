@@ -4,6 +4,7 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/trace"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -82,7 +83,7 @@ func (w *statusWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
-func AccessLog(log *logger.Logger, next http.Handler) http.Handler {
+func AccessLog(log logger.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqID := r.Header.Get("X-Request-ID")
 		if reqID == "" {
@@ -95,21 +96,20 @@ func AccessLog(log *logger.Logger, next http.Handler) http.Handler {
 		sw := &statusWriter{ResponseWriter: w}
 		start := time.Now()
 
-		log.Info(ctx, "request started", map[string]interface{}{
-			"method": r.Method,
-			"url":    r.URL.Path,
-		})
+		log.Info("request started", slog.String("method", r.Method), slog.String("url", r.URL.Path))
 
 		next.ServeHTTP(sw, r)
 
 		duration := time.Since(start)
-		log.Info(ctx, "request completed", map[string]interface{}{
-			"method":   r.Method,
-			"url":      r.URL.Path,
-			"status":   sw.status,
-			"bytes":    sw.bytes,
-			"duration": duration.Milliseconds(),
-		})
+
+		log.Info("request completed",
+			slog.String("method", r.Method),
+			slog.String("url", r.URL.Path),
+			slog.Int("status", sw.status),
+			slog.Int("bytes", sw.bytes),
+			slog.Int64("duration", duration.Milliseconds()),
+		)
+
 	})
 }
 

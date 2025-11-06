@@ -28,7 +28,7 @@ type ProfileHandler struct {
 	profilesPath string
 }
 
-func NewProfileHandler(uc ProfileUsecaseInterface, log *logger.Logger, apiPrefix string) *ProfileHandler {
+func NewProfileHandler(uc ProfileUsecaseInterface, log logger.Logger, apiPrefix string) *ProfileHandler {
 	return &ProfileHandler{
 		uc:           uc,
 		rs:           http_response.NewResponseSender(log),
@@ -40,7 +40,7 @@ func NewProfileRouter(
 	mux *http.ServeMux,
 	db repository.PgxIface,
 	apiPrefix string,
-	appLog *logger.Logger,
+	appLog logger.Logger,
 	uploadPath string,
 	baseURL string,
 ) {

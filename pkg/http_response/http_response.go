@@ -13,10 +13,10 @@ type ErrResponse struct {
 }
 
 type ResponseSender struct {
-	log *logger.Logger
+	log logger.Logger
 }
 
-func NewResponseSender(log *logger.Logger) *ResponseSender {
+func NewResponseSender(log logger.Logger) *ResponseSender {
 	return &ResponseSender{log: log}
 }
 
@@ -40,9 +40,9 @@ func (rs *ResponseSender) Send(ctx context.Context, w http.ResponseWriter, statu
 func (rs *ResponseSender) Error(ctx context.Context, w http.ResponseWriter, statusCode int,
 	errMessage string, userErr error, internalErr error) {
 	if internalErr != nil {
-		rs.log.Error(ctx, errMessage, map[string]interface{}{"userErr": userErr, "internalErr": internalErr})
+		rs.log.Error(errMessage, map[string]interface{}{"userErr": userErr, "internalErr": internalErr})
 	} else {
-		rs.log.Warn(ctx, errMessage, map[string]interface{}{"userErr": userErr})
+		rs.log.Warn(errMessage, map[string]interface{}{"userErr": userErr})
 	}
 
 	resp := ErrResponse{
