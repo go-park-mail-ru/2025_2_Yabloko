@@ -42,16 +42,20 @@ func Run(appLog, accessLog logger.Logger) {
 	protectedMux.HandleFunc("/api/v0/auth/refresh", h.RefreshToken)
 	protectedMux.HandleFunc("/api/v0/auth/logout", h.Logout)
 
-	protectedHandler := authmw.CSRFMiddleware(protectedMux)
-
 	mainMux := http.NewServeMux()
-	mainMux.Handle("/api/v0/auth/refresh", protectedHandler)
-	mainMux.Handle("/api/v0/auth/logout", protectedHandler)
-	mainMux.Handle("/api/v0/", publicMux) // fallback
+	// Защищенные маршруты
+	mainMux.Handle("/api/v0/auth/refresh", protectedMux)
+	mainMux.Handle("/api/v0/auth/logout", protectedMux)
+	// Публичные маршруты
+	mainMux.Handle("/api/v0/", publicMux)
 
 	handler := authmw.CorsMiddleware(
 		authmw.AccessLog(accessLog,
-			authmw.CSRFTokenMiddleware(mainMux),
+			authmw.CSRFTokenMiddleware(
+				authmw.CSRFMiddleware(
+					mainMux,
+				),
+			),
 		),
 	)
 
