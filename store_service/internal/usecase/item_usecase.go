@@ -6,10 +6,8 @@ import (
 )
 
 type ItemRepository interface {
-	// GetItemTypes метод для получения всех типов товаров в конкертном магазине
-	GetItemTypes(ctx context.Context, id string) ([]*domain.ItemType, error)
-	// GetItems метод получения всех товаров магазина
-	GetItems(ctx context.Context, id string) ([]*domain.Item, error)
+	GetItemTypes(ctx context.Context, storeID string) ([]*domain.ItemType, error)
+	GetItems(ctx context.Context, itemTypeID string) ([]*domain.Item, error)
 }
 
 type ItemUsecase struct {
@@ -20,21 +18,21 @@ func NewItemUsecase(repo ItemRepository) *ItemUsecase {
 	return &ItemUsecase{repo: repo}
 }
 
-func (uc *ItemUsecase) GetItemTypes(ctx context.Context, id string) ([]*domain.ItemType, error) {
-	return uc.repo.GetItemTypes(ctx, id)
+func (uc *ItemUsecase) GetItemTypes(ctx context.Context, storeID string) ([]*domain.ItemType, error) {
+	return uc.repo.GetItemTypes(ctx, storeID)
 }
 
-func (uc *ItemUsecase) GetItems(ctx context.Context, id string) ([]*domain.ItemAgg, error) {
-	items, err := uc.repo.GetItems(ctx, id)
+func (uc *ItemUsecase) GetItems(ctx context.Context, itemTypeID string) ([]*domain.ItemAgg, error) {
+	items, err := uc.repo.GetItems(ctx, itemTypeID)
 	if err != nil {
 		return nil, err
 	}
 
-	itemsMap := map[string]*domain.ItemAgg{}
+	// Группировка по ID товара (если один товар в нескольких типах)
+	itemsMap := make(map[string]*domain.ItemAgg)
 	for _, item := range items {
-		// если есть запись по этому товару
-		if itemMap, ok := itemsMap[item.ID]; ok {
-			itemMap.TypesID = append(itemMap.TypesID, item.TypeID)
+		if agg, exists := itemsMap[item.ID]; exists {
+			agg.TypesID = append(agg.TypesID, item.TypeID)
 		} else {
 			itemsMap[item.ID] = &domain.ItemAgg{
 				ID:          item.ID,
@@ -47,10 +45,9 @@ func (uc *ItemUsecase) GetItems(ctx context.Context, id string) ([]*domain.ItemA
 		}
 	}
 
-	itemsList := make([]*domain.ItemAgg, 0, len(itemsMap))
-	for _, item := range itemsMap {
-		itemsList = append(itemsList, item)
+	result := make([]*domain.ItemAgg, 0, len(itemsMap))
+	for _, agg := range itemsMap {
+		result = append(result, agg)
 	}
-
-	return itemsList, nil
+	return result, nil
 }

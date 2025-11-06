@@ -19,7 +19,6 @@ type StoreUsecaseInterface interface {
 	GetStore(ctx context.Context, id string) (*domain.StoreAgg, error)
 	GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.StoreAgg, error)
 	CreateStore(ctx context.Context, name, description, cityID, address, cardImg, openAt, closedAt string, rating float64) error
-
 	GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error)
 	GetCities(ctx context.Context) ([]*domain.City, error)
 	GetTags(ctx context.Context) ([]*domain.StoreTag, error)
@@ -30,14 +29,14 @@ type StoreHandler struct {
 	rs *http_response.ResponseSender
 }
 
-func NewStoreHandler(uc StoreUsecaseInterface, log *logger.Logger) *StoreHandler {
+func NewStoreHandler(uc StoreUsecaseInterface, log logger.Logger) *StoreHandler {
 	return &StoreHandler{
 		uc: uc,
 		rs: http_response.NewResponseSender(log),
 	}
 }
 
-func NewStoreRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string, appLog *logger.Logger) {
+func NewStoreRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string, appLog logger.Logger) {
 	storeRepo := repository.NewStoreRepoPostgres(db, appLog)
 	storeUC := usecase.NewStoreUsecase(storeRepo)
 	storeHandler := NewStoreHandler(storeUC, appLog)
@@ -45,8 +44,6 @@ func NewStoreRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string
 	mux.HandleFunc(apiPrefix+"stores/{id}", storeHandler.GetStore)
 	mux.HandleFunc(apiPrefix+"stores", storeHandler.GetStores)
 	mux.HandleFunc(apiPrefix+"stores/{id}/reviews", storeHandler.GetStoreReview)
-	//mux.HandleFunc(apiPrefix+"stores", storeHandler.CreateStore)
-
 	mux.HandleFunc(apiPrefix+"stores/cities", storeHandler.GetCities)
 	mux.HandleFunc(apiPrefix+"stores/tags", storeHandler.GetTags)
 }
@@ -74,22 +71,9 @@ func (h *StoreHandler) CreateStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.rs.Send(r.Context(), w, http.StatusCreated, nil)
+	w.WriteHeader(http.StatusCreated)
 }
 
-// GetStore godoc
-// @Summary Получить магазин по ID
-// @Description Возвращает информацию о магазине по его UUID
-// @Tags stores
-// @Accept  json
-// @Produce  json
-// @Param id path string true "UUID магазина"
-// @Success 200 {object} transport.StoreResponse
-// @Failure 400 {object} http_response.ErrResponse "Некорректный ID"
-// @Failure 404 {object} http_response.ErrResponse "Магазин не найден"
-// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
-// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
-// @Router /stores/{id} [get]
 func (h *StoreHandler) GetStore(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "GetStore", domain.ErrHTTPMethod, nil)
@@ -116,19 +100,6 @@ func (h *StoreHandler) GetStore(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, responseStore)
 }
 
-// GetStores godoc
-// @Summary Получить список магазинов
-// @Description Возвращает список магазинов по фильтру
-// @Tags stores
-// @Accept  json
-// @Produce  json
-// @Param filter body domain.StoreFilter true "Фильтр для поиска магазинов"
-// @Success 200 {array} transport.StoreResponse
-// @Failure 400 {object} http_response.ErrResponse "Ошибка входных данных"
-// @Failure 404 {object} http_response.ErrResponse "Магазины не найдены"
-// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
-// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
-// @Router /stores [post]
 func (h *StoreHandler) GetStores(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "GetStores", domain.ErrHTTPMethod, nil)
@@ -158,19 +129,6 @@ func (h *StoreHandler) GetStores(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, responseStores)
 }
 
-// GetStoreReview godoc
-// @Summary Получить отзывы магазина
-// @Description Возвращает отзывы о магазине по его UUID
-// @Tags stores
-// @Accept  json
-// @Produce  json
-// @Param id path string true "UUID магазина"
-// @Success 200 {array} transport.StoreReview
-// @Failure 400 {object} http_response.ErrResponse "Некорректный ID"
-// @Failure 404 {object} http_response.ErrResponse "Магазин не найден"
-// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
-// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
-// @Router /stores/{id}/reviews [get]
 func (h *StoreHandler) GetStoreReview(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "GetStoreReview", domain.ErrHTTPMethod, nil)
@@ -197,17 +155,6 @@ func (h *StoreHandler) GetStoreReview(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, responseReview)
 }
 
-// GetCities godoc
-// @Summary      Получить список городов
-// @Description  Возвращает все доступные города
-// @Tags         store-cities
-// @Accept       json
-// @Produce      json
-// @Success      200  {array}   transport.CityResponse
-// @Failure      405  {object}  http_response.ErrResponse  "Метод не поддерживается"
-// @Failure      404  {object}  http_response.ErrResponse  "Города не найдены"
-// @Failure      500  {object}  http_response.ErrResponse  "Внутренняя ошибка сервера"
-// @Router       /stores/cities [get]
 func (h *StoreHandler) GetCities(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "GetCities", domain.ErrHTTPMethod, nil)
@@ -228,17 +175,6 @@ func (h *StoreHandler) GetCities(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, responseCities)
 }
 
-// GetTags godoc
-// @Summary      Получить список тегов
-// @Description  Возвращает все теги магазинов
-// @Tags         store-tags
-// @Accept       json
-// @Produce      json
-// @Success      200  {array}   transport.TagResponse
-// @Failure      405  {object}  http_response.ErrResponse  "Метод не поддерживается"
-// @Failure      404  {object}  http_response.ErrResponse  "Теги не найдены"
-// @Failure      500  {object}  http_response.ErrResponse  "Внутренняя ошибка сервера"
-// @Router       /stores/tags [get]
 func (h *StoreHandler) GetTags(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "GetTags", domain.ErrHTTPMethod, nil)

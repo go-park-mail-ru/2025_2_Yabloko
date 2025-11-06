@@ -11,38 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type OrderRepoPostgres struct {
-	db  PgxIface
-	log *logger.Logger
-}
-
-func NewOrderRepoPostgres(db PgxIface, log *logger.Logger) *OrderRepoPostgres {
-	return &OrderRepoPostgres{
-		db:  db,
-		log: log,
-	}
-}
-
 //go:embed sql/order/get_user_id.sql
 var getOrderUser string
-
-func (r *OrderRepoPostgres) GetOrderUserID(ctx context.Context, orderID string) (string, error) {
-	r.log.Debug(ctx, "GetOrderUserID начало обработки", map[string]interface{}{})
-
-	var userID string
-	err := r.db.QueryRow(ctx, getOrderUser, orderID).Scan(&userID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			r.log.Error(ctx, "GetOrderUserID заказ не существует", map[string]interface{}{"err": err, "id": orderID})
-			return "", domain.ErrRowsNotFound
-		}
-		r.log.Error(ctx, "GetOrderUserID ошибка выполнения запроса", map[string]interface{}{"err": err, "id": orderID})
-		return "", err
-	}
-
-	r.log.Debug(ctx, "GetOrderUserID завершено успешно", map[string]interface{}{})
-	return userID, nil
-}
 
 //go:embed sql/order/insert_empty.sql
 var insertEmptyOrder string
@@ -53,8 +23,62 @@ var insertItemOrder string
 //go:embed sql/order/update_total.sql
 var updateOrderTotal string
 
+//go:embed sql/order/update_status.sql
+var updateOrderStatus string
+
+//go:embed sql/order/get_order.sql
+var getOrder string
+
+//go:embed sql/order/get_user_orders.sql
+var getUserOrders string
+
+// Уже объявлено в cart_repo.go
+//
+//go:embed sql/cart/delete_items.sql
+var deleteCartItemsForOrder string
+
+type OrderRepoPostgres struct {
+	db  PgxIface
+	log logger.Logger
+}
+
+func NewOrderRepoPostgres(db PgxIface, log logger.Logger) *OrderRepoPostgres {
+	return &OrderRepoPostgres{
+		db:  db,
+		log: log,
+	}
+}
+
+func (r *OrderRepoPostgres) GetOrderUserID(ctx context.Context, orderID string) (string, error) {
+	r.log.Debug("GetOrderUserID начало обработки", map[string]interface{}{})
+
+	var userID string
+	err := r.db.QueryRow(ctx, getOrderUser, orderID).Scan(&userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			r.log.Warn("GetOrderUserID заказ не существует", map[string]interface{}{"err": err, "id": orderID})
+			return "", domain.ErrRowsNotFound
+		}
+		r.log.Error("GetOrderUserID ошибка выполнения запроса", map[string]interface{}{"err": err, "id": orderID})
+		return "", err
+	}
+
+	r.log.Debug("GetOrderUserID завершено успешно", map[string]interface{}{})
+	return userID, nil
+}
+
 func (r *OrderRepoPostgres) CreateOrder(ctx context.Context, userID string) (string, error) {
-	r.log.Debug(ctx, "CreateOrder начало обработки", map[string]interface{}{})
+	r.log.Debug("CreateOrder начало обработки", map[string]interface{}{})
+
+	// Проверка: есть ли товары в корзине?
+	var cnt int
+	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM cart_item WHERE user_id = $1", userID).Scan(&cnt)
+	if err != nil {
+		return "", err
+	}
+	if cnt == 0 {
+		return "", domain.ErrCartEmpty
+	}
 
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -62,76 +86,70 @@ func (r *OrderRepoPostgres) CreateOrder(ctx context.Context, userID string) (str
 	}
 	defer tx.Rollback(ctx)
 
-	// создаем пустую запись
+	// 1. Создаём заказ
 	orderID := uuid.New().String()
 	_, err = tx.Exec(ctx, insertEmptyOrder, orderID, userID)
 	if err != nil {
-		r.log.Error(ctx, "CreateOrder ошибка создания заказа", map[string]interface{}{"err": err, "id": userID})
+		r.log.Error("CreateOrder ошибка создания заказа", map[string]interface{}{"err": err, "id": userID})
 		return "", err
 	}
 
-	// переносим корзину
+	// 2. Переносим товары из корзины
 	_, err = tx.Exec(ctx, insertItemOrder, orderID, userID)
 	if err != nil {
-		r.log.Error(ctx, "CreateOrder ошибка переноса товаров", map[string]interface{}{"err": err, "id": userID})
+		r.log.Error("CreateOrder ошибка переноса товаров", map[string]interface{}{"err": err, "id": userID})
 		return "", err
 	}
 
-	// сумма заказа
-	_, err = tx.Exec(ctx, updateOrderTotal, userID)
+	// 3. Обновляем итоговую сумму
+	_, err = tx.Exec(ctx, updateOrderTotal, orderID)
 	if err != nil {
-		r.log.Error(ctx, "CreateOrder ошибка обновления суммы", map[string]interface{}{"err": err, "id": userID})
+		r.log.Error("CreateOrder ошибка обновления суммы", map[string]interface{}{"err": err, "id": userID})
 		return "", err
 	}
 
-	// очистка корзины
-	_, err = tx.Exec(ctx, deleteCartItems, userID)
+	// 4. Очищаем корзину
+	_, err = tx.Exec(ctx, deleteCartItemsForOrder, userID)
 	if err != nil {
-		r.log.Error(ctx, "CreateOrder ошибка удаления записи", map[string]interface{}{"err": err, "id": userID})
+		r.log.Error("CreateOrder ошибка удаления записи", map[string]interface{}{"err": err, "id": userID})
 		return "", err
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
-		r.log.Error(ctx, "CreateOrder ошибка закрытия транзакции", map[string]interface{}{"err": err, "id": userID})
+		r.log.Error("CreateOrder ошибка закрытия транзакции", map[string]interface{}{"err": err, "id": userID})
 		return "", domain.ErrInternalServer
 	}
 
-	r.log.Debug(ctx, "CreateOrder завершено успешно", map[string]interface{}{})
+	r.log.Debug("CreateOrder завершено успешно", map[string]interface{}{})
 	return orderID, nil
 }
 
-//go:embed sql/order/update_status.sql
-var updateOrderStatus string
+func (r *OrderRepoPostgres) UpdateOrderStatus(ctx context.Context, orderID, status string) error {
+	r.log.Debug("UpdateOrderStatus начало обработки", map[string]interface{}{})
 
-func (r *OrderRepoPostgres) UpdateOrderStatus(ctx context.Context, id, status string) error {
-	r.log.Debug(ctx, "UpdateOrderStatus начало обработки", map[string]interface{}{})
-
-	_, err := r.db.Exec(ctx, updateOrderStatus, id, status)
+	_, err := r.db.Exec(ctx, updateOrderStatus, orderID, status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			r.log.Warn(ctx, "UpdateOrderStatus заказ отсутствует",
-				map[string]interface{}{"err": err, "id": id, "status": status})
+			r.log.Warn("UpdateOrderStatus заказ отсутствует",
+				map[string]interface{}{"err": err, "id": orderID, "status": status})
 			return domain.ErrRowsNotFound
 		}
-		r.log.Error(ctx, "UpdateOrderStatus ошибка обновления статуса",
-			map[string]interface{}{"err": err, "id": id, "status": status})
+		r.log.Error("UpdateOrderStatus ошибка обновления статуса",
+			map[string]interface{}{"err": err, "id": orderID, "status": status})
 		return err
 	}
 
-	r.log.Debug(ctx, "UpdateOrderStatus завершено успешно", map[string]interface{}{})
+	r.log.Debug("UpdateOrderStatus завершено успешно", map[string]interface{}{})
 	return nil
 }
 
-//go:embed sql/order/get_order.sql
-var getOrder string
+func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*domain.OrderInfo, error) {
+	r.log.Debug("GetOrder начало обработки", map[string]interface{}{})
 
-func (r *OrderRepoPostgres) GetOrder(ctx context.Context, id string) (*domain.OrderInfo, error) {
-	r.log.Debug(ctx, "GetOrder начало обработки", map[string]interface{}{})
-
-	rows, err := r.db.Query(ctx, getOrder, id)
+	rows, err := r.db.Query(ctx, getOrder, orderID)
 	if err != nil {
-		r.log.Error(ctx, "GetOrder ошибка бд", map[string]interface{}{"err": err, "id": id})
+		r.log.Error("GetOrder ошибка бд", map[string]interface{}{"err": err, "id": orderID})
 		return nil, err
 	}
 	defer rows.Close()
@@ -152,39 +170,35 @@ func (r *OrderRepoPostgres) GetOrder(ctx context.Context, id string) (*domain.Or
 			&item.Quantity,
 		)
 		if err != nil {
-			r.log.Error(ctx, "GetOrder ошибка при декодировании данных",
+			r.log.Error("GetOrder ошибка при декодировании данных",
 				map[string]interface{}{"err": err, "rows": rows})
 			return nil, err
 		}
 		items = append(items, &item)
 	}
 
-	err = rows.Err()
-	if err != nil {
-		r.log.Error(ctx, "GetOrder ошибка после чтения строк",
-			map[string]interface{}{"err": err, "id": id})
+	if err = rows.Err(); err != nil {
+		r.log.Error("GetOrder ошибка после чтения строк",
+			map[string]interface{}{"err": err, "id": orderID})
 		return nil, err
 	}
 
 	if len(items) == 0 {
-		r.log.Warn(ctx, "GetOrder пустой ответ", map[string]interface{}{"id": id})
+		r.log.Warn("GetOrder пустой ответ", map[string]interface{}{"id": orderID})
 		return nil, domain.ErrRowsNotFound
 	}
 
 	order.Items = items
-	r.log.Debug(ctx, "GetOrder завершено успешно", map[string]interface{}{})
+	r.log.Debug("GetOrder завершено успешно", map[string]interface{}{})
 	return &order, nil
 }
 
-//go:embed sql/order/get_user_orders.sql
-var getUserOrders string
-
 func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, userID string) ([]*domain.Order, error) {
-	r.log.Debug(ctx, "GetOrdersUser начало обработки", map[string]interface{}{})
+	r.log.Debug("GetOrdersUser начало обработки", map[string]interface{}{})
 
 	rows, err := r.db.Query(ctx, getUserOrders, userID)
 	if err != nil {
-		r.log.Error(ctx, "GetOrdersUser ошибка бд", map[string]interface{}{"err": err, "id": userID})
+		r.log.Error("GetOrdersUser ошибка бд", map[string]interface{}{"err": err, "id": userID})
 		return nil, err
 	}
 	defer rows.Close()
@@ -199,16 +213,15 @@ func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, userID string) ([
 			&order.CreatedAt,
 		)
 		if err != nil {
-			r.log.Error(ctx, "GetOrdersUser ошибка при декодировании данных",
+			r.log.Error("GetOrdersUser ошибка при декодировании данных",
 				map[string]interface{}{"err": err, "rows": rows})
 			return nil, err
 		}
 		orders = append(orders, &order)
 	}
 
-	err = rows.Err()
-	if err != nil {
-		r.log.Error(ctx, "GetOrdersUser ошибка после чтения строк",
+	if err = rows.Err(); err != nil {
+		r.log.Error("GetOrdersUser ошибка после чтения строк",
 			map[string]interface{}{"err": err, "id": userID})
 		return nil, err
 	}
@@ -217,6 +230,6 @@ func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, userID string) ([
 		return nil, domain.ErrRowsNotFound
 	}
 
-	r.log.Debug(ctx, "GetOrdersUser завершено успешно", map[string]interface{}{})
+	r.log.Debug("GetOrdersUser завершено успешно", map[string]interface{}{})
 	return orders, nil
 }
