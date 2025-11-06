@@ -28,9 +28,9 @@ func MustConfig() *Config {
 		DBHost:     os.Getenv("DB_HOST"),
 		DBPort:     os.Getenv("DB_PORT"),
 		DBName:     os.Getenv("DB_NAME"),
-		AppPort:    os.Getenv("STORE_PORT"),
+		AppPort:    os.Getenv("STORE_SERVICE_PORT"),
 		JWTSecret:  os.Getenv("SECRET_KEY"),
-		ImageDir:   os.Getenv("IMAGE_PATH"),
+		ImageDir:   os.Getenv("UPLOAD_DIR"),
 	}
 
 	if err := validator.New().Struct(conf); err != nil {
