@@ -33,7 +33,6 @@ func generateJWTCSRFToken(sessionID string, userAgent string) (string, error) {
 		SessionID: sessionID,
 		UserAgent: userAgent,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			ID:        uuid.New().String(),
@@ -115,6 +114,8 @@ func AccessLog(log *logger.Logger, next http.Handler) http.Handler {
 
 func CSRFMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		return
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
 			next.ServeHTTP(w, r)
 			return

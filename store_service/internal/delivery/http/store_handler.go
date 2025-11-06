@@ -130,18 +130,18 @@ func (h *StoreHandler) GetStore(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
 // @Router /stores [post]
 func (h *StoreHandler) GetStores(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodGet {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "GetStores", domain.ErrHTTPMethod, nil)
 		return
 	}
 
-	req := &domain.StoreFilter{}
-	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
-		h.rs.Error(r.Context(), w, http.StatusBadRequest, "GetStores", domain.ErrRequestParams, nil)
-		return
-	}
+	// req := &domain.StoreFilter{}
+	// if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+	// 	h.rs.Error(r.Context(), w, http.StatusBadRequest, "GetStores", domain.ErrRequestParams, nil)
+	// 	return
+	// }
 
-	stores, err := h.uc.GetStores(r.Context(), req)
+	stores, err := h.uc.GetStores(r.Context(), nil)
 	if err != nil {
 		if errors.Is(err, domain.ErrRowsNotFound) {
 			h.rs.Error(r.Context(), w, http.StatusNotFound, "GetStores", domain.ErrRowsNotFound, nil)
