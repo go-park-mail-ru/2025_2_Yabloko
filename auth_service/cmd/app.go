@@ -33,6 +33,7 @@ func Run(appLog, accessLog logger.Logger) {
 
 	repo := repository.NewAuthRepoPostgres(dbPool)
 	uc := usecase.NewAuthUseCase(repo, conf.SecretKeyStr())
+	h := authhttp.NewAuthHandler(uc, appLog)
 
 	publicMux := http.NewServeMux()
 	authhttp.NewAuthRouter(publicMux, "/api/v0", appLog, uc)
