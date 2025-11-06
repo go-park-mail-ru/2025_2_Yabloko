@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,15 +49,16 @@ func (s *ProfileRepoPostgresTestSuite) TestGetProfile_Success() {
 		Phone:     stringPtr("+123456789"),
 		CityID:    stringPtr("city-123"),
 		Address:   stringPtr("Test Address"),
+		AvatarURL: nil,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
 	rows := s.mock.NewRows([]string{
-		"id", "email", "name", "phone", "city_id", "address", "created_at", "updated_at",
+		"id", "email", "name", "phone", "city_id", "address", "avatar_url", "created_at", "updated_at", // добавлен avatar_url
 	}).AddRow(
 		expectedProfile.ID, expectedProfile.Email, expectedProfile.Name, expectedProfile.Phone,
-		expectedProfile.CityID, expectedProfile.Address, expectedProfile.CreatedAt, expectedProfile.UpdatedAt,
+		expectedProfile.CityID, expectedProfile.Address, nil, expectedProfile.CreatedAt, expectedProfile.UpdatedAt, // avatar_url = nil
 	)
 
 	s.mock.ExpectQuery(regexp.QuoteMeta(selectProfileSQL)).
@@ -81,14 +81,15 @@ func (s *ProfileRepoPostgresTestSuite) TestGetProfile_SuccessWithNullFields() {
 		Phone:     nil,
 		CityID:    nil,
 		Address:   nil,
+		AvatarURL: nil,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
 	rows := s.mock.NewRows([]string{
-		"id", "email", "name", "phone", "city_id", "address", "created_at", "updated_at",
+		"id", "email", "name", "phone", "city_id", "address", "avatar_url", "created_at", "updated_at",
 	}).AddRow(
-		expectedProfile.ID, expectedProfile.Email, nil, nil, nil, nil, expectedProfile.CreatedAt, expectedProfile.UpdatedAt,
+		expectedProfile.ID, expectedProfile.Email, nil, nil, nil, nil, nil, expectedProfile.CreatedAt, expectedProfile.UpdatedAt,
 	)
 
 	s.mock.ExpectQuery(regexp.QuoteMeta(selectProfileSQL)).
@@ -148,10 +149,10 @@ func (s *ProfileRepoPostgresTestSuite) TestGetProfile_ScanError() {
 	profileID := "550e8400-e29b-41d4-a716-446655440000"
 
 	rows := s.mock.NewRows([]string{
-		"id", "email", "name", "phone", "city_id", "address", "created_at", "updated_at",
+		"id", "email", "name", "phone", "city_id", "address", "avatar_url", "created_at", "updated_at",
 	}).AddRow(
 		profileID, "test@example.com", "John", "+123456789", "city-1", "Addr 1",
-		"not-a-time", "not-a-time",
+		nil, "not-a-time", "not-a-time",
 	)
 
 	s.mock.ExpectQuery(regexp.QuoteMeta(selectProfileSQL)).
@@ -366,85 +367,6 @@ func (s *ProfileRepoPostgresTestSuite) TestDeleteProfile_DatabaseError() {
 	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
 }
 
-func (s *ProfileRepoPostgresTestSuite) TestCreateProfile_Success() {
-	profile := &domain.Profile{
-		ID:           "550e8400-e29b-41d4-a716-446655440000",
-		Email:        "newuser@example.com",
-		PasswordHash: "hashedpassword123",
-	}
-
-	s.mock.ExpectExec(`INSERT INTO account \(id, email, password_hash\) VALUES \(\$1, \$2, \$3\)`).
-		WithArgs(profile.ID, profile.Email, profile.PasswordHash).
-		WillReturnResult(pgxmock.NewResult("INSERT", 1))
-
-	err := s.repo.CreateProfile(context.Background(), profile)
-
-	assert.NoError(s.T(), err)
-	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
-}
-
-func (s *ProfileRepoPostgresTestSuite) TestCreateProfile_DuplicateEmail() {
-	profile := &domain.Profile{
-		ID:           "550e8400-e29b-41d4-a716-446655440000",
-		Email:        "existing@example.com",
-		PasswordHash: "hashedpassword123",
-	}
-
-	pgErr := &pgconn.PgError{
-		Code:    "23505",
-		Message: "duplicate key value violates unique constraint \"account_email_key\"",
-	}
-
-	s.mock.ExpectExec(`INSERT INTO account \(id, email, password_hash\) VALUES \(\$1, \$2, \$3\)`).
-		WithArgs(profile.ID, profile.Email, profile.PasswordHash).
-		WillReturnError(pgErr)
-
-	err := s.repo.CreateProfile(context.Background(), profile)
-
-	assert.ErrorIs(s.T(), err, domain.ErrProfileExist)
-	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
-}
-
-func (s *ProfileRepoPostgresTestSuite) TestCreateProfile_DatabaseError() {
-	profile := &domain.Profile{
-		ID:           "550e8400-e29b-41d4-a716-446655440000",
-		Email:        "newuser@example.com",
-		PasswordHash: "hashedpassword123",
-	}
-	dbError := errors.New("database error")
-
-	s.mock.ExpectExec(`INSERT INTO account \(id, email, password_hash\) VALUES \(\$1, \$2, \$3\)`).
-		WithArgs(profile.ID, profile.Email, profile.PasswordHash).
-		WillReturnError(dbError)
-
-	err := s.repo.CreateProfile(context.Background(), profile)
-
-	assert.Error(s.T(), err)
-	assert.Contains(s.T(), err.Error(), "database error")
-	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
-}
-
-func (s *ProfileRepoPostgresTestSuite) TestCreateProfile_PgErrorOtherThan23505() {
-	profile := &domain.Profile{
-		ID:           "id-001",
-		Email:        "user@example.com",
-		PasswordHash: "hash123",
-	}
-	pgErr := &pgconn.PgError{
-		Code:    "12345",
-		Message: "some other pg error",
-	}
-
-	s.mock.ExpectExec(`INSERT INTO account \(id, email, password_hash\) VALUES \(\$1, \$2, \$3\)`).
-		WithArgs(profile.ID, profile.Email, profile.PasswordHash).
-		WillReturnError(pgErr)
-
-	err := s.repo.CreateProfile(context.Background(), profile)
-	require.Error(s.T(), err)
-	require.Equal(s.T(), pgErr, err)
-	require.NoError(s.T(), s.mock.ExpectationsWereMet())
-}
-
 func (s *ProfileRepoPostgresTestSuite) TestAllMethods_ContextCancelled() {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -460,7 +382,6 @@ func (s *ProfileRepoPostgresTestSuite) TestAllMethods_ContextCancelled() {
 		WithArgs(profile.Name, profile.Phone, profile.CityID, profile.Address, profile.AvatarURL, profile.ID).
 		WillReturnError(context.Canceled)
 	s.mock.ExpectExec(`DELETE.*`).WithArgs(profileID).WillReturnError(context.Canceled)
-	s.mock.ExpectExec(`INSERT.*`).WithArgs(profile.ID, profile.Email, profile.PasswordHash).WillReturnError(context.Canceled)
 
 	_, err := s.repo.GetProfile(ctx, profileID)
 	assert.ErrorIs(s.T(), err, context.Canceled)
@@ -471,7 +392,6 @@ func (s *ProfileRepoPostgresTestSuite) TestAllMethods_ContextCancelled() {
 	err = s.repo.DeleteProfile(ctx, profileID)
 	assert.ErrorIs(s.T(), err, context.Canceled)
 
-	err = s.repo.CreateProfile(ctx, profile)
 	assert.ErrorIs(s.T(), err, context.Canceled)
 
 	assert.NoError(s.T(), s.mock.ExpectationsWereMet())
@@ -483,13 +403,14 @@ func (s *ProfileRepoPostgresTestSuite) TestGetProfile_PartialNullMix() {
 	updated := time.Now()
 
 	rows := s.mock.NewRows([]string{
-		"id", "email", "name", "phone", "city_id", "address", "created_at", "updated_at",
+		"id", "email", "name", "phone", "city_id", "address", "avatar_url", "created_at", "updated_at", // добавлен avatar_url
 	}).AddRow(
 		profileID,
 		"mix@example.com",
 		"John Mix",
 		nil,
 		"city-mix",
+		nil,
 		nil,
 		created,
 		updated,
@@ -518,7 +439,7 @@ func (s *ProfileRepoPostgresTestSuite) TestGetProfile_NoRowsResult() {
 	profileID := "550e8400-e29b-41d4-a716-446655440000"
 
 	rows := s.mock.NewRows([]string{
-		"id", "email", "name", "phone", "city_id", "address", "created_at", "updated_at",
+		"id", "email", "name", "phone", "city_id", "address", "avatar_url", "created_at", "updated_at", // добавлен avatar_url
 	})
 	s.mock.ExpectQuery(regexp.QuoteMeta(selectProfileSQL)).
 		WithArgs(profileID).
@@ -534,9 +455,9 @@ func (s *ProfileRepoPostgresTestSuite) TestGetProfile_RowError() {
 	profileID := "550e8400-e29b-41d4-a716-446655440000"
 
 	rows := s.mock.NewRows([]string{
-		"id", "email", "name", "phone", "city_id", "address", "created_at", "updated_at",
+		"id", "email", "name", "phone", "city_id", "address", "avatar_url", "created_at", "updated_at",
 	}).AddRow(
-		profileID, "test@example.com", "John", nil, nil, nil, time.Now(), time.Now(),
+		profileID, "test@example.com", "John", nil, nil, nil, nil, time.Now(), time.Now(),
 	)
 	rows.RowError(0, errors.New("row error"))
 
@@ -687,7 +608,7 @@ func (s *ProfileRepoPostgresTestSuite) TestGetProfile_QueryError() {
 }
 
 const (
-	selectProfileSQL = `SELECT id, email, name, phone, city_id, address, created_at, updated_at FROM account WHERE id = $1`
+	selectProfileSQL = `SELECT id, email, name, phone, city_id, address, avatar_url, created_at, updated_at FROM account WHERE id = $1` // добавлен avatar_url
 	updateProfileSQL = `
 		UPDATE account
 		SET name = $1,

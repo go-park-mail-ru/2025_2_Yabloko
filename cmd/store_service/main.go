@@ -6,6 +6,11 @@ import (
 	"log/slog"
 )
 
+// @title Store Service API
+// @version 1.0
+// @description Store Service
+// @host localhost:8083
+// @BasePath /api/v0
 func main() {
 	accessLog := logger.NewLogger("../../logs/access.log", slog.LevelDebug)
 	appLog := logger.NewLogger("../../logs/app.log", slog.LevelDebug)

@@ -9,9 +9,7 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func stringPtr(s string) *string { return &s }
@@ -99,128 +97,6 @@ func TestProfileUsecase_GetProfile(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, tt.expectedResult, result)
-		})
-	}
-}
-
-func TestProfileUsecase_CreateProfile(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockRepo := mock.NewMockProfileRepository(ctrl)
-	uc := NewProfileUsecase(mockRepo)
-
-	tests := []struct {
-		name        string
-		email       string
-		password    string
-		setupMock   func(t *testing.T, email, pass string)
-		expectError bool
-		errorType   error
-	}{
-		{
-			name:     "Успешное создание профиля",
-			email:    "newuser@example.com",
-			password: "StrongPass123",
-			setupMock: func(t *testing.T, email, pass string) {
-				mockRepo.EXPECT().
-					CreateProfile(gomock.Any(), gomock.AssignableToTypeOf(&domain.Profile{})).
-					DoAndReturn(func(ctx context.Context, p *domain.Profile) error {
-						require.Equal(t, strings.TrimSpace(email), p.Email)
-						require.NotEmpty(t, p.ID)
-						_, err := uuid.Parse(p.ID)
-						require.NoError(t, err)
-						require.NoError(t, bcrypt.CompareHashAndPassword([]byte(p.PasswordHash), []byte(pass)))
-						return nil
-					})
-			},
-			expectError: false,
-		},
-		{
-			name:     "Email с пробелами, триммим",
-			email:    "  test@example.com  ",
-			password: "StrongPass123",
-			setupMock: func(t *testing.T, email, pass string) {
-				mockRepo.EXPECT().
-					CreateProfile(gomock.Any(), gomock.AssignableToTypeOf(&domain.Profile{})).
-					DoAndReturn(func(ctx context.Context, p *domain.Profile) error {
-						require.Equal(t, "test@example.com", p.Email)
-						require.NoError(t, bcrypt.CompareHashAndPassword([]byte(p.PasswordHash), []byte(pass)))
-						return nil
-					})
-			},
-			expectError: false,
-		},
-		{
-			name:        "Пустой email",
-			email:       "",
-			password:    "StrongPass123",
-			setupMock:   func(t *testing.T, email, pass string) {},
-			expectError: true,
-			errorType:   domain.ErrInvalidProfileData,
-		},
-		{
-			name:        "Пустой пароль",
-			email:       "test@example.com",
-			password:    "",
-			setupMock:   func(t *testing.T, email, pass string) {},
-			expectError: true,
-			errorType:   domain.ErrInvalidProfileData,
-		},
-		{
-			name:        "Невалидный email (без @)",
-			email:       "invalid-email",
-			password:    "StrongPass123",
-			setupMock:   func(t *testing.T, email, pass string) {},
-			expectError: true,
-			errorType:   domain.ErrInvalidProfileData,
-		},
-		{
-			name:        "Пароль слишком короткий",
-			email:       "test@example.com",
-			password:    "1234567",
-			setupMock:   func(t *testing.T, email, pass string) {},
-			expectError: true,
-			errorType:   domain.ErrInvalidProfileData,
-		},
-		{
-			name:        "Пароль слишком длинный",
-			email:       "test@example.com",
-			password:    strings.Repeat("p", 73),
-			setupMock:   func(t *testing.T, email, pass string) {},
-			expectError: true,
-			errorType:   domain.ErrInvalidProfileData,
-		},
-		{
-			name:     "Ошибка репозитория",
-			email:    "test@example.com",
-			password: "StrongPass123",
-			setupMock: func(t *testing.T, email, pass string) {
-				mockRepo.EXPECT().
-					CreateProfile(gomock.Any(), gomock.Any()).
-					Return(errors.New("database error"))
-			},
-			expectError: true,
-			errorType:   errors.New("database error"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock(t, tt.email, tt.password)
-
-			id, err := uc.CreateProfile(context.Background(), tt.email, tt.password)
-
-			if tt.expectError {
-				require.Error(t, err)
-				if tt.errorType != nil {
-					require.Equal(t, tt.errorType, err)
-				}
-				require.Empty(t, id)
-			} else {
-				require.NoError(t, err)
-				require.NotEmpty(t, id)
-			}
 		})
 	}
 }

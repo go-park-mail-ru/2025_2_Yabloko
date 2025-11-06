@@ -3,6 +3,7 @@ package http
 import (
 	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
+	"apple_backend/profile_service/internal/delivery/middlewares"
 	"apple_backend/profile_service/internal/domain"
 	"context"
 	"errors"
@@ -21,7 +22,7 @@ type AvatarHandler struct {
 	rs       *http_response.ResponseSender
 }
 
-func NewAvatarHandler(avatarUC AvatarUsecaseInterface, log *logger.Logger) *AvatarHandler {
+func NewAvatarHandler(avatarUC AvatarUsecaseInterface, log logger.Logger) *AvatarHandler {
 	return &AvatarHandler{
 		avatarUC: avatarUC,
 		rs:       http_response.NewResponseSender(log),
@@ -48,7 +49,6 @@ func (h *AvatarHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// поддержка .../avatar и .../avatar/
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.Split(path, "/")
 	if len(parts) < 3 || parts[len(parts)-1] != "avatar" {
@@ -56,6 +56,21 @@ func (h *AvatarHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := parts[len(parts)-2]
+
+	subject, ok := middlewares.UserIDFromContext(r.Context())
+	if !ok || subject == "" {
+		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "UploadAvatar", domain.ErrUnauthorized, nil)
+		return
+	}
+
+	if userID == "me" {
+		userID = subject
+	}
+
+	if subject != userID {
+		h.rs.Error(r.Context(), w, http.StatusForbidden, "UploadAvatar", domain.ErrForbidden, nil)
+		return
+	}
 
 	const maxUpload = 10 << 20 // 10 MiB
 	r.Body = http.MaxBytesReader(w, r.Body, maxUpload)

@@ -1,76 +1,68 @@
 package logger
 
 import (
-	"apple_backend/pkg/trace"
 	"context"
-	"io"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
+	"time"
 )
 
-type Logger struct {
-	logger *slog.Logger
-}
+type Logger = *slog.Logger
 
-func NewLogger(logPath string, level slog.Level) *Logger {
-	dir, _ := filepath.Split(logPath)
-	err := os.MkdirAll(dir, os.ModePerm)
-	if err != nil {
-		slog.Error("Не удалось создать директорию для %s: %s", logPath, err)
-	}
-
-	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		slog.Error("Не удалось создать лог файл %s: %s", logPath, err)
-	}
-
-	handler := slog.NewTextHandler(
-		file,
-		&slog.HandlerOptions{Level: level},
+func NewLogger(logPath string, level slog.Level) Logger {
+	var (
+		logger *slog.Logger
 	)
 
-	return &Logger{
-		logger: slog.New(handler),
+	logger = newLogger(slog.LevelInfo)
+
+	return logger
+}
+
+type DevJSONHandler struct {
+	writer *os.File
+	level  slog.Level
+}
+
+func (h *DevJSONHandler) WithAttrs(_ []slog.Attr) slog.Handler {
+	return h
+}
+
+func (h *DevJSONHandler) WithGroup(_ string) slog.Handler {
+	return h
+}
+
+func (h *DevJSONHandler) Enabled(_ context.Context, level slog.Level) bool {
+	return level >= h.level
+}
+
+func (h *DevJSONHandler) Handle(_ context.Context, r slog.Record) error {
+	data := map[string]interface{}{
+		"time":    r.Time.Format(time.RFC3339),
+		"level":   r.Level.String(),
+		"message": r.Message,
 	}
-}
 
-func NewNilLogger() *Logger {
-	handler := slog.NewTextHandler(
-		io.Discard,
-		&slog.HandlerOptions{Level: slog.LevelError},
-	)
+	r.Attrs(func(a slog.Attr) bool {
+		data[a.Key] = a.Value.Any()
+		return true
+	})
 
-	return &Logger{
-		logger: slog.New(handler),
+	jsonData, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
 	}
+
+	_, _ = fmt.Fprintf(h.writer, "%s", jsonData)
+
+	return nil
 }
 
-func (l *Logger) log(ctx context.Context, level slog.Level, msg string, meta map[string]interface{}) {
-	attrs := []slog.Attr{}
-	if ctx != nil {
-		if reqID := trace.GetRequestID(ctx); reqID != "" {
-			attrs = append(attrs, slog.String("request_id", reqID))
-		}
-	}
-	for k, v := range meta {
-		attrs = append(attrs, slog.Any(k, v))
-	}
-	l.logger.LogAttrs(ctx, level, msg, attrs...)
-}
-
-func (l *Logger) Error(ctx context.Context, message string, meta map[string]interface{}) {
-	l.log(ctx, slog.LevelError, message, meta)
-}
-
-func (l *Logger) Warn(ctx context.Context, message string, meta map[string]interface{}) {
-	l.log(ctx, slog.LevelWarn, message, meta)
-}
-
-func (l *Logger) Info(ctx context.Context, message string, meta map[string]interface{}) {
-	l.log(ctx, slog.LevelInfo, message, meta)
-}
-
-func (l *Logger) Debug(ctx context.Context, message string, meta map[string]interface{}) {
-	l.log(ctx, slog.LevelDebug, message, meta)
+func newLogger(level slog.Level) *slog.Logger {
+	return slog.New(&DevJSONHandler{
+		writer: os.Stdout,
+		level:  level,
+	})
 }

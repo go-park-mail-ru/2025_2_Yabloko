@@ -8,7 +8,6 @@ import (
 
 type ProfileRepository interface {
 	GetProfile(ctx context.Context, id string) (*domain.Profile, error)
-	CreateProfile(ctx context.Context, profile *domain.Profile) error
 	UpdateProfile(ctx context.Context, profile *domain.Profile) error
 	DeleteProfile(ctx context.Context, id string) error
 }

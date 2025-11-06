@@ -12,7 +12,7 @@ type Config struct {
 	DBPort     string
 	DBName     string
 	AppPort    string
-
+	JWTSecret  string
 	UploadPath string // локальная папка для аватарок
 	BaseURL    string // базовый публичный url для файлов
 }
@@ -23,7 +23,7 @@ func LoadConfig() *Config {
 		dbHost = "db"
 	}
 
-	uploadPath := os.Getenv("UPLOAD_PATH")
+	uploadPath := os.Getenv("UPLOAD_DIR")
 	if uploadPath == "" {
 		uploadPath = "uploads"
 	}
@@ -34,12 +34,13 @@ func LoadConfig() *Config {
 	}
 
 	return &Config{
-		DBUser:     os.Getenv("POSTGRES_USER"),
-		DBPassword: os.Getenv("POSTGRES_PASSWORD"),
+		DBUser:     os.Getenv("DB_USER"),
+		DBPassword: os.Getenv("DB_PASSWORD"),
 		DBHost:     dbHost,
-		DBPort:     os.Getenv("POSTGRES_PORT"),
+		DBPort:     os.Getenv("DB_PORT"),
 		DBName:     os.Getenv("DB_NAME"),
-		AppPort:    os.Getenv("PROFILE_PORT"),
+		AppPort:    os.Getenv("PROFILE_SERVICE_PORT"),
+		JWTSecret:  os.Getenv("SECRET_KEY"),
 		UploadPath: uploadPath,
 		BaseURL:    baseURL,
 	}
