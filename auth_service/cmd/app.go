@@ -33,26 +33,18 @@ func Run(appLog, accessLog logger.Logger) {
 
 	repo := repository.NewAuthRepoPostgres(dbPool)
 	uc := usecase.NewAuthUseCase(repo, conf.SecretKeyStr())
-	h := authhttp.NewAuthHandler(uc, appLog)
 
 	mainMux := http.NewServeMux()
 
 	authhttp.NewAuthRouter(mainMux, "/api/v0", appLog, uc)
 
-	// Правильный порядок middleware:
-	// 1. CORS
-	// 2. Access Log
-	// 3. CSRF Token (устанавливает сессию и CSRF токен)
-	// 4. Остальная логика
 	handler := authmw.CorsMiddleware(
 		authmw.AccessLog(accessLog,
-			authmw.CSRFTokenMiddleware(
-				mainMux,
-			),
+			authmw.SessionMiddleware(mainMux), // ← только session_id
 		),
 	)
 
 	addr := fmt.Sprintf("0.0.0.0:%s", conf.AppPortStr())
-	log.Println(fmt.Sprintf("Auth service running on %s", conf.AppPortStr()))
+	log.Println("Auth service running on", addr)
 	log.Fatal(http.ListenAndServe(addr, handler))
 }

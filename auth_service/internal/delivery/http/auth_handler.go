@@ -1,7 +1,8 @@
 package http
 
 import (
-	authmw "apple_backend/auth_service/internal/delivery/middlewares" // добавлено
+	"apple_backend/auth_service/internal/delivery/middlewares"
+	authmw "apple_backend/auth_service/internal/delivery/middlewares"
 	"apple_backend/auth_service/internal/delivery/transport"
 	"apple_backend/auth_service/internal/domain"
 	"apple_backend/pkg/http_response"
@@ -89,7 +90,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req transport.RegisterRequest
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -213,43 +214,38 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, map[string]string{"message": "logged out"})
 }
 
+func (h *AuthHandler) GetCSRF(w http.ResponseWriter, r *http.Request) {
+	sessionCookie, err := r.Cookie("session_id")
+	if err != nil {
+		http.Error(w, "Session required", http.StatusForbidden)
+		return
+	}
+
+	token, err := middlewares.GenerateJWTCSRFToken(sessionCookie.Value, r.UserAgent())
+	if err != nil {
+		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "GetCSRF", domain.ErrInternalServer, err)
+		return
+	}
+
+	h.rs.Send(r.Context(), w, http.StatusOK, map[string]string{
+		"csrf_token": token,
+	})
+}
+
 func NewAuthRouter(mux *http.ServeMux, apiPrefix string, appLog logger.Logger, uc AuthUseCaseInterface) {
 	h := NewAuthHandler(uc, appLog)
-
 	base := strings.TrimRight(apiPrefix, "/") + "/auth"
 
-	// Публичные маршруты (без CSRF)
-	mux.Handle(base+"/signup",
-		authmw.RateLimit(5, time.Minute)(
-			http.HandlerFunc(h.Register),
-		),
-	)
-	mux.Handle(base+"/login",
-		authmw.RateLimit(10, time.Minute)(
-			http.HandlerFunc(h.Login),
-		),
-	)
+	// Все мутирующие операции — с CSRFMiddleware
+	mux.Handle(base+"/signup", authmw.CSRFMiddleware(
+		authmw.RateLimit(5, time.Minute)(http.HandlerFunc(h.Register)),
+	))
+	mux.Handle(base+"/login", authmw.CSRFMiddleware(
+		authmw.RateLimit(10, time.Minute)(http.HandlerFunc(h.Login)),
+	))
+	mux.Handle(base+"/refresh", authmw.CSRFMiddleware(http.HandlerFunc(h.RefreshToken)))
+	mux.Handle(base+"/logout", authmw.CSRFMiddleware(http.HandlerFunc(h.Logout)))
 
-	// Защищенные маршруты (с CSRF)
-	mux.Handle(base+"/refresh",
-		authmw.CSRFMiddleware(
-			http.HandlerFunc(h.RefreshToken),
-		),
-	)
-	mux.Handle(base+"/logout",
-		authmw.CSRFMiddleware(
-			http.HandlerFunc(h.Logout),
-		),
-	)
-
-	// CSRF endpoint
-	mux.Handle(apiPrefix+"/csrf",
-		authmw.CSRFTokenMiddleware(
-			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				h.rs.Send(r.Context(), w, http.StatusOK, map[string]string{
-					"message": "CSRF token set in cookies",
-				})
-			}),
-		),
-	)
+	// CSRF — отдельный эндпоинт, без middleware (SessionMiddleware уже отработал выше)
+	mux.Handle(apiPrefix+"/csrf", http.HandlerFunc(h.GetCSRF))
 }

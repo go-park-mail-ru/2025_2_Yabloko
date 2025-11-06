@@ -31,7 +31,7 @@ type CSRFClaims struct {
 	jwt.RegisteredClaims
 }
 
-func generateJWTCSRFToken(sessionID string, userAgent string) (string, error) {
+func GenerateJWTCSRFToken(sessionID string, userAgent string) (string, error) {
 	claims := CSRFClaims{
 		SessionID: sessionID,
 		UserAgent: userAgent,
@@ -72,6 +72,7 @@ func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
 }
+
 func (w *statusWriter) Write(b []byte) (int, error) {
 	if w.status == 0 {
 		w.status = http.StatusOK
@@ -94,15 +95,36 @@ func AccessLog(log logger.Logger, next http.Handler) http.Handler {
 		sw := &statusWriter{ResponseWriter: w}
 		start := time.Now()
 
-		log.Info("request started", slog.String("method", r.Method), slog.String("url", r.URL.Path))
+		log.Info("request started",
+			slog.String("method", r.Method),
+			slog.String("url", r.URL.Path),
+		)
 		next.ServeHTTP(sw, r)
 		log.Info("request completed",
 			slog.String("method", r.Method),
 			slog.String("url", r.URL.Path),
-			slog.String("url", r.URL.Path),
-			slog.Any("status", sw.status),
-			slog.Any("bytes", sw.bytes),
-			slog.Any("duration_ms", time.Since(start).Milliseconds()))
+			slog.Int("status", sw.status),
+			slog.Int("bytes", sw.bytes),
+			slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+		)
+	})
+}
+
+func SessionMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := r.Cookie("session_id"); err != nil {
+			sessionID := uuid.New().String()
+			http.SetCookie(w, &http.Cookie{
+				Name:     "session_id",
+				Value:    sessionID,
+				Path:     "/",
+				HttpOnly: true,
+				Secure:   strings.EqualFold(os.Getenv("COOKIE_SECURE"), "true"),
+				SameSite: http.SameSiteLaxMode,
+				MaxAge:   86400,
+			})
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -112,58 +134,24 @@ func CSRFMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		clientToken := r.Header.Get("X-CSRF-Token")
-		if clientToken == "" {
-			http.Error(w, "CSRF token required", http.StatusForbidden)
-			return
-		}
+
 		sessionCookie, err := r.Cookie("session_id")
 		if err != nil {
 			http.Error(w, "Session required", http.StatusForbidden)
 			return
 		}
-		if !verifyJWTCSRFToken(clientToken, sessionCookie.Value, r.UserAgent()) {
-			http.Error(w, "Invalid CSRF token", http.StatusForbidden)
+
+		clientToken := r.Header.Get("X-CSRF-Token")
+		if clientToken == "" {
+			http.Error(w, "CSRF token required in X-CSRF-Token header", http.StatusForbidden)
 			return
 		}
-		next.ServeHTTP(w, r)
-	})
-}
 
-func CSRFTokenMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sessionCookie, err := r.Cookie("session_id")
-		var sessionID string
-		if err != nil {
-			sessionID = uuid.New().String()
-			http.SetCookie(w, &http.Cookie{
-				Name:     "session_id",
-				Value:    sessionID,
-				Path:     "/",
-				HttpOnly: true,
-				Secure:   false,
-				SameSite: http.SameSiteLaxMode,
-				MaxAge:   86400,
-			})
-		} else {
-			sessionID = sessionCookie.Value
+		if !verifyJWTCSRFToken(clientToken, sessionCookie.Value, r.UserAgent()) {
+			http.Error(w, "Invalid or expired CSRF token", http.StatusForbidden)
+			return
 		}
-		if _, err := r.Cookie("csrf_token"); err != nil {
-			csrfToken, err := generateJWTCSRFToken(sessionID, r.UserAgent())
-			if err != nil {
-				http.Error(w, "Failed to generate CSRF token", http.StatusInternalServerError)
-				return
-			}
-			http.SetCookie(w, &http.Cookie{
-				Name:     "csrf_token",
-				Value:    csrfToken,
-				Path:     "/",
-				HttpOnly: false,
-				Secure:   false,
-				SameSite: http.SameSiteLaxMode,
-				MaxAge:   86400,
-			})
-		}
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -204,7 +192,6 @@ func parseAllowedOrigins(v string) map[string]bool {
 	return m
 }
 
-// Простой rate limit по IP: N запросов за window
 func RateLimit(max int, window time.Duration) func(http.Handler) http.Handler {
 	type bucket struct {
 		tokens int
