@@ -11,4 +11,5 @@ var (
 
 	ErrRowsNotFound = errors.New("не найдено записей")
 	ErrStoreExist   = errors.New("магазин уже существует")
+	ErrCartEmpty    = errors.New("карточка пустая")
 )

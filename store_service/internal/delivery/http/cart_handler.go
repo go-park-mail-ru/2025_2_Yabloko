@@ -28,7 +28,7 @@ type CartHandler struct {
 	validator *validator.Validate
 }
 
-func NewCartHandler(uc CartUsecaseInterface, log *logger.Logger) *CartHandler {
+func NewCartHandler(uc CartUsecaseInterface, log logger.Logger) *CartHandler {
 	return &CartHandler{
 		uc:        uc,
 		rs:        http_response.NewResponseSender(log),
@@ -36,7 +36,7 @@ func NewCartHandler(uc CartUsecaseInterface, log *logger.Logger) *CartHandler {
 	}
 }
 
-func NewCartRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string, appLog *logger.Logger) {
+func NewCartRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string, appLog logger.Logger) {
 	cartRepo := repository.NewCartRepoPostgres(db, appLog)
 	cartUC := usecase.NewCartUsecase(cartRepo)
 	cartHandler := NewCartHandler(cartUC, appLog)
@@ -54,18 +54,6 @@ func NewCartRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string,
 	})
 }
 
-// GetCart godoc
-// @Summary      Получить корзину пользователя
-// @Description  Возвращает корзину с товарами
-// @Tags         cart
-// @Accept       json
-// @Produce      json
-// @Success      200  {object}    transport.Cart
-// @Failure      401  {object}   http_response.ErrResponse  "Ошибка авторизации"
-// @Failure      404  {object}   http_response.ErrResponse  "Пустая корзина"
-// @Failure      405  {object}   http_response.ErrResponse  "Метод не поддерживается"
-// @Failure      500  {object}   http_response.ErrResponse  "Внутренняя ошибка сервера"
-// @Router       /cart [get]
 func (h *CartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "GetCart", domain.ErrHTTPMethod, nil)
@@ -73,8 +61,11 @@ func (h *CartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID, ok := r.Context().Value(middlewares.UserIDKey).(string)
-	_, err := uuid.Parse(userID)
-	if !ok || err != nil {
+	if !ok || userID == "" {
+		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "GetCart", domain.ErrUnauthorized, nil)
+		return
+	}
+	if _, err := uuid.Parse(userID); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "GetCart", domain.ErrUnauthorized, nil)
 		return
 	}
@@ -93,19 +84,6 @@ func (h *CartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, respCart)
 }
 
-// UpdateCart godoc
-// @Summary      Заменить товары в корзине
-// @Description  Очищает корзину и добавляет новый набор товаров
-// @Tags         cart
-// @Accept       json
-// @Produce      json
-// @Param cart_items  body 		 transport.CartUpdate true "Список товаров в корзине"
-// @Success      204   "Успешное обновление"
-// @Failure      400  {object}   http_response.ErrResponse  "Некорректные параетры запроса"
-// @Failure      401  {object}   http_response.ErrResponse  "Ошибка авторизации"
-// @Failure      405  {object}   http_response.ErrResponse  "Метод не поддерживается"
-// @Failure      500  {object}   http_response.ErrResponse  "Внутренняя ошибка сервера"
-// @Router       /cart [put]
 func (h *CartHandler) UpdateCart(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "UpdateCart", domain.ErrHTTPMethod, nil)
@@ -113,28 +91,31 @@ func (h *CartHandler) UpdateCart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID, ok := r.Context().Value(middlewares.UserIDKey).(string)
-	_, err := uuid.Parse(userID)
-	if !ok || err != nil {
+	if !ok || userID == "" {
+		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "UpdateCart", domain.ErrUnauthorized, nil)
+		return
+	}
+	if _, err := uuid.Parse(userID); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "UpdateCart", domain.ErrUnauthorized, nil)
 		return
 	}
 
 	cartUpdate := &transport.CartUpdate{}
-	if err = json.NewDecoder(r.Body).Decode(cartUpdate); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(cartUpdate); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateCart", domain.ErrRequestParams, err)
 		return
 	}
 
-	if err = h.validator.Struct(cartUpdate); err != nil {
+	if err := h.validator.Struct(cartUpdate); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateCart", domain.ErrRequestParams, err)
 		return
 	}
 
-	err = h.uc.UpdateCart(r.Context(), userID, transport.FromCartUpdate(cartUpdate))
+	err := h.uc.UpdateCart(r.Context(), userID, transport.FromCartUpdate(cartUpdate))
 	if err != nil {
 		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "UpdateCart", domain.ErrInternalServer, err)
 		return
 	}
 
-	h.rs.Send(r.Context(), w, http.StatusNoContent, nil)
+	w.WriteHeader(http.StatusNoContent)
 }

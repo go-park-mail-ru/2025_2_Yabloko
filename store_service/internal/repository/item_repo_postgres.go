@@ -7,27 +7,30 @@ import (
 	_ "embed"
 )
 
+//go:embed sql/item/get_types.sql
+var getItemTypes string
+
+//go:embed sql/item/get_items.sql
+var getItems string
+
 type ItemRepoPostgres struct {
 	db  PgxIface
-	log *logger.Logger
+	log logger.Logger
 }
 
-func NewItemRepoPostgres(db PgxIface, log *logger.Logger) *ItemRepoPostgres {
+func NewItemRepoPostgres(db PgxIface, log logger.Logger) *ItemRepoPostgres {
 	return &ItemRepoPostgres{
 		db:  db,
 		log: log,
 	}
 }
 
-//go:embed sql/item/get_types.sql
-var getItemTypes string
+func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, storeID string) ([]*domain.ItemType, error) {
+	r.log.Debug("GetItemTypes начало обработки", map[string]interface{}{})
 
-func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, id string) ([]*domain.ItemType, error) {
-	r.log.Debug(ctx, "GetItemTypes начало обработки", map[string]interface{}{})
-
-	rows, err := r.db.Query(ctx, getItemTypes, id)
+	rows, err := r.db.Query(ctx, getItemTypes, storeID)
 	if err != nil {
-		r.log.Error(ctx, "GetItemTypes ошибка бд", map[string]interface{}{"err": err, "id": id})
+		r.log.Error("GetItemTypes ошибка бд", map[string]interface{}{"err": err, "id": storeID})
 		return nil, err
 	}
 	defer rows.Close()
@@ -37,7 +40,7 @@ func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, id string) ([]*doma
 		var itemType domain.ItemType
 		err = rows.Scan(&itemType.ID, &itemType.Name)
 		if err != nil {
-			r.log.Error(ctx, "GetItemTypes ошибка при декодировании данных",
+			r.log.Error("GetItemTypes ошибка при декодировании данных",
 				map[string]interface{}{"err": err, "rows": rows})
 			return nil, err
 		}
@@ -45,30 +48,26 @@ func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, id string) ([]*doma
 	}
 
 	if err = rows.Err(); err != nil {
-		r.log.Error(ctx, "GetItemTypes ошибка после чтения строк",
-			map[string]interface{}{"err": err, "id": id})
+		r.log.Error("GetItemTypes ошибка после чтения строк",
+			map[string]interface{}{"err": err, "id": storeID})
 		return nil, err
 	}
 
 	if len(itemTypes) == 0 {
-		r.log.Warn(ctx, "GetItemTypes пустой ответ", map[string]interface{}{"id": id})
+		r.log.Warn("GetItemTypes пустой ответ", map[string]interface{}{"id": storeID})
 		return nil, domain.ErrRowsNotFound
 	}
 
-	r.log.Debug(ctx, "GetItemTypes завершено успешно", map[string]interface{}{})
+	r.log.Debug("GetItemTypes завершено успешно", map[string]interface{}{})
 	return itemTypes, nil
 }
 
-//go:embed sql/item/get_items.sql
-var getItems string
+func (r *ItemRepoPostgres) GetItems(ctx context.Context, itemTypeID string) ([]*domain.Item, error) {
+	r.log.Debug("GetItems начало обработки", map[string]interface{}{})
 
-func (r *ItemRepoPostgres) GetItems(ctx context.Context, id string) ([]*domain.Item, error) {
-	r.log.Debug(ctx, "GetItems начало обработки", map[string]interface{}{})
-
-	// если у товара несколько типов, то будет несколько строк с этим товаром
-	rows, err := r.db.Query(ctx, getItems, id)
+	rows, err := r.db.Query(ctx, getItems, itemTypeID)
 	if err != nil {
-		r.log.Error(ctx, "GetItems ошибка бд", map[string]interface{}{"err": err, "id": id})
+		r.log.Error("GetItems ошибка бд", map[string]interface{}{"err": err, "id": itemTypeID})
 		return nil, err
 	}
 	defer rows.Close()
@@ -85,7 +84,7 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, id string) ([]*domain.I
 			&item.TypeID,
 		)
 		if err != nil {
-			r.log.Error(ctx, "GetItems ошибка при декодировании данных",
+			r.log.Error("GetItems ошибка при декодировании данных",
 				map[string]interface{}{"err": err, "rows": rows})
 			return nil, err
 		}
@@ -93,16 +92,16 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, id string) ([]*domain.I
 	}
 
 	if err = rows.Err(); err != nil {
-		r.log.Error(ctx, "GetItems ошибка после чтения строк",
-			map[string]interface{}{"err": err, "id": id})
+		r.log.Error("GetItems ошибка после чтения строк",
+			map[string]interface{}{"err": err, "id": itemTypeID})
 		return nil, err
 	}
 
 	if len(items) == 0 {
-		r.log.Debug(ctx, "GetItems пустой ответ", map[string]interface{}{"id": id})
+		r.log.Debug("GetItems пустой ответ", map[string]interface{}{"id": itemTypeID})
 		return nil, domain.ErrRowsNotFound
 	}
 
-	r.log.Debug(ctx, "GetItems завершено успешно", map[string]interface{}{})
+	r.log.Debug("GetItems завершено успешно", map[string]interface{}{})
 	return items, nil
 }

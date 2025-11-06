@@ -30,7 +30,7 @@ type OrderHandler struct {
 	validator *validator.Validate
 }
 
-func NewOrderHandler(uc OrderUsecaseInterface, log *logger.Logger) *OrderHandler {
+func NewOrderHandler(uc OrderUsecaseInterface, log logger.Logger) *OrderHandler {
 	return &OrderHandler{
 		uc:        uc,
 		rs:        http_response.NewResponseSender(log),
@@ -38,7 +38,7 @@ func NewOrderHandler(uc OrderUsecaseInterface, log *logger.Logger) *OrderHandler
 	}
 }
 
-func NewOrderRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string, appLog *logger.Logger) {
+func NewOrderRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string, appLog logger.Logger) {
 	orderRepo := repository.NewOrderRepoPostgres(db, appLog)
 	orderUC := usecase.NewOrderUsecase(orderRepo)
 	orderHandler := NewOrderHandler(orderUC, appLog)
@@ -51,7 +51,7 @@ func NewOrderRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string
 			orderHandler.CreateOrder(w, r)
 		default:
 			orderHandler.rs.Error(r.Context(), w,
-				http.StatusMethodNotAllowed, "cart", domain.ErrHTTPMethod, nil)
+				http.StatusMethodNotAllowed, "orders", domain.ErrHTTPMethod, nil)
 		}
 	})
 
@@ -59,26 +59,18 @@ func NewOrderRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string
 	mux.HandleFunc(apiPrefix+"orders/{id}", orderHandler.GetOrder)
 }
 
-// CreateOrder godoc
-// @Summary      Создать заказ пользователя из текущей корзины
-// @Description  Создает заказ и возвращает информацию о заказе
-// @Tags         order
-// @Accept       json
-// @Produce      json
-// @Success      200  {object}   transport.OrderInfo
-// @Failure      401  {object}   http_response.ErrResponse  "Ошибка авторизации"
-// @Failure      405  {object}   http_response.ErrResponse  "Метод не поддерживается"
-// @Failure      500  {object}   http_response.ErrResponse  "Внутренняя ошибка сервера"
-// @Router       /orders [post]
 func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "CreateOrder", domain.ErrHTTPMethod, nil)
 		return
 	}
-	// TODO проверка пустоты корзины
+
 	userID, ok := r.Context().Value(middlewares.UserIDKey).(string)
-	_, err := uuid.Parse(userID)
-	if !ok || err != nil {
+	if !ok || userID == "" {
+		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "CreateOrder", domain.ErrUnauthorized, nil)
+		return
+	}
+	if _, err := uuid.Parse(userID); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "CreateOrder", domain.ErrUnauthorized, nil)
 		return
 	}
@@ -93,18 +85,6 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, order)
 }
 
-// GetOrdersUser godoc
-// @Summary      Получить все заказы пользователя
-// @Description  Краткая информация по заказам пользователя
-// @Tags         order
-// @Accept       json
-// @Produce      json
-// @Success      200  {array}    transport.Order
-// @Failure      401  {object}   http_response.ErrResponse  "Ошибка авторизации"
-// @Failure      404  {object}   http_response.ErrResponse  "Отсутствуют заказы"
-// @Failure      405  {object}   http_response.ErrResponse  "Метод не поддерживается"
-// @Failure      500  {object}   http_response.ErrResponse  "Внутренняя ошибка сервера"
-// @Router       /orders [get]
 func (h *OrderHandler) GetOrdersUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "GetOrdersUser", domain.ErrHTTPMethod, nil)
@@ -112,8 +92,11 @@ func (h *OrderHandler) GetOrdersUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID, ok := r.Context().Value(middlewares.UserIDKey).(string)
-	_, err := uuid.Parse(userID)
-	if !ok || err != nil {
+	if !ok || userID == "" {
+		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "GetOrdersUser", domain.ErrUnauthorized, nil)
+		return
+	}
+	if _, err := uuid.Parse(userID); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "GetOrdersUser", domain.ErrUnauthorized, nil)
 		return
 	}
@@ -132,21 +115,6 @@ func (h *OrderHandler) GetOrdersUser(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, ordersInfo)
 }
 
-// GetOrder godoc
-// @Summary      Получить информацию по заказу
-// @Description  Подробная информация о заказе (только пренадлежащие пользователю)
-// @Tags         order
-// @Accept       json
-// @Produce      json
-// @Param        id   path      string  true  "ID заказа (UUID)"
-// @Success      200  {object}   transport.OrderInfo
-// @Failure      400  {object}   http_response.ErrResponse  "Некорректные параметры запроса"
-// @Failure      401  {object}   http_response.ErrResponse  "Ошибка авторизации"
-// @Failure      403  {object}   http_response.ErrResponse  "Ошибка доступа"
-// @Failure      404  {object}   http_response.ErrResponse  "Отсутствует заказ"
-// @Failure      405  {object}   http_response.ErrResponse  "Метод не поддерживается"
-// @Failure      500  {object}   http_response.ErrResponse  "Внутренняя ошибка сервера"
-// @Router       /orders/{id} [get]
 func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "GetOrder", domain.ErrHTTPMethod, nil)
@@ -160,8 +128,11 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID, ok := r.Context().Value(middlewares.UserIDKey).(string)
-	_, err := uuid.Parse(userID)
-	if !ok || err != nil {
+	if !ok || userID == "" {
+		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "GetOrder", domain.ErrUnauthorized, nil)
+		return
+	}
+	if _, err := uuid.Parse(userID); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "GetOrder", domain.ErrUnauthorized, nil)
 		return
 	}
@@ -183,22 +154,6 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, orderInfo)
 }
 
-// UpdateOrderStatus godoc
-// @Summary      Заменить статус заказа
-// @Description  Меняет статус заказа на один из возможных ('pending', 'paid', 'delivered', 'cancelled', 'on the way')
-// @Tags         order
-// @Accept       json
-// @Produce      json
-// @Param        id   path      string  true  "ID заказа (UUID)"
-// @Param new_status body transport.OrderStatus true "Новый статус заказа"
-// @Success      204   "Статус успешно изменен"
-// @Failure      400  {object}   http_response.ErrResponse  "Некорректные параметры запроса"
-// @Failure      401  {object}   http_response.ErrResponse  "Ошибка авторизации"
-// @Failure      403  {object}   http_response.ErrResponse  "Ошибка доступа"
-// @Failure      404  {object}   http_response.ErrResponse  "Отсутствует заказ"
-// @Failure      405  {object}   http_response.ErrResponse  "Метод не поддерживается"
-// @Failure      500  {object}   http_response.ErrResponse  "Внутренняя ошибка сервера"
-// @Router       /orders/{id}/status [patch]
 func (h *OrderHandler) UpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "UpdateOrderStatus", domain.ErrHTTPMethod, nil)
@@ -211,27 +166,28 @@ func (h *OrderHandler) UpdateOrderStatus(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	//TODO тут нужна роль на изменение статуса
-	// пока что меняет пользователь сам
 	userID, ok := r.Context().Value(middlewares.UserIDKey).(string)
-	_, err := uuid.Parse(userID)
-	if !ok || err != nil {
+	if !ok || userID == "" {
+		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "UpdateOrderStatus", domain.ErrUnauthorized, nil)
+		return
+	}
+	if _, err := uuid.Parse(userID); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "UpdateOrderStatus", domain.ErrUnauthorized, nil)
 		return
 	}
 
 	status := &transport.OrderStatus{}
-	if err = json.NewDecoder(r.Body).Decode(status); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(status); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateOrderStatus", domain.ErrRequestParams, err)
 		return
 	}
 
-	if err = h.validator.Struct(status); err != nil {
+	if err := h.validator.Struct(status); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateOrderStatus", domain.ErrRequestParams, err)
 		return
 	}
 
-	err = h.uc.UpdateOrderStatus(r.Context(), id, userID, status.Status)
+	err := h.uc.UpdateOrderStatus(r.Context(), id, userID, status.Status)
 	if err != nil {
 		if errors.Is(err, domain.ErrRowsNotFound) {
 			h.rs.Error(r.Context(), w, http.StatusNotFound, "UpdateOrderStatus", domain.ErrRowsNotFound, err)
@@ -247,5 +203,5 @@ func (h *OrderHandler) UpdateOrderStatus(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	h.rs.Send(r.Context(), w, http.StatusNoContent, nil)
+	w.WriteHeader(http.StatusNoContent)
 }
