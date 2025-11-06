@@ -99,7 +99,7 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 // @Tags         order
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}   transport.Orders
+// @Success      200  {array}    transport.Order
 // @Failure      401  {object}   http_response.ErrResponse  "Ошибка авторизации"
 // @Failure      404  {object}   http_response.ErrResponse  "Отсутствуют заказы"
 // @Failure      405  {object}   http_response.ErrResponse  "Метод не поддерживается"

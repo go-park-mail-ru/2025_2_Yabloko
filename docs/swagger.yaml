@@ -36,6 +36,18 @@ definitions:
       name:
         type: string
     type: object
+  CreateProfileRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  CreateProfileResponse:
+    properties:
+      id:
+        type: string
+    type: object
   Item:
     properties:
       card_img:
@@ -118,6 +130,27 @@ definitions:
     required:
       - status
     type: object
+  ProfileResponse:
+    properties:
+      address:
+        type: string
+      avatar_url:
+        type: string
+      city_id:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+      updated_at:
+        type: string
+    type: object
   StoreResponse:
     properties:
       address:
@@ -161,6 +194,19 @@ definitions:
       name:
         type: string
     type: object
+  UpdateProfileRequest:
+    properties:
+      address:
+        type: string
+      avatar_url:
+        type: string
+      city_id:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+    type: object
   domain.StoreFilter:
     properties:
       cityID:
@@ -195,9 +241,7 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/Cart'
-            type: array
+            $ref: '#/definitions/Cart'
         "401":
           description: Ошибка авторизации
           schema:
@@ -252,6 +296,68 @@ paths:
       summary: Заменить товары в корзине
       tags:
         - cart
+  /health:
+    get:
+      consumes:
+        - '*/*'
+      description: Эндпоинт для проверки доступности приложения и базы данных
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Сервер работает исправно
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "405":
+          description: Неверный HTTP-метод
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Проверка сервера
+      tags:
+        - health
+  /images/{img_path}:
+    get:
+      consumes:
+        - '*/*'
+      description: Возвращает изображение по указанному пути в файловой системе
+      parameters:
+        - description: Путь к изображению (например, 'products/item1.png')
+          in: path
+          name: img_path
+          required: true
+          type: string
+      produces:
+        - image/png
+      responses:
+        "200":
+          description: Изображение успешно найдено
+          schema:
+            type: file
+        "400":
+          description: Некорректный путь или параметры
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Изображение не найдено
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Неверный HTTP-метод
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить изображение по пути
+      tags:
+        - images
   /orders:
     get:
       consumes:
@@ -263,7 +369,9 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/Orders'
+            items:
+              $ref: '#/definitions/Order'
+            type: array
         "401":
           description: Ошибка авторизации
           schema:
@@ -404,6 +512,211 @@ paths:
       summary: Заменить статус заказа
       tags:
         - order
+  /profiles:
+    post:
+      consumes:
+        - application/json
+      description: Создает новый профиль пользователя
+      parameters:
+        - description: Данные для создания профиля
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: '#/definitions/CreateProfileRequest'
+      produces:
+        - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/CreateProfileResponse'
+        "400":
+          description: Ошибка входных данных
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Неверный HTTP-метод
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "409":
+          description: Профиль уже существует
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Создать профиль
+      tags:
+        - profiles
+  /profiles/{id}:
+    delete:
+      consumes:
+        - application/json
+      description: Удаляет профиль пользователя по UUID
+      parameters:
+        - description: UUID пользователя
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "204":
+          description: Профиль успешно удален
+        "400":
+          description: Некорректный ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Профиль не найден
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "405":
+          description: Неверный HTTP-метод
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Удалить профиль
+      tags:
+        - profiles
+    get:
+      consumes:
+        - application/json
+      description: Возвращает информацию о профиле пользователя по его UUID
+      parameters:
+        - description: UUID пользователя
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ProfileResponse'
+        "400":
+          description: Некорректный ID
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Профиль не найден
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Неверный HTTP-метод
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Получить профиль по ID
+      tags:
+        - profiles
+    put:
+      consumes:
+        - application/json
+      description: Обновляет информацию о профиле пользователя
+      parameters:
+        - description: UUID пользователя
+          in: path
+          name: id
+          required: true
+          type: string
+        - description: Данные для обновления профиля
+          in: body
+          name: request
+          required: true
+          schema:
+            $ref: '#/definitions/UpdateProfileRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Профиль успешно обновлен
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Ошибка входных данных
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Профиль не найден
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Неверный HTTP-метод
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Обновить профиль
+      tags:
+        - profiles
+  /profiles/{id}/avatar:
+    post:
+      consumes:
+        - multipart/form-data
+      description: Загружает аватарку для профиля пользователя
+      parameters:
+        - description: UUID пользователя
+          in: path
+          name: id
+          required: true
+          type: string
+        - description: Файл аватарки
+          in: formData
+          name: avatar
+          required: true
+          type: file
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Ошибка входных данных или файла
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "404":
+          description: Профиль не найден
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "405":
+          description: Неверный HTTP-метод
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/http_response.ErrResponse'
+      summary: Загрузить аватарку
+      tags:
+        - profiles
   /stores:
     post:
       consumes:

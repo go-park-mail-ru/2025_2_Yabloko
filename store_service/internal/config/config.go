@@ -13,9 +13,12 @@ type Config struct {
 	DBHost     string `validate:"required"`
 	DBPort     string `validate:"required"`
 	DBName     string `validate:"required"`
-	AppPort    string `validate:"required"`
-	AuthURL    string `validate:"required"`
-	JWTSecret  string `validate:"required"`
+
+	AppPort string `validate:"required"`
+
+	JWTSecret string `validate:"required"`
+
+	ImageDir string `validate:"required"`
 }
 
 func MustConfig() *Config {
@@ -25,9 +28,9 @@ func MustConfig() *Config {
 		DBHost:     os.Getenv("DB_HOST"),
 		DBPort:     os.Getenv("DB_PORT"),
 		DBName:     os.Getenv("DB_NAME"),
-		AppPort:    os.Getenv("STORE_SERVICE_PORT"),
-		AuthURL:    os.Getenv("AUTH_URL"),
+		AppPort:    os.Getenv("STORE_PORT"),
 		JWTSecret:  os.Getenv("SECRET_KEY"),
+		ImageDir:   os.Getenv("IMAGE_PATH"),
 	}
 
 	if err := validator.New().Struct(conf); err != nil {

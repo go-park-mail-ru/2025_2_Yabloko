@@ -26,9 +26,8 @@ func Run(appLog, accessLog *logger.Logger) {
 
 	// ПУБЛИЧНЫЕ ручки
 	shttp.NewStoreRouter(openMux, dbPool, apiV0Prefix, appLog)
-	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix, appLog) // ВАЖНО: регистрация items
-
-	protectedMux := http.NewServeMux()
+	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix, appLog)
+	shttp.NewBaseRouter(openMux, appLog, dbPool, apiV0Prefix, conf.ImageDir)
 
 	shttp.NewCartRouter(protectedMux, dbPool, apiV0Prefix, appLog)
 	shttp.NewOrderRouter(protectedMux, dbPool, apiV0Prefix, appLog)

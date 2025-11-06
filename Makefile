@@ -47,8 +47,7 @@ test-cover: mocks cover
 .PHONY: swagger
 
 swagger:
-	@swag init -g cmd/store_service/main.go --output ./docs/store --ot yaml
-
+	@swag init -g cmd/store_service/main.go --output ./docs --ot yaml
 
 .PHONY: build build-test
 
