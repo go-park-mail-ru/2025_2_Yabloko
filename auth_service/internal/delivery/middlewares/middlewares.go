@@ -142,7 +142,7 @@ func CSRFTokenMiddleware(next http.Handler) http.Handler {
 				Path:     "/",
 				HttpOnly: true,
 				Secure:   false,
-				SameSite: http.SameSiteLaxMode,
+				SameSite: http.SameSiteNoneMode,
 				MaxAge:   86400,
 			})
 		} else {
@@ -160,7 +160,7 @@ func CSRFTokenMiddleware(next http.Handler) http.Handler {
 				Path:     "/",
 				HttpOnly: false,
 				Secure:   false,
-				SameSite: http.SameSiteLaxMode,
+				SameSite: http.SameSiteNoneMode,
 				MaxAge:   86400,
 			})
 		}
