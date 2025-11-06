@@ -26,6 +26,7 @@ func Run(appLog, accessLog *logger.Logger) {
 
 	shttp.NewStoreRouter(openMux, dbPool, apiV0Prefix, appLog)
 	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix, appLog)
+	shttp.NewBaseRouter(openMux, appLog, dbPool, apiV0Prefix, conf.ImageDir)
 
 	shttp.NewCartRouter(protectedMux, dbPool, apiV0Prefix, appLog)
 	shttp.NewOrderRouter(protectedMux, dbPool, apiV0Prefix, appLog)
