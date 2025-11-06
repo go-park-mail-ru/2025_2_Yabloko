@@ -105,37 +105,27 @@ func AccessLog(log logger.Logger, next http.Handler) http.Handler {
 			slog.Any("duration_ms", time.Since(start).Milliseconds()))
 	})
 }
+
 func CSRFMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
 			next.ServeHTTP(w, r)
 			return
 		}
-
 		clientToken := r.Header.Get("X-CSRF-Token")
-		fmt.Printf("🔍 X-CSRF-Token header: %q\n", clientToken) // ← DEBUG
-
+		if clientToken == "" {
+			http.Error(w, "CSRF token required", http.StatusForbidden)
+			return
+		}
 		sessionCookie, err := r.Cookie("session_id")
 		if err != nil {
-			fmt.Printf("❌ No session_id cookie: %v\n", err)
 			http.Error(w, "Session required", http.StatusForbidden)
 			return
 		}
-
-		csrfCookie, err := r.Cookie("csrf_token")
-		if err != nil {
-			fmt.Printf("❌ No csrf_token cookie: %v\n", err)
-			http.Error(w, "CSRF token cookie missing", http.StatusForbidden)
-			return
-		}
-		fmt.Printf("🍪 csrf_token cookie: %q\n", csrfCookie.Value)
-
 		if !verifyJWTCSRFToken(clientToken, sessionCookie.Value, r.UserAgent()) {
-			fmt.Printf("❌ CSRF verification failed. UA: %q\n", r.UserAgent())
 			http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 			return
 		}
-
 		next.ServeHTTP(w, r)
 	})
 }

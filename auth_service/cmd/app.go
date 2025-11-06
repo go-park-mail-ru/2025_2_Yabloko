@@ -34,14 +34,23 @@ func Run(appLog, accessLog logger.Logger) {
 	repo := repository.NewAuthRepoPostgres(dbPool)
 	uc := usecase.NewAuthUseCase(repo, conf.SecretKeyStr())
 
-	mux := http.NewServeMux()
-	authhttp.NewAuthRouter(mux, "/api/v0", appLog, uc)
+	publicMux := http.NewServeMux()
+	authhttp.NewAuthRouter(publicMux, "/api/v0", appLog, uc)
+
+	protectedMux := http.NewServeMux()
+	protectedMux.HandleFunc("/api/v0/auth/refresh", h.RefreshToken)
+	protectedMux.HandleFunc("/api/v0/auth/logout", h.Logout)
+
+	protectedHandler := authmw.CSRFMiddleware(protectedMux)
+
+	mainMux := http.NewServeMux()
+	mainMux.Handle("/api/v0/auth/refresh", protectedHandler)
+	mainMux.Handle("/api/v0/auth/logout", protectedHandler)
+	mainMux.Handle("/api/v0/", publicMux) // fallback
 
 	handler := authmw.CorsMiddleware(
 		authmw.AccessLog(accessLog,
-			authmw.CSRFTokenMiddleware(
-				authmw.CSRFMiddleware(mux),
-			),
+			authmw.CSRFTokenMiddleware(mainMux),
 		),
 	)
 
