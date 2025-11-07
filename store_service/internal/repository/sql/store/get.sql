@@ -10,4 +10,4 @@ select s.id,
        st.tag_id
 from store s
          left join store_tag st on st.store_id = s.id
-where id = $1
+where s.id = $1  -- ← ИСПРАВЛЕНО: добавить s.

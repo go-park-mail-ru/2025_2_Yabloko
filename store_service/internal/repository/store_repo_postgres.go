@@ -24,10 +24,13 @@ func NewStoreRepoPostgres(db PgxIface, log logger.Logger) *StoreRepoPostgres {
 }
 
 func generateQuery(filter *domain.StoreFilter) (string, []any) {
+	// ИСПРАВЛЕННЫЙ ЗАПРОС - добавляем JOIN с store_tag и tag_id
 	query := `
-	    select s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at
-    from store s
-	`
+        select s.id, s.name, s.description, s.city_id, s.address, 
+               s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id
+        from store s
+        left join store_tag st on s.id = st.store_id
+    `
 	args := []any{}
 	where := []string{}
 
@@ -83,13 +86,23 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	var stores []*domain.Store
 	for rows.Next() {
 		var store domain.Store
+		var tagID *string // Используем указатель для nullable tag_id
+
+		// ИСПРАВЛЕННЫЙ SCAN - добавляем tag_id
 		err = rows.Scan(&store.ID, &store.Name, &store.Description,
-			&store.CityID, &store.Address, &store.CardImg, &store.Rating, &store.OpenAt, &store.ClosedAt)
+			&store.CityID, &store.Address, &store.CardImg, &store.Rating,
+			&store.OpenAt, &store.ClosedAt, &tagID)
 		if err != nil {
 			r.log.Error("GetStores ошибка при декодировании данных",
 				map[string]interface{}{"err": err, "rows": rows})
 			return nil, err
 		}
+
+		// Обрабатываем nullable tag_id
+		if tagID != nil {
+			store.TagID = *tagID
+		}
+
 		stores = append(stores, &store)
 	}
 
@@ -104,7 +117,7 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 		return nil, domain.ErrRowsNotFound
 	}
 
-	r.log.Debug("GetStores завершено успешно", map[string]interface{}{})
+	r.log.Debug("GetStores завершено успешно", map[string]interface{}{"stores_count": len(stores)})
 	return stores, nil
 }
 

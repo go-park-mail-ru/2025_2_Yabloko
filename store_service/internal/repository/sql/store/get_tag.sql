@@ -1,2 +1,2 @@
 select id, name
-from tag
+from tag  -- ← ИСПРАВЛЕНО: store_tag на tag
