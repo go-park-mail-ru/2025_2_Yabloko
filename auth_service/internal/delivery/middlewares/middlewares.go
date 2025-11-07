@@ -3,6 +3,7 @@ package middlewares
 import (
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/trace"
+	"context"
 	"fmt"
 	"log/slog"
 	"net"
@@ -16,7 +17,17 @@ import (
 	"github.com/google/uuid"
 )
 
-var CSRFSecret = []byte(getenv("CSRF_SECRET", "dev-csrf-secret"))
+var CSRFSecret = []byte(getenv("CSRF_SECRET", ""))
+
+func init() {
+	if len(CSRFSecret) == 0 {
+		slog.Error("CSRF_SECRET is empty or not set")
+		panic("CSRF_SECRET required")
+	}
+	if len(CSRFSecret) < 32 {
+		slog.Warn("CSRF_SECRET is too short (min 32 bytes recommended)")
+	}
+}
 
 func getenv(k, def string) string {
 	if v := os.Getenv(k); v != "" {
@@ -25,16 +36,18 @@ func getenv(k, def string) string {
 	return def
 }
 
+type ctxKey string
+
+const sessionIDKey ctxKey = "session_id"
+
 type CSRFClaims struct {
 	SessionID string `json:"session_id"`
-	UserAgent string `json:"user_agent"`
 	jwt.RegisteredClaims
 }
 
-func GenerateJWTCSRFToken(sessionID string, userAgent string) (string, error) {
+func GenerateJWTCSRFToken(sessionID string) (string, error) {
 	claims := CSRFClaims{
 		SessionID: sessionID,
-		UserAgent: userAgent,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -46,7 +59,7 @@ func GenerateJWTCSRFToken(sessionID string, userAgent string) (string, error) {
 	return t.SignedString(CSRFSecret)
 }
 
-func verifyJWTCSRFToken(tokenString, sessionID, userAgent string) bool {
+func verifyJWTCSRFToken(tokenString, sessionID string) bool {
 	token, err := jwt.ParseWithClaims(tokenString, &CSRFClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -57,9 +70,18 @@ func verifyJWTCSRFToken(tokenString, sessionID, userAgent string) bool {
 		return false
 	}
 	if claims, ok := token.Claims.(*CSRFClaims); ok && token.Valid {
-		return claims.SessionID == sessionID && claims.UserAgent == userAgent
+		return claims.SessionID == sessionID
 	}
 	return false
+}
+
+func GetSessionID(r *http.Request) string {
+	if v := r.Context().Value(sessionIDKey); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
 }
 
 type statusWriter struct {
@@ -112,8 +134,12 @@ func AccessLog(log logger.Logger, next http.Handler) http.Handler {
 
 func SessionMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, err := r.Cookie("session_id"); err != nil {
-			sessionID := uuid.New().String()
+		var sessionID string
+		if cookie, err := r.Cookie("session_id"); err == nil && cookie.Value != "" {
+			sessionID = cookie.Value
+		}
+		if sessionID == "" {
+			sessionID = uuid.NewString()
 			http.SetCookie(w, &http.Cookie{
 				Name:     "session_id",
 				Value:    sessionID,
@@ -124,7 +150,8 @@ func SessionMiddleware(next http.Handler) http.Handler {
 				MaxAge:   86400,
 			})
 		}
-		next.ServeHTTP(w, r)
+		ctx := context.WithValue(r.Context(), sessionIDKey, sessionID)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -133,46 +160,28 @@ func SmartCSRFMiddleware(next http.Handler) http.Handler {
 		"/api/v0/csrf": true,
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		slog.Debug("CSRF middleware",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"ua", r.UserAgent(),
-		)
-
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
-			slog.Debug("CSRF: skipped (safe method)")
 			next.ServeHTTP(w, r)
 			return
 		}
-
 		if skipPaths[r.URL.Path] {
-			slog.Debug("CSRF: skipped (skip path)")
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		sessionCookie, err := r.Cookie("session_id")
-		if err != nil {
-			slog.Warn("CSRF: no session_id", "err", err)
+		sessionID := GetSessionID(r)
+		if sessionID == "" {
 			http.Error(w, "Session required", http.StatusForbidden)
 			return
 		}
 
 		clientToken := r.Header.Get("X-CSRF-Token")
 		if clientToken == "" {
-			slog.Warn("CSRF: missing X-CSRF-Token")
 			http.Error(w, "CSRF token required in X-CSRF-Token header", http.StatusForbidden)
 			return
 		}
 
-		ok := verifyJWTCSRFToken(clientToken, sessionCookie.Value, r.UserAgent())
-		slog.Debug("CSRF verify", "ok", ok)
-		if !ok {
-			slog.Warn("CSRF: invalid token",
-				"token", clientToken[:min(len(clientToken), 20)]+"...",
-				"session", sessionCookie.Value,
-				"ua", r.UserAgent(),
-			)
+		if !verifyJWTCSRFToken(clientToken, sessionID) {
 			http.Error(w, "Invalid or expired CSRF token", http.StatusForbidden)
 			return
 		}
@@ -195,7 +204,7 @@ func CorsMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token, X-Request-ID")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-CSRF-Token, X-Request-ID")
 		}
 
 		if r.Method == http.MethodOptions {

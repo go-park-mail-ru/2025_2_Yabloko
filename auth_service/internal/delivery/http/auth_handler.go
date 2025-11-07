@@ -2,7 +2,6 @@ package http
 
 import (
 	"apple_backend/auth_service/internal/delivery/middlewares"
-	authmw "apple_backend/auth_service/internal/delivery/middlewares"
 	"apple_backend/auth_service/internal/delivery/transport"
 	"apple_backend/auth_service/internal/domain"
 	"apple_backend/pkg/http_response"
@@ -66,20 +65,6 @@ func clearAuthCookie(w http.ResponseWriter) {
 	})
 }
 
-// Register godoc
-// @Summary Регистрация нового пользователя
-// @Description Создает нового пользователя и возвращает JWT токен
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body transport.RegisterRequest true "Данные для регистрации"
-// @Success 200 {object} transport.AuthResult "Успешная регистрация"
-// @Failure 400 {object} http_response.ErrResponse "Некорректные данные"
-// @Failure 409 {object} http_response.ErrResponse "Пользователь уже существует"
-// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
-// @Failure 415 {object} http_response.ErrResponse "Неверный Content-Type"
-// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
-// @Router /auth/signup [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "Register", domain.ErrHTTPMethod, nil)
@@ -116,20 +101,6 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, res)
 }
 
-// Login godoc
-// @Summary Аутентификация пользователя
-// @Description Выполняет вход пользователя и возвращает JWT токен
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body transport.LoginRequest true "Данные для входа"
-// @Success 200 {object} transport.AuthResult "Успешный вход"
-// @Failure 400 {object} http_response.ErrResponse "Некорректные данные"
-// @Failure 401 {object} http_response.ErrResponse "Неверные учетные данные"
-// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
-// @Failure 415 {object} http_response.ErrResponse "Неверный Content-Type"
-// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
-// @Router /auth/login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "Login", domain.ErrHTTPMethod, nil)
@@ -166,16 +137,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, res)
 }
 
-// RefreshToken godoc
-// @Summary Обновление JWT токена
-// @Description Обновляет access token с помощью refresh token из cookies
-// @Tags auth
-// @Produce json
-// @Success 200 {object} transport.AuthResult "Токен успешно обновлен"
-// @Failure 401 {object} http_response.ErrResponse "Невалидный или отсутствующий токен"
-// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
-// @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
-// @Router /auth/refresh [post]
 func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "RefreshToken", domain.ErrHTTPMethod, nil)
@@ -197,14 +158,6 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	h.rs.Send(r.Context(), w, http.StatusOK, res)
 }
 
-// Logout godoc
-// @Summary Выход из системы
-// @Description Очищает JWT токен из cookies
-// @Tags auth
-// @Produce json
-// @Success 200 {object} map[string]string "Успешный выход"
-// @Failure 405 {object} http_response.ErrResponse "Неверный HTTP-метод"
-// @Router /auth/logout [post]
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "Logout", domain.ErrHTTPMethod, nil)
@@ -215,29 +168,30 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) GetCSRF(w http.ResponseWriter, r *http.Request) {
-	sessionCookie, err := r.Cookie("session_id")
-	if err != nil {
-		http.Error(w, "Session required", http.StatusForbidden)
+	sessionID := middlewares.GetSessionID(r)
+	if sessionID == "" {
+		h.rs.Error(r.Context(), w, http.StatusForbidden, "GetCSRF", domain.ErrUnauthorized, nil)
 		return
 	}
 
-	token, err := middlewares.GenerateJWTCSRFToken(sessionCookie.Value, r.UserAgent())
+	token, err := middlewares.GenerateJWTCSRFToken(sessionID)
 	if err != nil {
 		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "GetCSRF", domain.ErrInternalServer, err)
 		return
 	}
 
-	h.rs.Send(r.Context(), w, http.StatusOK, map[string]string{
-		"csrf_token": token,
-	})
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"csrf_token": token})
 }
 
 func NewAuthRouter(mux *http.ServeMux, apiPrefix string, appLog logger.Logger, uc AuthUseCaseInterface) {
 	h := NewAuthHandler(uc, appLog)
 	base := strings.TrimRight(apiPrefix, "/") + "/auth"
 
-	mux.Handle(base+"/signup", authmw.RateLimit(5, time.Minute)(http.HandlerFunc(h.Register)))
-	mux.Handle(base+"/login", authmw.RateLimit(10, time.Minute)(http.HandlerFunc(h.Login)))
+	rateLimit := middlewares.RateLimit
+
+	mux.Handle(base+"/signup", rateLimit(5, time.Minute)(http.HandlerFunc(h.Register)))
+	mux.Handle(base+"/login", rateLimit(10, time.Minute)(http.HandlerFunc(h.Login)))
 	mux.Handle(base+"/refresh", http.HandlerFunc(h.RefreshToken))
 	mux.Handle(base+"/logout", http.HandlerFunc(h.Logout))
 	mux.Handle(apiPrefix+"/csrf", http.HandlerFunc(h.GetCSRF))

@@ -40,8 +40,8 @@ func Run(appLog, accessLog logger.Logger) {
 
 	handler := authmw.CorsMiddleware(
 		authmw.AccessLog(accessLog,
-			authmw.SmartCSRFMiddleware(
-				authmw.SessionMiddleware(
+			authmw.SessionMiddleware(
+				authmw.SmartCSRFMiddleware(
 					mainMux,
 				),
 			),
