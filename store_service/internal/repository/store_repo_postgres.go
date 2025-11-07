@@ -116,7 +116,6 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 		if tagID != nil {
 			store.TagID = *tagID
 		}
-
 		stores = append(stores, &store)
 	}
 
@@ -125,6 +124,7 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 		return nil, err
 	}
 
+<<<<<<< HEAD
 	if len(stores) == 0 {
 		r.log.Debug("GetStores пустой ответ",
 			slog.String("tag_id", filter.TagID),
@@ -134,6 +134,9 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	}
 
 	r.log.Debug("GetStores завершено успешно", slog.Int("stores_count", len(stores)))
+=======
+	r.log.Debug("GetStores завершено успешно", map[string]interface{}{"stores_count": len(stores)})
+>>>>>>> 69667d91a58db1332e5dea01822791de1759e99a
 	return stores, nil
 }
 

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -25,10 +26,8 @@ func Run(appLog, accessLog logger.Logger) {
 	openMux := http.NewServeMux()
 	protectedMux := http.NewServeMux()
 
-	// ПУБЛИЧНЫЕ ручки
 	shttp.NewStoreRouter(openMux, dbPool, apiV0Prefix, appLog)
 	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix, appLog)
-	shttp.NewBaseRouter(openMux, appLog, dbPool, apiV0Prefix, conf.ImageDir)
 
 	// ЗАЩИЩЁННЫЕ ручки
 	shttp.NewCartRouter(protectedMux, dbPool, apiV0Prefix, appLog)
@@ -38,10 +37,19 @@ func Run(appLog, accessLog logger.Logger) {
 
 	mux := http.NewServeMux()
 
+	mux.Handle("/images/stores/", http.StripPrefix("/images/stores/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fullPath := filepath.Join(conf.UploadStoreDir, r.URL.Path)
+		appLog.Debug("Serving image",
+			"path", r.URL.Path,
+			"file", fullPath,
+		)
+		http.ServeFile(w, r, fullPath)
+	})))
+
 	mux.Handle(apiV0Prefix+"cart", protectedHandler)
 	mux.Handle(apiV0Prefix+"orders", protectedHandler)
 	mux.Handle(apiV0Prefix+"orders/", protectedHandler)
-	mux.Handle(apiV0Prefix, openMux)
+	mux.Handle(apiV0Prefix, openMux) // ← /api/v0/... → openMux
 
 	handler := middlewares.CorsMiddleware(middlewares.AccessLog(accessLog, mux))
 
