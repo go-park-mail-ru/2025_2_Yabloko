@@ -1,4 +1,4 @@
-update "order"
-set status = $2
-where id = $1
-returning id
+UPDATE orders
+SET status = $2
+WHERE id = $1
+RETURNING id;

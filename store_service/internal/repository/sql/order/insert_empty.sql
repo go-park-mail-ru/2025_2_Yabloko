@@ -1,2 +1,2 @@
-insert into "order" (id, user_id, total_price)
-values ($1, $2, 0);
+INSERT INTO orders (id, user_id, total_price)
+VALUES ($1, $2, 0);

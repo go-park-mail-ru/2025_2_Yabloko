@@ -1,3 +1,3 @@
-select user_id
-from order
-where id = $1
+SELECT user_id
+FROM orders
+WHERE id = $1
