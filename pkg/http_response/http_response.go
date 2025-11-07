@@ -5,6 +5,7 @@ import (
 	"apple_backend/pkg/trace"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 )
 
@@ -20,7 +21,6 @@ func NewResponseSender(log logger.Logger) *ResponseSender {
 	return &ResponseSender{log: log}
 }
 
-// универсальная отправка http ответа
 func (rs *ResponseSender) Send(ctx context.Context, w http.ResponseWriter, statusCode int, data interface{}) {
 	requestID := trace.GetRequestID(ctx)
 
@@ -36,13 +36,17 @@ func (rs *ResponseSender) Send(ctx context.Context, w http.ResponseWriter, statu
 	}
 }
 
-// универсальная отправка http ошибки
 func (rs *ResponseSender) Error(ctx context.Context, w http.ResponseWriter, statusCode int,
 	errMessage string, userErr error, internalErr error) {
 	if internalErr != nil {
-		rs.log.Error(errMessage, map[string]interface{}{"userErr": userErr, "internalErr": internalErr})
+		rs.log.Error(errMessage,
+			slog.Any("userErr", userErr),
+			slog.Any("internalErr", internalErr),
+		)
 	} else {
-		rs.log.Warn(errMessage, map[string]interface{}{"userErr": userErr})
+		rs.log.Warn(errMessage,
+			slog.Any("userErr", userErr),
+		)
 	}
 
 	resp := ErrResponse{
