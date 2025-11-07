@@ -38,7 +38,7 @@ func toItemResponse(item *domain.ItemAgg) *Item {
 		Name:        item.Name,
 		Description: item.Description,
 		Price:       item.Price,
-		CardImg:     item.CardImg,
+		CardImg:     "/images/items/" + item.CardImg,
 		TypesID:     item.TypesID,
 	}
 }

@@ -37,9 +37,18 @@ func Run(appLog, accessLog logger.Logger) {
 
 	mux := http.NewServeMux()
 
+	mux.Handle("/images/items/", http.StripPrefix("/images/items/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fullPath := filepath.Join(conf.UploadItemDir, r.URL.Path)
+		appLog.Debug("Serving item image",
+			"url_path", r.URL.Path,
+			"fs_path", fullPath,
+		)
+		http.ServeFile(w, r, fullPath)
+	})))
+
 	mux.Handle("/images/stores/", http.StripPrefix("/images/stores/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fullPath := filepath.Join(conf.UploadStoreDir, r.URL.Path)
-		appLog.Debug("Serving image",
+		appLog.Debug("Serving store image",
 			"path", r.URL.Path,
 			"file", fullPath,
 		)

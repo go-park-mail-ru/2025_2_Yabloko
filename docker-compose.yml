@@ -7,7 +7,9 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-      POSTGRES_PORT: ${DB_PORT:-5432}
+      POSTGRES_PORT: 5432
+    ports:
+      - "${DB_PORT}:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
@@ -117,6 +119,7 @@ services:
       COOKIE_SAMESITE: ${COOKIE_SAMESITE}
     volumes:
       - ./uploads/stores:/app/stores
+      - ./uploads/items:/app/items
     restart: unless-stopped
 
 volumes:

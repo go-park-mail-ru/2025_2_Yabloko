@@ -28,7 +28,7 @@ func LoadConfig() *Config {
 		dbHost = "db"
 	}
 
-	dbPort := os.Getenv("DB_PORT")
+	dbPort := os.Getenv("API_DB_PORT")
 	if dbPort == "" {
 		dbPort = "5432"
 	}

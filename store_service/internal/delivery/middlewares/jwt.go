@@ -3,55 +3,51 @@ package middlewares
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
 )
 
-type contextKey string
+const JwtCookieName = "jwt_token"
 
-const UserIDKey contextKey = "userID"
+type ctxKey string
+
+var UserIDKey ctxKey = "user_id"
+
+func WithUserID(ctx context.Context, userID string) context.Context {
+	return context.WithValue(ctx, UserIDKey, userID)
+}
+
+func UserIDFromContext(ctx context.Context) (string, bool) {
+	v := ctx.Value(UserIDKey)
+	id, ok := v.(string)
+	return id, ok
+}
 
 func AuthMiddleware(next http.Handler, jwtSecret string) http.Handler {
+	secret := []byte(jwtSecret)
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			http.Error(w, "Authorization header required", http.StatusUnauthorized)
+		c, err := r.Cookie(JwtCookieName)
+		if err != nil {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
-
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			http.Error(w, "Invalid Authorization header format", http.StatusUnauthorized)
-			return
+		type claims struct {
+			UserID string `json:"user_id"`
+			jwt.RegisteredClaims
 		}
-
-		tokenString := parts[1]
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		cl := &claims{}
+		tkn, err := jwt.ParseWithClaims(c.Value, cl, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, jwt.ErrSignatureInvalid
 			}
-			return []byte(jwtSecret), nil
+			return secret, nil
 		})
-
-		if err != nil || !token.Valid {
-			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+		if err != nil || !tkn.Valid || cl.UserID == "" {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
-
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			http.Error(w, "Invalid token claims", http.StatusUnauthorized)
-			return
-		}
-
-		userID, ok := claims["sub"].(string)
-		if !ok || userID == "" {
-			http.Error(w, "Missing user ID in token", http.StatusUnauthorized)
-			return
-		}
-
-		ctx := context.WithValue(r.Context(), UserIDKey, userID)
+		ctx := WithUserID(r.Context(), cl.UserID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

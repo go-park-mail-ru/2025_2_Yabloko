@@ -29,7 +29,7 @@ func toCartItemResponse(item *domain.CartItem) *CartItem {
 	return &CartItem{
 		ID:       item.ID,
 		Name:     item.Name,
-		CardImg:  item.CardImg,
+		CardImg:  "/images/stores/" + item.CardImg,
 		Price:    item.Price,
 		Quantity: item.Quantity,
 	}
