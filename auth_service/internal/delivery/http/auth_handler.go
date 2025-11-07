@@ -184,15 +184,17 @@ func (h *AuthHandler) GetCSRF(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"csrf_token": token})
 }
 
-func NewAuthRouter(mux *http.ServeMux, apiPrefix string, appLog logger.Logger, uc AuthUseCaseInterface) {
+func NewAuthRouter(mux *http.ServeMux, base string, appLog logger.Logger, uc AuthUseCaseInterface) {
 	h := NewAuthHandler(uc, appLog)
-	base := strings.TrimRight(apiPrefix, "/") + "/auth"
+	// base = "/auth"
 
-	rateLimit := middlewares.RateLimit
-
-	mux.Handle(base+"/signup", rateLimit(5, time.Minute)(http.HandlerFunc(h.Register)))
-	mux.Handle(base+"/login", rateLimit(10, time.Minute)(http.HandlerFunc(h.Login)))
+	mux.Handle(base+"/signup", rateLimitHandler(h.Register))
+	mux.Handle(base+"/login", rateLimitHandler(h.Login))
 	mux.Handle(base+"/refresh", http.HandlerFunc(h.RefreshToken))
 	mux.Handle(base+"/logout", http.HandlerFunc(h.Logout))
-	mux.Handle(apiPrefix+"/csrf", http.HandlerFunc(h.GetCSRF))
+	mux.Handle("/csrf", http.HandlerFunc(h.GetCSRF))
+}
+
+func rateLimitHandler(fn http.HandlerFunc) http.Handler {
+	return middlewares.RateLimit(5, time.Minute)(fn)
 }
