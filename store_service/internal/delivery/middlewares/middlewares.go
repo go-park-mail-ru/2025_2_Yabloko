@@ -140,7 +140,7 @@ func CSRFTokenMiddleware(next http.Handler) http.Handler {
 				Name:     "session_id",
 				Value:    sessionID,
 				Path:     "/",
-				HttpOnly: true,
+				HttpOnly: false,
 				Secure:   false,
 				SameSite: http.SameSiteLaxMode,
 				MaxAge:   86400,
