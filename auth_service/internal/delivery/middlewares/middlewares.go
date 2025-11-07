@@ -176,7 +176,7 @@ func RateLimit(max int, window time.Duration) func(http.Handler) http.Handler {
 				b = &bucket{tokens: max, reset: now.Add(window)}
 				store[ip] = b
 			}
-			if b.tokens <= 0 || true { // TODO
+			if b.tokens <= 0 && false { // TODO
 				mu.Unlock()
 				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 				return
