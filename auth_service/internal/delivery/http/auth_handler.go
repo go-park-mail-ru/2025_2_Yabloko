@@ -56,12 +56,20 @@ func setAuthCookie(w http.ResponseWriter, token string, expires time.Time) {
 }
 
 func clearAuthCookie(w http.ResponseWriter) {
+	now := time.Now()
 	http.SetCookie(w, &http.Cookie{
 		Name:     "jwt_token",
 		Value:    "",
-		Expires:  time.Now().Add(-time.Hour),
+		Expires:  now.Add(-time.Hour),
 		Path:     "/",
 		HttpOnly: true,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "csrf_token",
+		Value:    "",
+		Expires:  now.Add(-time.Hour),
+		Path:     "/",
+		HttpOnly: false,
 	})
 }
 
@@ -142,6 +150,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "RefreshToken", domain.ErrHTTPMethod, nil)
 		return
 	}
+
 	c, err := r.Cookie("jwt_token")
 	if err != nil || c.Value == "" {
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "RefreshToken", domain.ErrUnauthorized, nil)
@@ -163,36 +172,18 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "Logout", domain.ErrHTTPMethod, nil)
 		return
 	}
+
 	clearAuthCookie(w)
 	h.rs.Send(r.Context(), w, http.StatusOK, map[string]string{"message": "logged out"})
 }
 
-func (h *AuthHandler) GetCSRF(w http.ResponseWriter, r *http.Request) {
-	sessionID := middlewares.GetSessionID(r)
-	if sessionID == "" {
-		h.rs.Error(r.Context(), w, http.StatusForbidden, "GetCSRF", domain.ErrUnauthorized, nil)
-		return
-	}
-
-	token, err := middlewares.GenerateJWTCSRFToken(sessionID)
-	if err != nil {
-		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "GetCSRF", domain.ErrInternalServer, err)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"csrf_token": token})
-}
-
 func NewAuthRouter(mux *http.ServeMux, base string, appLog logger.Logger, uc AuthUseCaseInterface) {
 	h := NewAuthHandler(uc, appLog)
-	// base = "/auth"
 
 	mux.Handle(base+"/signup", rateLimitHandler(h.Register))
 	mux.Handle(base+"/login", rateLimitHandler(h.Login))
-	mux.Handle(base+"/refresh", http.HandlerFunc(h.RefreshToken))
-	mux.Handle(base+"/logout", http.HandlerFunc(h.Logout))
-	mux.Handle("/csrf", http.HandlerFunc(h.GetCSRF))
+	mux.Handle(base+"/refresh", rateLimitHandler(h.RefreshToken))
+	mux.Handle(base+"/logout", rateLimitHandler(h.Logout))
 }
 
 func rateLimitHandler(fn http.HandlerFunc) http.Handler {

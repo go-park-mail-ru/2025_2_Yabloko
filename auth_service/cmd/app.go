@@ -36,19 +36,17 @@ func Run(appLog, accessLog logger.Logger) {
 
 	mainMux := http.NewServeMux()
 
-	// Создаём под-mux для API
-	apiMux := http.NewServeMux()
-	authhttp.NewAuthRouter(apiMux, "/auth", appLog, uc) // base = "/auth"
+	authMux := http.NewServeMux()
+	authhttp.NewAuthRouter(authMux, "/auth", appLog, uc)
 
-	// Оборачиваем ВЕСЬ apiMux в middleware
-	apiHandler := authmw.SessionMiddleware(
-		authmw.SmartCSRFMiddleware(apiMux),
+	authHandler := authmw.CSRFTokenMiddleware(
+		authmw.CSRFMiddleware(
+			authMux,
+		),
 	)
 
-	// Регистрируем /api/v0/... → apiHandler
-	mainMux.Handle("/api/v0/", http.StripPrefix("/api/v0", apiHandler))
+	mainMux.Handle("/api/v0/", http.StripPrefix("/api/v0", authHandler))
 
-	// CORS и логгирование — снаружи
 	handler := authmw.CorsMiddleware(
 		authmw.AccessLog(accessLog, mainMux),
 	)

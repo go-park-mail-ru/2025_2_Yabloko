@@ -5,9 +5,11 @@ import (
 	"apple_backend/pkg/trace"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -34,15 +36,14 @@ func generateJWTCSRFToken(sessionID string, userAgent string) (string, error) {
 		SessionID: sessionID,
 		UserAgent: userAgent,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			ID:        uuid.New().String(),
 		},
 	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(CSRFSecret)
+	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return t.SignedString(CSRFSecret)
 }
 
 func verifyJWTCSRFToken(tokenString, sessionID, userAgent string) bool {
@@ -55,11 +56,9 @@ func verifyJWTCSRFToken(tokenString, sessionID, userAgent string) bool {
 	if err != nil {
 		return false
 	}
-
 	if claims, ok := token.Claims.(*CSRFClaims); ok && token.Valid {
 		return claims.SessionID == sessionID && claims.UserAgent == userAgent
 	}
-
 	return false
 }
 
@@ -73,7 +72,6 @@ func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
 }
-
 func (w *statusWriter) Write(b []byte) (int, error) {
 	if w.status == 0 {
 		w.status = http.StatusOK
@@ -97,19 +95,14 @@ func AccessLog(log logger.Logger, next http.Handler) http.Handler {
 		start := time.Now()
 
 		log.Info("request started", slog.String("method", r.Method), slog.String("url", r.URL.Path))
-
 		next.ServeHTTP(sw, r)
-
-		duration := time.Since(start)
-
 		log.Info("request completed",
 			slog.String("method", r.Method),
 			slog.String("url", r.URL.Path),
-			slog.Int("status", sw.status),
-			slog.Int("bytes", sw.bytes),
-			slog.Int64("duration", duration.Milliseconds()),
-		)
-
+			slog.String("url", r.URL.Path),
+			slog.Any("status", sw.status),
+			slog.Any("bytes", sw.bytes),
+			slog.Any("duration_ms", time.Since(start).Milliseconds()))
 	})
 }
 
@@ -124,13 +117,11 @@ func CSRFMiddleware(next http.Handler) http.Handler {
 			http.Error(w, "CSRF token required", http.StatusForbidden)
 			return
 		}
-
 		sessionCookie, err := r.Cookie("session_id")
 		if err != nil {
 			http.Error(w, "Session required", http.StatusForbidden)
 			return
 		}
-
 		if !verifyJWTCSRFToken(clientToken, sessionCookie.Value, r.UserAgent()) {
 			http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 			return
@@ -149,7 +140,7 @@ func CSRFTokenMiddleware(next http.Handler) http.Handler {
 				Name:     "session_id",
 				Value:    sessionID,
 				Path:     "/",
-				HttpOnly: false,
+				HttpOnly: true,
 				Secure:   false,
 				SameSite: http.SameSiteLaxMode,
 				MaxAge:   86400,
@@ -157,7 +148,6 @@ func CSRFTokenMiddleware(next http.Handler) http.Handler {
 		} else {
 			sessionID = sessionCookie.Value
 		}
-
 		if _, err := r.Cookie("csrf_token"); err != nil {
 			csrfToken, err := generateJWTCSRFToken(sessionID, r.UserAgent())
 			if err != nil {
@@ -210,4 +200,40 @@ func parseAllowedOrigins(v string) map[string]bool {
 		}
 	}
 	return m
+}
+
+// Простой rate limit по IP: N запросов за window
+func RateLimit(max int, window time.Duration) func(http.Handler) http.Handler {
+	type bucket struct {
+		tokens int
+		reset  time.Time
+	}
+	var mu sync.Mutex
+	store := make(map[string]*bucket)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+			if ip == "" {
+				ip = r.RemoteAddr
+			}
+
+			now := time.Now()
+			mu.Lock()
+			b, ok := store[ip]
+			if !ok || now.After(b.reset) {
+				b = &bucket{tokens: max, reset: now.Add(window)}
+				store[ip] = b
+			}
+			if b.tokens <= 0 {
+				mu.Unlock()
+				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+				return
+			}
+			b.tokens--
+			mu.Unlock()
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }
