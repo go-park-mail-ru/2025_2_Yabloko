@@ -3,7 +3,6 @@ package middlewares
 import (
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/trace"
-	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -12,55 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 )
-
-var CSRFSecret = []byte(getenv("CSRF_SECRET", "dev-csrf-secret"))
-
-func getenv(k, def string) string {
-	if v := os.Getenv(k); v != "" {
-		return v
-	}
-	return def
-}
-
-type CSRFClaims struct {
-	SessionID string `json:"session_id"`
-	UserAgent string `json:"user_agent"`
-	jwt.RegisteredClaims
-}
-
-func generateJWTCSRFToken(sessionID string, userAgent string) (string, error) {
-	claims := CSRFClaims{
-		SessionID: sessionID,
-		UserAgent: userAgent,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-			ID:        uuid.New().String(),
-		},
-	}
-	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return t.SignedString(CSRFSecret)
-}
-
-func verifyJWTCSRFToken(tokenString, sessionID, userAgent string) bool {
-	token, err := jwt.ParseWithClaims(tokenString, &CSRFClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return CSRFSecret, nil
-	})
-	if err != nil {
-		return false
-	}
-	if claims, ok := token.Claims.(*CSRFClaims); ok && token.Valid {
-		return claims.SessionID == sessionID && claims.UserAgent == userAgent
-	}
-	return false
-}
 
 type statusWriter struct {
 	http.ResponseWriter
@@ -99,7 +51,6 @@ func AccessLog(log logger.Logger, next http.Handler) http.Handler {
 		log.Info("request completed",
 			slog.String("method", r.Method),
 			slog.String("url", r.URL.Path),
-			slog.String("url", r.URL.Path),
 			slog.Any("status", sw.status),
 			slog.Any("bytes", sw.bytes),
 			slog.Any("duration_ms", time.Since(start).Milliseconds()))
@@ -112,58 +63,56 @@ func CSRFMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		clientToken := r.Header.Get("X-CSRF-Token")
-		if clientToken == "" {
+
+		headerToken := r.Header.Get("X-CSRF-Token")
+		if headerToken == "" {
 			http.Error(w, "CSRF token required", http.StatusForbidden)
 			return
 		}
-		sessionCookie, err := r.Cookie("session_id")
-		if err != nil {
-			http.Error(w, "Session required", http.StatusForbidden)
+
+		cookieToken, err := r.Cookie("csrf_token")
+		if err != nil || cookieToken.Value == "" {
+			http.Error(w, "CSRF cookie missing", http.StatusForbidden)
 			return
 		}
-		if !verifyJWTCSRFToken(clientToken, sessionCookie.Value, r.UserAgent()) {
-			http.Error(w, "Invalid CSRF token", http.StatusForbidden)
+
+		if headerToken != cookieToken.Value {
+			http.Error(w, "CSRF token mismatch", http.StatusForbidden)
 			return
 		}
+
 		next.ServeHTTP(w, r)
 	})
 }
 
 func CSRFTokenMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sessionCookie, err := r.Cookie("session_id")
-		var sessionID string
-		if err != nil {
-			sessionID = uuid.New().String()
-			http.SetCookie(w, &http.Cookie{
-				Name:     "session_id",
-				Value:    sessionID,
-				Path:     "/",
-				HttpOnly: true,
-				Secure:   false,
-				SameSite: http.SameSiteLaxMode,
-				MaxAge:   86400,
-			})
-		} else {
-			sessionID = sessionCookie.Value
+	secure := strings.EqualFold(os.Getenv("COOKIE_SECURE"), "true")
+	sameSite := http.SameSiteLaxMode
+	switch strings.ToLower(os.Getenv("COOKIE_SAMESITE")) {
+	case "strict":
+		sameSite = http.SameSiteStrictMode
+	case "none":
+		sameSite = http.SameSiteNoneMode
+		if !secure {
+			secure = true
 		}
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// csrf_token — для Double Submit (HttpOnly=false)
 		if _, err := r.Cookie("csrf_token"); err != nil {
-			csrfToken, err := generateJWTCSRFToken(sessionID, r.UserAgent())
-			if err != nil {
-				http.Error(w, "Failed to generate CSRF token", http.StatusInternalServerError)
-				return
-			}
+			csrfToken := uuid.NewString()
 			http.SetCookie(w, &http.Cookie{
 				Name:     "csrf_token",
 				Value:    csrfToken,
 				Path:     "/",
 				HttpOnly: false,
-				Secure:   false,
-				SameSite: http.SameSiteLaxMode,
+				Secure:   secure,
+				SameSite: sameSite,
 				MaxAge:   86400,
 			})
 		}
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -202,7 +151,6 @@ func parseAllowedOrigins(v string) map[string]bool {
 	return m
 }
 
-// Простой rate limit по IP: N запросов за window
 func RateLimit(max int, window time.Duration) func(http.Handler) http.Handler {
 	type bucket struct {
 		tokens int
@@ -225,7 +173,7 @@ func RateLimit(max int, window time.Duration) func(http.Handler) http.Handler {
 				b = &bucket{tokens: max, reset: now.Add(window)}
 				store[ip] = b
 			}
-			if b.tokens <= 0 {
+			if b.tokens <= 0 || true { // TODO
 				mu.Unlock()
 				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 				return
