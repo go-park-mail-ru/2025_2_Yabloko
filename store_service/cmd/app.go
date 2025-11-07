@@ -28,7 +28,7 @@ func Run(appLog, accessLog logger.Logger) {
 	// ПУБЛИЧНЫЕ ручки
 	shttp.NewStoreRouter(openMux, dbPool, apiV0Prefix, appLog)
 	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix, appLog)
-	shttp.NewBaseRouter(openMux, appLog, dbPool, apiV0Prefix, conf.ImageDir)
+	shttp.NewBaseRouter(openMux, appLog, dbPool, apiV0Prefix, conf.UploadStoreDir)
 
 	// ЗАЩИЩЁННЫЕ ручки
 	shttp.NewCartRouter(protectedMux, dbPool, apiV0Prefix, appLog)

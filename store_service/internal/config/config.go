@@ -1,3 +1,4 @@
+// config/config.go
 package config
 
 import (
@@ -18,19 +19,19 @@ type Config struct {
 
 	JWTSecret string `validate:"required"`
 
-	ImageDir string `validate:"required"`
+	UploadStoreDir string `validate:"required"`
 }
 
 func MustConfig() *Config {
 	conf := &Config{
-		DBUser:     os.Getenv("DB_USER"),
-		DBPassword: os.Getenv("DB_PASSWORD"),
-		DBHost:     os.Getenv("DB_HOST"),
-		DBPort:     os.Getenv("DB_PORT"),
-		DBName:     os.Getenv("DB_NAME"),
-		AppPort:    os.Getenv("STORE_SERVICE_PORT"),
-		JWTSecret:  os.Getenv("SECRET_KEY"),
-		ImageDir:   os.Getenv("UPLOAD_DIR"),
+		DBUser:         os.Getenv("DB_USER"),
+		DBPassword:     os.Getenv("DB_PASSWORD"),
+		DBHost:         os.Getenv("DB_HOST"),
+		DBPort:         os.Getenv("DB_PORT"),
+		DBName:         os.Getenv("DB_NAME"),
+		AppPort:        os.Getenv("STORE_SERVICE_PORT"),
+		JWTSecret:      os.Getenv("SECRET_KEY"),
+		UploadStoreDir: os.Getenv("UPLOAD_STORE_DIR"),
 	}
 
 	if err := validator.New().Struct(conf); err != nil {

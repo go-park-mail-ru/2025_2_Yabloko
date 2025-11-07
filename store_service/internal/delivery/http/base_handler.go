@@ -25,11 +25,27 @@ func NewBaseHandler(log logger.Logger, dbPool repository.PgxIface, imageDir stri
 	}
 }
 
-func NewBaseRouter(mux *http.ServeMux, appLog logger.Logger, dbPool repository.PgxIface, apiPrefix, imageDir string) {
-	baseHandler := NewBaseHandler(appLog, dbPool, imageDir)
+func NewBaseRouter(mux *http.ServeMux, log logger.Logger, db repository.PgxIface, apiPrefix, uploadStoreDir string) {
+	// Health-check
+	mux.HandleFunc(apiPrefix+"health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok","service":"store"}`))
+	})
 
-	mux.HandleFunc(apiPrefix+"images/{path}", baseHandler.GetImage)
-	mux.HandleFunc(apiPrefix+"health", baseHandler.HealthCheck)
+	// /images/stores/uuid.jpg → /app/stores/uuid.jpg
+	mux.Handle("/images/stores/", http.StripPrefix("/images/stores/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fullPath := filepath.Join(uploadStoreDir, r.URL.Path)
+		log.Debug("Serving image", map[string]interface{}{
+			"path": r.URL.Path,
+			"file": fullPath,
+		})
+		http.ServeFile(w, r, fullPath)
+	})))
+
+	log.Info("BaseRouter: serving store images", map[string]interface{}{
+		"dir": uploadStoreDir,
+	})
 }
 
 func (h *BaseHandler) GetImage(w http.ResponseWriter, r *http.Request) {

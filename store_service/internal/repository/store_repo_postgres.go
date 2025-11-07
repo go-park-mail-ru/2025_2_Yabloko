@@ -86,9 +86,8 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	var stores []*domain.Store
 	for rows.Next() {
 		var store domain.Store
-		var tagID *string // Используем указатель для nullable tag_id
+		var tagID *string
 
-		// ИСПРАВЛЕННЫЙ SCAN - добавляем tag_id
 		err = rows.Scan(&store.ID, &store.Name, &store.Description,
 			&store.CityID, &store.Address, &store.CardImg, &store.Rating,
 			&store.OpenAt, &store.ClosedAt, &tagID)
@@ -98,11 +97,9 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 			return nil, err
 		}
 
-		// Обрабатываем nullable tag_id
 		if tagID != nil {
 			store.TagID = *tagID
 		}
-
 		stores = append(stores, &store)
 	}
 
@@ -110,11 +107,6 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 		r.log.Error("GetStores ошибка после чтения строк",
 			map[string]interface{}{"err": err, "filter": filter})
 		return nil, err
-	}
-
-	if len(stores) == 0 {
-		r.log.Debug("GetStores пустой ответ", map[string]interface{}{"filter": filter})
-		return nil, domain.ErrRowsNotFound
 	}
 
 	r.log.Debug("GetStores завершено успешно", map[string]interface{}{"stores_count": len(stores)})

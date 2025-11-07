@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 )
@@ -101,28 +102,47 @@ func (h *StoreHandler) GetStore(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *StoreHandler) GetStores(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodGet {
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "GetStores", domain.ErrHTTPMethod, nil)
 		return
 	}
 
-	req := &domain.StoreFilter{}
-	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
-		h.rs.Error(r.Context(), w, http.StatusBadRequest, "GetStores", domain.ErrRequestParams, nil)
+	q := r.URL.Query()
+
+	limitStr := q.Get("limit")
+	if limitStr == "" {
+		h.rs.Error(r.Context(), w, http.StatusBadRequest, "GetStores", domain.ErrRequestParams, errors.New("limit required"))
+		return
+	}
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 || limit > 100 {
+		h.rs.Error(r.Context(), w, http.StatusBadRequest, "GetStores", domain.ErrRequestParams, errors.New("invalid limit"))
 		return
 	}
 
-	stores, err := h.uc.GetStores(r.Context(), req)
+	filter := &domain.StoreFilter{
+		Limit:  limit,
+		LastID: q.Get("last_id"),
+		TagID:  q.Get("tag_id"),
+		CityID: q.Get("city_id"),
+		Sorted: q.Get("sorted"),
+		Desc:   q.Has("desc") && q.Get("desc") == "true",
+	}
+
+	stores, err := h.uc.GetStores(r.Context(), filter)
 	if err != nil {
-		if errors.Is(err, domain.ErrRowsNotFound) {
-			h.rs.Error(r.Context(), w, http.StatusNotFound, "GetStores", domain.ErrRowsNotFound, nil)
-			return
-		} else if errors.Is(err, domain.ErrRequestParams) {
+		if errors.Is(err, domain.ErrRequestParams) {
 			h.rs.Error(r.Context(), w, http.StatusBadRequest, "GetStores", domain.ErrRequestParams, nil)
 			return
 		}
 		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "GetStores", domain.ErrInternalServer, err)
 		return
+	}
+
+	for _, s := range stores {
+		if s.CardImg != "" {
+			s.CardImg = "/images/stores/" + s.CardImg
+		}
 	}
 
 	responseStores := transport.ToStoreResponses(stores)

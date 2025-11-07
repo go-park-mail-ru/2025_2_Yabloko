@@ -115,6 +115,8 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       COOKIE_SECURE: ${COOKIE_SECURE}
       COOKIE_SAMESITE: ${COOKIE_SAMESITE}
+    volumes:
+      - ./uploads/stores:/app/stores
     restart: unless-stopped
 
 volumes:
