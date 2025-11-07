@@ -157,7 +157,7 @@ func SessionMiddleware(next http.Handler) http.Handler {
 
 func SmartCSRFMiddleware(next http.Handler) http.Handler {
 	skipPaths := map[string]bool{
-		"/api/v0/csrf": true,
+		"/csrf": true,
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
