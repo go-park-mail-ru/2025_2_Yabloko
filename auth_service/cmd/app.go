@@ -15,6 +15,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+func csrfHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func Run(appLog, accessLog logger.Logger) {
 	if appLog == nil {
 		log.Fatal("app log is nil")
@@ -34,17 +42,17 @@ func Run(appLog, accessLog logger.Logger) {
 	repo := repository.NewAuthRepoPostgres(dbPool)
 	uc := usecase.NewAuthUseCase(repo, conf.SecretKeyStr())
 
-	mainMux := http.NewServeMux()
-
 	authMux := http.NewServeMux()
+
+	authMux.Handle("/csrf", http.HandlerFunc(csrfHandler))
+
 	authhttp.NewAuthRouter(authMux, "/auth", appLog, uc)
 
 	authHandler := authmw.CSRFTokenMiddleware(
-		authmw.CSRFMiddleware(
-			authMux,
-		),
+		authmw.CSRFMiddleware(authMux),
 	)
 
+	mainMux := http.NewServeMux()
 	mainMux.Handle("/api/v0/", http.StripPrefix("/api/v0", authHandler))
 
 	handler := authmw.CorsMiddleware(

@@ -57,7 +57,6 @@ func AccessLog(log logger.Logger, next http.Handler) http.Handler {
 	})
 }
 
-// 🔑 Double Submit Cookie: проверяет, что X-CSRF-Token == кука csrf_token
 func CSRFMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
