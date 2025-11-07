@@ -181,6 +181,12 @@ func SmartCSRFMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		slog.Info("CSRF debug",
+			"path", r.URL.Path,
+			"session_id_from_ctx", sessionID,
+			"token_prefix", clientToken[:min(len(clientToken), 30)],
+		)
+
 		if !verifyJWTCSRFToken(clientToken, sessionID) {
 			http.Error(w, "Invalid or expired CSRF token", http.StatusForbidden)
 			return
