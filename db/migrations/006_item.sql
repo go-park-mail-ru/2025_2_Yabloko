@@ -4,7 +4,7 @@ create table if not exists item
     id          uuid primary key,
     name        text        not null check (length(name) <= 50),
     description text        not null check ( length(description) <= 200),
-    card_img    text check (card_img ~ '^(?:\.?/[\w.-]+)+\.(png|jpg|jpeg|svg)$'),
+    card_img    text check (card_img ~ '\.(png|jpg|jpeg|svg|webp|gif)$'),
     updated_at  timestamptz not null default current_timestamp,
     created_at  timestamptz not null default current_timestamp
 );
