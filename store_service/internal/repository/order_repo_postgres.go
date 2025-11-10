@@ -72,8 +72,8 @@ func (r *OrderRepoPostgres) CreateOrder(ctx context.Context, userID string) (str
 	r.log.Debug("CreateOrder начало обработки", slog.String("user_id", userID))
 
 	// Проверка: есть ли товары в корзине?
-	var cnt int
-	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM cart_item WHERE user_id = $1", userID).Scan(&cnt)
+	var cnt int // TODO Вынести в запросы попозже
+	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM cart_item ci JOIN cart c ON c.id = ci.cart_id WHERE c.user_id = $1", userID).Scan(&cnt)
 	if err != nil {
 		r.log.Error("CreateOrder ошибка проверки корзины", slog.String("user_id", userID), slog.Any("err", err))
 		return "", err

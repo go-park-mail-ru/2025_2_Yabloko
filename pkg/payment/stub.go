@@ -25,7 +25,7 @@ func generateMockPrice() string {
 	return prices[rand.Intn(len(prices))]
 }
 
-func formatPrice(s string) string {
+func formatPrice(s string) string { // TODO: пофиксить чтобы работала запятая нормально
 	var clean strings.Builder
 	for _, c := range s {
 		if c >= '0' && c <= '9' || c == '.' {
