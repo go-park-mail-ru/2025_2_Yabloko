@@ -27,10 +27,11 @@ func NewStoreRepoPostgres(db PgxIface, log logger.Logger) *StoreRepoPostgres {
 
 func generateQuery(filter *domain.StoreFilter) (string, []any) {
 	query := `
-        select s.id, s.name, s.description, s.city_id, s.address, 
-               s.card_img, s.rating, s.open_at, s.closed_at, st.tag_id
-        from store s
-        left join store_tag st on s.id = st.store_id
+        SELECT DISTINCT s.id, s.name, s.description, s.city_id, s.address, 
+               s.card_img, s.rating, s.open_at, s.closed_at,
+               array_agg(st.tag_id) as tag_ids
+        FROM store s
+        LEFT JOIN store_tag st ON s.id = st.store_id
     `
 	args := []any{}
 	where := []string{}
@@ -47,27 +48,29 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 		args = append(args, filter.CityID)
 	}
 
+	if len(where) > 0 {
+		query += " WHERE " + strings.Join(where, " AND ")
+	}
+
+	query += " GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at"
+
 	// если не первый запрос
 	if filter.LastID != "" {
-		where = append(where, fmt.Sprintf("s.id > $%d", len(args)+1))
+		query += fmt.Sprintf(" HAVING s.id > $%d", len(args)+1)
 		args = append(args, filter.LastID)
 	}
 
-	if len(where) > 0 {
-		query += " where " + strings.Join(where, " and ")
-	}
-
-	orderBy := " order by s.id"
+	orderBy := " ORDER BY s.id"
 	if filter.Sorted != "" {
-		dir := "asc"
+		dir := "ASC"
 		if filter.Desc {
-			dir = "desc"
+			dir = "DESC"
 		}
-		orderBy = fmt.Sprintf(" order by s.%s %s, s.id", filter.Sorted, dir)
+		orderBy = fmt.Sprintf(" ORDER BY s.%s %s, s.id", filter.Sorted, dir)
 	}
 	query += orderBy
 
-	query += fmt.Sprintf(" limit $%d", len(args)+1)
+	query += fmt.Sprintf(" LIMIT $%d", len(args)+1)
 	args = append(args, filter.Limit)
 
 	return query, args
