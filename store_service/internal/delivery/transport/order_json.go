@@ -1,6 +1,9 @@
 package transport
 
-import "apple_backend/store_service/internal/domain"
+import (
+	"apple_backend/store_service/internal/domain"
+	"time"
+)
 
 type OrderItemInfo struct {
 	ID       string  `json:"id"`
@@ -15,14 +18,14 @@ type OrderInfo struct {
 	Items     []*OrderItemInfo `json:"items"`
 	Status    string           `json:"status"`
 	Total     float64          `json:"total"`
-	CreatedAt string           `json:"created_at"`
+	CreatedAt time.Time        `json:"created_at"`
 } // @name OrderInfo
 
 type Order struct {
-	ID        string  `json:"id"`
-	Status    string  `json:"status"`
-	Total     float64 `json:"total"`
-	CreatedAt string  `json:"created_at"`
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	Total     float64   `json:"total"`
+	CreatedAt time.Time `json:"created_at"`
 } // @name Order
 
 type Orders struct {
