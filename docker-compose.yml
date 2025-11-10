@@ -140,7 +140,7 @@ services:
     image: amir20/dozzle:latest
     container_name: doozle
     ports:
-      - "${DOOZLE_PORT}:8080"
+      - "${DOZZLE_PORT}:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
