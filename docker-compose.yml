@@ -18,18 +18,23 @@ services:
       timeout: 2s
       retries: 10
     restart: unless-stopped
+    command: >
+      postgres  -c log_destination=stderr -c logging_collector=on -c log_statement=all -c log_connections=on -c log_disconnections=on
 
   migrator:
     image: ghcr.io/jackc/tern:latest
+    container_name: migrator
     depends_on:
       db:
         condition: service_healthy
     working_dir: /migrations
     volumes:
       - ./db/migrations:/migrations
-    env_file: [ .env ] # нужно для {{ env "..."}}
+    env_file: [ .env ]
     command: [ "migrate", "-m", "/migrations", "-c", "/migrations/tern.conf", "up" ]
     restart: "no"
+    environment:
+      - TERN_DEBUG=true
 
   auth_service:
     build:
@@ -57,6 +62,9 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE}
       COOKIE_SAMESITE: ${COOKIE_SAMESITE}
     restart: unless-stopped
+    labels:
+      - "service.type=auth"
+      - "log.format=json"
 
   profile_service:
     build:
@@ -88,6 +96,9 @@ services:
     volumes:
       - ./.data/avatars:/app/avatars
     restart: unless-stopped
+    labels:
+      - "service.type=profile"
+      - "log.format=json"
 
   store_service:
     build:
@@ -121,6 +132,19 @@ services:
       - ./uploads/stores:/app/stores
       - ./uploads/items:/app/items
     restart: unless-stopped
+    labels:
+      - "service.type=store"
+      - "log.format=json"
+
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: doozle
+    ports:
+      - "${DOOZLE_PORT}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DOZZLE_NO_ANALYTICS=true
 
 volumes:
   db_data: {}

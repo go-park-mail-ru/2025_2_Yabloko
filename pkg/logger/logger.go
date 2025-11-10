@@ -50,12 +50,12 @@ func (h *DevJSONHandler) Handle(_ context.Context, r slog.Record) error {
 		return true
 	})
 
-	jsonData, err := json.MarshalIndent(data, "", "  ")
+	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
 
-	_, _ = fmt.Fprintf(h.writer, "%s", jsonData)
+	_, _ = fmt.Fprintf(h.writer, "%s\n", jsonData)
 
 	return nil
 }
