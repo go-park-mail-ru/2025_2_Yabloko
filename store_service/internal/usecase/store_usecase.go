@@ -6,8 +6,8 @@ import (
 )
 
 type StoreRepository interface {
-	GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.Store, error)
-	GetStore(ctx context.Context, id string) ([]*domain.Store, error)
+	GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.StoreAgg, error)
+	GetStore(ctx context.Context, id string) (*domain.StoreAgg, error)
 	GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error)
 	CreateStore(ctx context.Context, store *domain.Store) error
 	GetCities(ctx context.Context) ([]*domain.City, error)
@@ -38,35 +38,7 @@ func (uc *StoreUsecase) CreateStore(ctx context.Context,
 }
 
 func (uc *StoreUsecase) GetStore(ctx context.Context, id string) (*domain.StoreAgg, error) {
-	stores, err := uc.repo.GetStore(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(stores) == 0 {
-		return nil, domain.ErrRowsNotFound
-	}
-
-	// Агрегация тегов
-	first := stores[0]
-	agg := &domain.StoreAgg{
-		ID:          first.ID,
-		Name:        first.Name,
-		Description: first.Description,
-		CityID:      first.CityID,
-		Address:     first.Address,
-		CardImg:     first.CardImg,
-		Rating:      first.Rating,
-		OpenAt:      first.OpenAt,
-		ClosedAt:    first.ClosedAt,
-		TagsID:      []string{first.TagID},
-	}
-
-	for _, s := range stores[1:] {
-		agg.TagsID = append(agg.TagsID, s.TagID)
-	}
-
-	return agg, nil
+	return uc.repo.GetStore(ctx, id)
 }
 
 func (uc *StoreUsecase) GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error) {
@@ -87,32 +59,7 @@ func (uc *StoreUsecase) GetStores(ctx context.Context, filter *domain.StoreFilte
 		return nil, err
 	}
 
-	// Агрегация по ID магазина (теги)
-	byID := make(map[string]*domain.StoreAgg)
-	for _, s := range stores {
-		if agg, ok := byID[s.ID]; ok {
-			agg.TagsID = append(agg.TagsID, s.TagID)
-		} else {
-			byID[s.ID] = &domain.StoreAgg{
-				ID:          s.ID,
-				Name:        s.Name,
-				Description: s.Description,
-				CityID:      s.CityID,
-				Address:     s.Address,
-				CardImg:     s.CardImg,
-				Rating:      s.Rating,
-				OpenAt:      s.OpenAt,
-				ClosedAt:    s.ClosedAt,
-				TagsID:      []string{s.TagID},
-			}
-		}
-	}
-
-	result := make([]*domain.StoreAgg, 0, len(byID))
-	for _, agg := range byID {
-		result = append(result, agg)
-	}
-	return result, nil
+	return stores, nil
 }
 
 func (uc *StoreUsecase) GetCities(ctx context.Context) ([]*domain.City, error) {

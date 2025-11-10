@@ -263,7 +263,7 @@
         },
         "/orders/{id}/status": {
             "patch": {
-                "description": "Меняет статус заказа на один из возможных ('pending', 'paid', 'delivered', 'cancelled', 'on the way')",
+                "description": "Меняет статус заказа на один из возможных ('pending', 'paid', 'delivered', 'cancelled', 'on_the_way')",
                 "consumes": [
                     "application/json"
                 ],

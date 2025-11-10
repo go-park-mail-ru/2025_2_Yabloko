@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Оплата — Apple Store</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f7;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: auto;
+            background: white;
+            border-radius: 18px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #000;
+            color: white;
+            padding: 24px 20px;
+            text-align: center;
+        }
+
+        .header::before {
+            content: "";
+            font-size: 32px;
+        }
+
+        .header span {
+            font-size: 20px;
+            font-weight: 400;
+            margin-left: 8px;
+        }
+
+        .content {
+            padding: 30px;
+            text-align: center;
+        }
+
+        .order-id {
+            font-size: 14px;
+            color: #86868b;
+            margin-bottom: 20px;
+        }
+
+        .status {
+            font-size: 20px;
+            color: #1d1d1f;
+            margin: 20px 0 30px;
+            line-height: 1.4;
+        }
+
+        .amount {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin: 10px 0;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            margin: 12px 0;
+            border: none;
+            border-radius: 12px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .btn:active {
+            transform: scale(0.99);
+        }
+
+        .btn-pay {
+            background: #fe7743;
+            color: white;
+        }
+
+        .btn-cancel {
+            background: #f5f5f7;
+            color: #1d1d1f;
+        }
+
+        .footer {
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #86868b;
+        }
+
+        .spinner {
+            display: none;
+            width: 24px;
+            height: 24px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0071e3;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <span>Apple Store</span>
+        </div>
+        <div class="content">
+            <div class="order-id">Заказ • {{.OrderIDShort}}</div>
+            <div class="status">Готов к оплате</div>
+            <div class="amount">{{ .Price }} ₽</div>
+
+            <div class="spinner" id="spinner"></div>
+
+            <button class="btn btn-pay" onclick="proceed('succeeded')">
+                Оплатить
+            </button>
+            <button class="btn btn-cancel" onclick="proceed('canceled')">
+                Отменить
+            </button>
+        </div>
+        <div class="footer">
+            Безопасная оплата • Все операции защищены
+        </div>
+    </div>
+
+    <script>
+        function proceed(status) {
+            document.getElementById('spinner').style.display = 'block';
+            document.querySelector('.btn-pay').disabled = true;
+            document.querySelector('.btn-cancel').disabled = true;
+
+            // Эмулируем задержку обработки
+            setTimeout(() => {
+                const url = new URL('{{.ReturnURL}}');
+                url.searchParams.set('payment_status', status);
+                window.location.href = url.toString();
+            }, 800);
+        }
+    </script>
+</body>
+
+</html>

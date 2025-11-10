@@ -359,7 +359,7 @@ paths:
       consumes:
       - application/json
       description: Меняет статус заказа на один из возможных ('pending', 'paid', 'delivered',
-        'cancelled', 'on the way')
+        'cancelled', 'on_the_way')
       parameters:
       - description: ID заказа (UUID)
         in: path

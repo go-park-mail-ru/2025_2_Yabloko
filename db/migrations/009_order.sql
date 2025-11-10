@@ -1,5 +1,5 @@
 -- Write your migrate up statements here
-create type order_status as enum ('pending', 'paid', 'delivered', 'cancelled', 'on the way');
+create type order_status as enum ('pending', 'paid', 'delivered', 'cancelled', 'on_the_way');
 
 create table if not exists "orders"
 (

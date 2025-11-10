@@ -3,6 +3,7 @@ package usecase
 import (
 	"apple_backend/store_service/internal/domain"
 	"context"
+	"fmt"
 )
 
 type OrderRepository interface {
@@ -35,7 +36,7 @@ func (uc *OrderUsecase) UpdateOrderStatus(ctx context.Context, orderID, userID, 
 		"paid":       true,
 		"delivered":  true,
 		"cancelled":  true,
-		"on the way": true,
+		"on_the_way": true,
 	}
 	if !allowed[status] {
 		return domain.ErrRequestParams
@@ -48,8 +49,19 @@ func (uc *OrderUsecase) UpdateOrderStatus(ctx context.Context, orderID, userID, 
 	if realUserID != userID {
 		return domain.ErrForbidden
 	}
+	currentOrder, err := uc.repo.GetOrder(ctx, orderID)
+	if err != nil {
+		return err
+	}
 
-	return uc.repo.UpdateOrderStatus(ctx, orderID, status)
+	if status == "cancelled" {
+		if currentOrder.Status == "pending" {
+			return uc.repo.UpdateOrderStatus(ctx, orderID, "cancelled")
+		}
+		return fmt.Errorf("cannot cancel order in status '%s'", currentOrder.Status)
+	}
+
+	return domain.ErrForbidden
 }
 
 func (uc *OrderUsecase) GetOrder(ctx context.Context, orderID, userID string) (*domain.OrderInfo, error) {

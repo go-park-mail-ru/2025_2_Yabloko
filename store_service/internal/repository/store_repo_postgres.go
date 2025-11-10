@@ -5,12 +5,14 @@ import (
 	"apple_backend/store_service/internal/domain"
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type StoreRepoPostgres struct {
@@ -27,9 +29,10 @@ func NewStoreRepoPostgres(db PgxIface, log logger.Logger) *StoreRepoPostgres {
 
 func generateQuery(filter *domain.StoreFilter) (string, []any) {
 	query := `
-        SELECT DISTINCT s.id, s.name, s.description, s.city_id, s.address, 
-               s.card_img, s.rating, s.open_at, s.closed_at,
-               array_agg(st.tag_id) as tag_ids
+        SELECT 
+            s.id, s.name, s.description, s.city_id, s.address, 
+            s.card_img, s.rating, s.open_at, s.closed_at,
+            COALESCE(array_agg(st.tag_id) FILTER (WHERE st.tag_id IS NOT NULL), '{}') AS tag_ids
         FROM store s
         LEFT JOIN store_tag st ON s.id = st.store_id
     `
@@ -38,7 +41,7 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 
 	// фильтрация по тегу
 	if filter.TagID != "" {
-		where = append(where, fmt.Sprintf("exists (select 1 from store_tag st2 where st2.store_id = s.id and st2.tag_id = $%d)", len(args)+1))
+		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_tag st2 WHERE st2.store_id = s.id AND st2.tag_id = $%d)", len(args)+1))
 		args = append(args, filter.TagID)
 	}
 
@@ -54,12 +57,13 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 
 	query += " GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at"
 
-	// если не первый запрос
+	// пагинация
 	if filter.LastID != "" {
 		query += fmt.Sprintf(" HAVING s.id > $%d", len(args)+1)
 		args = append(args, filter.LastID)
 	}
 
+	// сортировка
 	orderBy := " ORDER BY s.id"
 	if filter.Sorted != "" {
 		dir := "ASC"
@@ -70,13 +74,14 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 	}
 	query += orderBy
 
+	// лимит
 	query += fmt.Sprintf(" LIMIT $%d", len(args)+1)
 	args = append(args, filter.Limit)
 
 	return query, args
 }
 
-func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.Store, error) {
+func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.StoreAgg, error) {
 	r.log.Debug("GetStores начало обработки",
 		slog.String("tag_id", filter.TagID),
 		slog.String("city_id", filter.CityID),
@@ -103,22 +108,29 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	}
 	defer rows.Close()
 
-	var stores []*domain.Store
+	var stores []*domain.StoreAgg
 	for rows.Next() {
-		var store domain.Store
-		var tagID *string
+		var store domain.StoreAgg
+		var tagIDs []string // ← массив UUID → []string
 
-		err = rows.Scan(&store.ID, &store.Name, &store.Description,
-			&store.CityID, &store.Address, &store.CardImg, &store.Rating,
-			&store.OpenAt, &store.ClosedAt, &tagID)
+		err = rows.Scan(
+			&store.ID,
+			&store.Name,
+			&store.Description,
+			&store.CityID,
+			&store.Address,
+			&store.CardImg,
+			&store.Rating,
+			&store.OpenAt,
+			&store.ClosedAt,
+			&tagIDs, // ← 10-й аргумент
+		)
 		if err != nil {
 			r.log.Error("GetStores ошибка при декодировании данных", slog.Any("err", err))
 			return nil, err
 		}
 
-		if tagID != nil {
-			store.TagID = *tagID
-		}
+		store.TagsID = tagIDs
 		stores = append(stores, &store)
 	}
 
@@ -142,7 +154,7 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 //go:embed sql/store/get.sql
 var getStoreQuery string
 
-func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) ([]*domain.Store, error) {
+func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.StoreAgg, error) {
 	r.log.Debug("GetStore начало обработки", slog.String("id", id))
 
 	rows, err := r.db.Query(ctx, getStoreQuery, id)
@@ -152,17 +164,28 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) ([]*domain.
 	}
 	defer rows.Close()
 
-	var stores []*domain.Store
-	for rows.Next() {
-		var store domain.Store
-		err = rows.Scan(&store.ID, &store.Name, &store.Description,
-			&store.CityID, &store.Address, &store.CardImg, &store.Rating,
-			&store.OpenAt, &store.ClosedAt, &store.TagID)
-		if err != nil {
-			r.log.Error("GetStore ошибка при декодировании данных", slog.Any("err", err))
-			return nil, err
-		}
-		stores = append(stores, &store)
+	if !rows.Next() {
+		return nil, domain.ErrRowsNotFound
+	}
+
+	var store domain.StoreAgg
+	var tagIDs []string
+
+	err = rows.Scan(
+		&store.ID,
+		&store.Name,
+		&store.Description,
+		&store.CityID,
+		&store.Address,
+		&store.CardImg,
+		&store.Rating,
+		&store.OpenAt,
+		&store.ClosedAt,
+		&tagIDs,
+	)
+	if err != nil {
+		r.log.Error("GetStore ошибка при декодировании данных", slog.Any("err", err))
+		return nil, err
 	}
 
 	if err = rows.Err(); err != nil {
@@ -170,13 +193,9 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) ([]*domain.
 		return nil, err
 	}
 
-	if len(stores) == 0 {
-		r.log.Debug("GetStore пустой ответ", slog.String("id", id))
-		return nil, domain.ErrRowsNotFound
-	}
-
+	store.TagsID = tagIDs
 	r.log.Debug("GetStore завершено успешно", slog.String("id", id))
-	return stores, nil
+	return &store, nil
 }
 
 //go:embed sql/store/get_review.sql
@@ -231,7 +250,8 @@ func (r *StoreRepoPostgres) CreateStore(ctx context.Context, store *domain.Store
 	_, err := r.db.Exec(ctx, createStore, store.ID, store.Name, store.Description,
 		store.CityID, store.Address, store.CardImg, store.Rating, store.OpenAt, store.ClosedAt)
 	if err != nil {
-		if strings.Contains(err.Error(), "SQLSTATE 23505") {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			r.log.Warn("CreateStore unique ограничение", slog.Any("err", err))
 			return domain.ErrStoreExist
 		}

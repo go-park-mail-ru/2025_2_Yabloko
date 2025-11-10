@@ -176,30 +176,30 @@ func (h *OrderHandler) UpdateOrderStatus(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	status := &transport.OrderStatus{}
-	if err := json.NewDecoder(r.Body).Decode(status); err != nil {
+	statusReq := &transport.OrderStatus{}
+	if err := json.NewDecoder(r.Body).Decode(statusReq); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateOrderStatus", domain.ErrRequestParams, err)
 		return
 	}
 
-	if err := h.validator.Struct(status); err != nil {
+	if err := h.validator.Struct(statusReq); err != nil {
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateOrderStatus", domain.ErrRequestParams, err)
 		return
 	}
 
-	err := h.uc.UpdateOrderStatus(r.Context(), id, userID, status.Status)
+	if statusReq.Status != "cancelled" {
+		h.rs.Error(r.Context(), w, http.StatusForbidden, "UpdateOrderStatus", domain.ErrForbidden,
+			errors.New("Отменять можно только заказы `в ожидании оплаты`"))
+		return
+	}
+
+	err := h.uc.UpdateOrderStatus(r.Context(), id, userID, statusReq.Status)
 	if err != nil {
 		if errors.Is(err, domain.ErrRowsNotFound) {
 			h.rs.Error(r.Context(), w, http.StatusNotFound, "UpdateOrderStatus", domain.ErrRowsNotFound, err)
 			return
-		} else if errors.Is(err, domain.ErrRequestParams) {
-			h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateOrderStatus", domain.ErrRequestParams, err)
-			return
-		} else if errors.Is(err, domain.ErrForbidden) {
-			h.rs.Error(r.Context(), w, http.StatusForbidden, "UpdateOrderStatus", domain.ErrForbidden, err)
-			return
 		}
-		h.rs.Error(r.Context(), w, http.StatusInternalServerError, "UpdateOrderStatus", domain.ErrInternalServer, err)
+		h.rs.Error(r.Context(), w, http.StatusForbidden, "UpdateOrderStatus", domain.ErrForbidden, err)
 		return
 	}
 

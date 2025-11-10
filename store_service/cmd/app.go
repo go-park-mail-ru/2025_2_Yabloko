@@ -29,6 +29,10 @@ func Run(appLog, accessLog logger.Logger) {
 	shttp.NewStoreRouter(openMux, dbPool, apiV0Prefix, appLog)
 	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix, appLog)
 
+	// ← ДОБАВЛЕНО: PaymentHandler для заглушки
+	paymentHandler := shttp.NewPaymentHandler(appLog)
+	openMux.HandleFunc(apiV0Prefix+"fake-payment", paymentHandler.FakePayment)
+
 	// ЗАЩИЩЁННЫЕ ручки
 	shttp.NewCartRouter(protectedMux, dbPool, apiV0Prefix, appLog)
 	shttp.NewOrderRouter(protectedMux, dbPool, apiV0Prefix, appLog)
@@ -58,7 +62,7 @@ func Run(appLog, accessLog logger.Logger) {
 	mux.Handle(apiV0Prefix+"cart", protectedHandler)
 	mux.Handle(apiV0Prefix+"orders", protectedHandler)
 	mux.Handle(apiV0Prefix+"orders/", protectedHandler)
-	mux.Handle(apiV0Prefix, openMux) // ← /api/v0/... → openMux
+	mux.Handle(apiV0Prefix, openMux)
 
 	handler := middlewares.CorsMiddleware(middlewares.AccessLog(accessLog, mux))
 
