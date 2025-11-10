@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 type OrderItemInfo struct {
 	// id - store_item_id
 	ID       string
@@ -14,12 +16,12 @@ type OrderInfo struct {
 	Items     []*OrderItemInfo
 	Status    string
 	Total     float64
-	CreatedAt string
+	CreatedAt time.Time
 }
 
 type Order struct {
 	ID        string
 	Status    string
 	Total     float64
-	CreatedAt string
+	CreatedAt time.Time
 }
