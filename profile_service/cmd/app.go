@@ -16,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Run(appLog, accessLog logger.Logger) {
+func Run() {
 	conf := config.LoadConfig()
 
 	dbPool, err := pgxpool.New(context.Background(), conf.DBPath())
@@ -27,6 +27,7 @@ func Run(appLog, accessLog logger.Logger) {
 
 	mux := http.NewServeMux()
 
+	// статика для аватарок
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -61,13 +62,14 @@ func Run(appLog, accessLog logger.Logger) {
 	})
 
 	protectedMux := http.NewServeMux()
-	phttp.NewProfileRouter(protectedMux, dbPool, "/api/v0", appLog, conf.UploadPath, conf.BaseURL)
+	phttp.NewProfileRouter(protectedMux, dbPool, "/api/v0", conf.UploadPath, conf.BaseURL)
 
 	jwtSecret := conf.JWTSecret
 	protectedHandler := middlewares.AuthMiddleware(protectedMux, jwtSecret)
 	mux.Handle("/api/v0/", protectedHandler)
 
-	handler := middlewares.AccessLog(accessLog,
+	handler := middlewares.AccessLog(
+		logger.Global(),
 		middlewares.CorsMiddleware(
 			middlewares.CSRFTokenMiddleware(
 				middlewares.CSRFMiddleware(mux),
@@ -76,7 +78,7 @@ func Run(appLog, accessLog logger.Logger) {
 	)
 
 	addr := fmt.Sprintf("0.0.0.0:%s", conf.AppPort)
-	log.Printf("✅ Profile service running on http://%s:%s", conf.AppHost, conf.AppPort)
-	log.Printf("✅ Avatar URL base: %s", conf.BaseURL)
+	log.Printf("Profile service running on http://%s:%s", conf.AppHost, conf.AppPort)
+	log.Printf("Avatar URL base: %s", conf.BaseURL)
 	log.Fatal(http.ListenAndServe(addr, handler))
 }

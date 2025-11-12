@@ -3,6 +3,7 @@ package usecase
 import (
 	"apple_backend/store_service/internal/domain"
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -25,7 +26,12 @@ func NewOrderUsecase(repo OrderRepository) *OrderUsecase {
 func (uc *OrderUsecase) CreateOrder(ctx context.Context, userID string) (*domain.OrderInfo, error) {
 	orderID, err := uc.repo.CreateOrder(ctx, userID)
 	if err != nil {
-		return nil, err
+		// сохраняем доменные ошибки из repository
+		if errors.Is(err, domain.ErrCartEmpty) || errors.Is(err, domain.ErrRowsNotFound) {
+			return nil, err
+		}
+		// Остальные ошибки - внутренние
+		return nil, domain.ErrInternalServer
 	}
 	return uc.repo.GetOrder(ctx, orderID)
 }
@@ -44,14 +50,21 @@ func (uc *OrderUsecase) UpdateOrderStatus(ctx context.Context, orderID, userID, 
 
 	realUserID, err := uc.repo.GetOrderUserID(ctx, orderID)
 	if err != nil {
-		return err
+		if errors.Is(err, domain.ErrRowsNotFound) {
+			return err
+		}
+		return domain.ErrInternalServer
 	}
 	if realUserID != userID {
 		return domain.ErrForbidden
 	}
+
 	currentOrder, err := uc.repo.GetOrder(ctx, orderID)
 	if err != nil {
-		return err
+		if errors.Is(err, domain.ErrRowsNotFound) {
+			return err
+		}
+		return domain.ErrInternalServer
 	}
 
 	if status == "cancelled" {
@@ -67,7 +80,10 @@ func (uc *OrderUsecase) UpdateOrderStatus(ctx context.Context, orderID, userID, 
 func (uc *OrderUsecase) GetOrder(ctx context.Context, orderID, userID string) (*domain.OrderInfo, error) {
 	realUserID, err := uc.repo.GetOrderUserID(ctx, orderID)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, domain.ErrRowsNotFound) {
+			return nil, err
+		}
+		return nil, domain.ErrInternalServer
 	}
 	if realUserID != userID {
 		return nil, domain.ErrForbidden
@@ -76,5 +92,17 @@ func (uc *OrderUsecase) GetOrder(ctx context.Context, orderID, userID string) (*
 }
 
 func (uc *OrderUsecase) GetOrdersUser(ctx context.Context, userID string) ([]*domain.Order, error) {
-	return uc.repo.GetOrdersUser(ctx, userID)
+	orders, err := uc.repo.GetOrdersUser(ctx, userID)
+	if err != nil {
+		if errors.Is(err, domain.ErrRowsNotFound) {
+			return nil, err
+		}
+		return nil, domain.ErrInternalServer
+	}
+	return orders, nil
 }
+
+// TODO: Пофиксить валидацию UUID
+// Сейчас если отправить кривой UUID типа "invalid-uuid", то будет 500 ошибка
+// Надо сделать чтобы возвращалась 400 ошибка
+// Просто добавить проверку uuid.Parse() в каждом хендлере перед вызовом usecase

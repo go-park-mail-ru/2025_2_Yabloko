@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"strings"
@@ -22,10 +23,10 @@ type AvatarHandler struct {
 	rs       *http_response.ResponseSender
 }
 
-func NewAvatarHandler(avatarUC AvatarUsecaseInterface, log logger.Logger) *AvatarHandler {
+func NewAvatarHandler(avatarUC AvatarUsecaseInterface) *AvatarHandler {
 	return &AvatarHandler{
 		avatarUC: avatarUC,
-		rs:       http_response.NewResponseSender(log),
+		rs:       http_response.NewResponseSender(logger.Global()),
 	}
 }
 
@@ -44,31 +45,42 @@ func NewAvatarHandler(avatarUC AvatarUsecaseInterface, log logger.Logger) *Avata
 // @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
 // @Router /profiles/{id}/avatar [post]
 func (h *AvatarHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.FromContext(ctx)
+	log.InfoContext(ctx, "handler UploadAvatar start")
+
 	if r.Method != http.MethodPost {
-		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "UploadAvatar", domain.ErrHTTPMethod, nil)
+		log.WarnContext(ctx, "handler UploadAvatar wrong method")
+		h.rs.Error(ctx, w, http.StatusMethodNotAllowed, "UploadAvatar", domain.ErrHTTPMethod, nil)
 		return
 	}
 
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.Split(path, "/")
 	if len(parts) < 3 || parts[len(parts)-1] != "avatar" {
-		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UploadAvatar", domain.ErrRequestParams, nil)
+		log.WarnContext(ctx, "handler UploadAvatar invalid path", slog.String("path", r.URL.Path))
+		h.rs.Error(ctx, w, http.StatusBadRequest, "UploadAvatar", domain.ErrRequestParams, nil)
 		return
 	}
 	userID := parts[len(parts)-2]
 
-	subject, ok := middlewares.UserIDFromContext(r.Context())
+	subject, ok := middlewares.UserIDFromContext(ctx)
 	if !ok || subject == "" {
-		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "UploadAvatar", domain.ErrUnauthorized, nil)
+		log.WarnContext(ctx, "handler UploadAvatar unauthorized - no user in context")
+		h.rs.Error(ctx, w, http.StatusUnauthorized, "UploadAvatar", domain.ErrUnauthorized, nil)
 		return
 	}
 
 	if userID == "me" {
 		userID = subject
+		log.DebugContext(ctx, "handler UploadAvatar resolved 'me'", slog.String("user_id", userID))
 	}
 
 	if subject != userID {
-		h.rs.Error(r.Context(), w, http.StatusForbidden, "UploadAvatar", domain.ErrForbidden, nil)
+		log.WarnContext(ctx, "handler UploadAvatar forbidden",
+			slog.String("subject", subject),
+			slog.String("target", userID))
+		h.rs.Error(ctx, w, http.StatusForbidden, "UploadAvatar", domain.ErrForbidden, nil)
 		return
 	}
 
@@ -76,31 +88,44 @@ func (h *AvatarHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxUpload)
 
 	if err := r.ParseMultipartForm(maxUpload); err != nil {
-		h.rs.Error(r.Context(), w, http.StatusRequestEntityTooLarge, "UploadAvatar", domain.ErrRequestParams, err)
+		log.ErrorContext(ctx, "handler UploadAvatar parse multipart failed", slog.Any("err", err))
+		h.rs.Error(ctx, w, http.StatusRequestEntityTooLarge, "UploadAvatar", domain.ErrRequestParams, err)
 		return
 	}
 
 	file, fh, err := r.FormFile("avatar")
 	if err != nil {
-		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UploadAvatar", domain.ErrRequestParams, err)
+		log.ErrorContext(ctx, "handler UploadAvatar get form file failed", slog.Any("err", err))
+		h.rs.Error(ctx, w, http.StatusBadRequest, "UploadAvatar", domain.ErrRequestParams, err)
 		return
 	}
 	defer file.Close()
 
-	url, err := h.avatarUC.UploadAvatar(r.Context(), userID, file, fh)
+	log.InfoContext(ctx, "handler UploadAvatar processing file",
+		slog.String("filename", fh.Filename),
+		slog.Int64("size", fh.Size),
+		slog.String("user_id", userID))
+
+	url, err := h.avatarUC.UploadAvatar(ctx, userID, file, fh)
 	if err != nil {
+		log.ErrorContext(ctx, "handler UploadAvatar usecase failed",
+			slog.Any("err", err),
+			slog.String("user_id", userID))
 		switch {
 		case errors.Is(err, domain.ErrInvalidProfileData):
-			h.rs.Error(r.Context(), w, http.StatusBadRequest, "UploadAvatar", err, nil)
+			h.rs.Error(ctx, w, http.StatusBadRequest, "UploadAvatar", err, nil)
 		case errors.Is(err, domain.ErrProfileNotFound):
-			h.rs.Error(r.Context(), w, http.StatusNotFound, "UploadAvatar", err, nil)
+			h.rs.Error(ctx, w, http.StatusNotFound, "UploadAvatar", err, nil)
 		case errors.Is(err, domain.ErrInvalidFileType):
-			h.rs.Error(r.Context(), w, http.StatusUnsupportedMediaType, "UploadAvatar", err, nil)
+			h.rs.Error(ctx, w, http.StatusUnsupportedMediaType, "UploadAvatar", err, nil)
 		default:
-			h.rs.Error(r.Context(), w, http.StatusInternalServerError, "UploadAvatar", domain.ErrInternalServer, err)
+			h.rs.Error(ctx, w, http.StatusInternalServerError, "UploadAvatar", domain.ErrInternalServer, err)
 		}
 		return
 	}
 
-	h.rs.Send(r.Context(), w, http.StatusOK, map[string]string{"avatar_url": url})
+	log.InfoContext(ctx, "handler UploadAvatar success",
+		slog.String("user_id", userID),
+		slog.String("avatar_url", url))
+	h.rs.Send(ctx, w, http.StatusOK, map[string]string{"avatar_url": url})
 }

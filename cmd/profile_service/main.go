@@ -12,8 +12,6 @@ import (
 // @host localhost:8081
 // @BasePath /api/v0
 func main() {
-	appLog := logger.NewLogger("./logs/app.log", slog.LevelDebug)
-	accessLog := logger.NewLogger("./logs/access.log", slog.LevelDebug)
-
-	cmd.Run(appLog, accessLog)
+	_ = logger.NewLogger("", slog.LevelInfo)
+	cmd.Run()
 }

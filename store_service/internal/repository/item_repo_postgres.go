@@ -5,6 +5,7 @@ import (
 	"apple_backend/store_service/internal/domain"
 	"context"
 	_ "embed"
+	"log/slog"
 )
 
 //go:embed sql/item/get_types.sql
@@ -14,23 +15,22 @@ var getItemTypes string
 var getItems string
 
 type ItemRepoPostgres struct {
-	db  PgxIface
-	log logger.Logger
+	db PgxIface
 }
 
-func NewItemRepoPostgres(db PgxIface, log logger.Logger) *ItemRepoPostgres {
+func NewItemRepoPostgres(db PgxIface) *ItemRepoPostgres {
 	return &ItemRepoPostgres{
-		db:  db,
-		log: log,
+		db: db,
 	}
 }
 
 func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, storeID string) ([]*domain.ItemType, error) {
-	r.log.Debug("GetItemTypes начало обработки", map[string]interface{}{})
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "GetItemTypes начало обработки", slog.String("store_id", storeID))
 
 	rows, err := r.db.Query(ctx, getItemTypes, storeID)
 	if err != nil {
-		r.log.Error("GetItemTypes ошибка бд", map[string]interface{}{"err": err, "id": storeID})
+		log.ErrorContext(ctx, "GetItemTypes ошибка бд", slog.Any("err", err), slog.String("store_id", storeID))
 		return nil, err
 	}
 	defer rows.Close()
@@ -40,34 +40,35 @@ func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, storeID string) ([]
 		var itemType domain.ItemType
 		err = rows.Scan(&itemType.ID, &itemType.Name)
 		if err != nil {
-			r.log.Error("GetItemTypes ошибка при декодировании данных",
-				map[string]interface{}{"err": err, "rows": rows})
+			log.ErrorContext(ctx, "GetItemTypes ошибка при декодировании данных", slog.Any("err", err))
 			return nil, err
 		}
 		itemTypes = append(itemTypes, &itemType)
 	}
 
 	if err = rows.Err(); err != nil {
-		r.log.Error("GetItemTypes ошибка после чтения строк",
-			map[string]interface{}{"err": err, "id": storeID})
+		log.ErrorContext(ctx, "GetItemTypes ошибка после чтения строк", slog.Any("err", err), slog.String("store_id", storeID))
 		return nil, err
 	}
 
 	if len(itemTypes) == 0 {
-		r.log.Warn("GetItemTypes пустой ответ", map[string]interface{}{"id": storeID})
-		return nil, domain.ErrRowsNotFound
+		log.DebugContext(ctx, "GetItemTypes пустой ответ", slog.String("store_id", storeID))
+		return []*domain.ItemType{}, nil // возвращаем пустой массив вместо ошибки
 	}
 
-	r.log.Debug("GetItemTypes завершено успешно", map[string]interface{}{})
+	log.DebugContext(ctx, "GetItemTypes завершено успешно",
+		slog.String("store_id", storeID),
+		slog.Int("types_count", len(itemTypes)))
 	return itemTypes, nil
 }
 
 func (r *ItemRepoPostgres) GetItems(ctx context.Context, itemTypeID string) ([]*domain.Item, error) {
-	r.log.Debug("GetItems начало обработки", map[string]interface{}{})
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "GetItems начало обработки", slog.String("type_id", itemTypeID))
 
 	rows, err := r.db.Query(ctx, getItems, itemTypeID)
 	if err != nil {
-		r.log.Error("GetItems ошибка бд", map[string]interface{}{"err": err, "id": itemTypeID})
+		log.ErrorContext(ctx, "GetItems ошибка бд", slog.Any("err", err), slog.String("type_id", itemTypeID))
 		return nil, err
 	}
 	defer rows.Close()
@@ -84,24 +85,24 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, itemTypeID string) ([]*
 			&item.TypeID,
 		)
 		if err != nil {
-			r.log.Error("GetItems ошибка при декодировании данных",
-				map[string]interface{}{"err": err, "rows": rows})
+			log.ErrorContext(ctx, "GetItems ошибка при декодировании данных", slog.Any("err", err))
 			return nil, err
 		}
 		items = append(items, item)
 	}
 
 	if err = rows.Err(); err != nil {
-		r.log.Error("GetItems ошибка после чтения строк",
-			map[string]interface{}{"err": err, "id": itemTypeID})
+		log.ErrorContext(ctx, "GetItems ошибка после чтения строк", slog.Any("err", err), slog.String("type_id", itemTypeID))
 		return nil, err
 	}
 
 	if len(items) == 0 {
-		r.log.Debug("GetItems пустой ответ", map[string]interface{}{"id": itemTypeID})
+		log.DebugContext(ctx, "GetItems пустой ответ", slog.String("type_id", itemTypeID))
 		return nil, domain.ErrRowsNotFound
 	}
 
-	r.log.Debug("GetItems завершено успешно", map[string]interface{}{})
+	log.DebugContext(ctx, "GetItems завершено успешно",
+		slog.String("type_id", itemTypeID),
+		slog.Int("items_count", len(items)))
 	return items, nil
 }

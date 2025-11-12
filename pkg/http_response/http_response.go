@@ -9,6 +9,8 @@ import (
 	"net/http"
 )
 
+// TODO залоггировать ошибки
+
 type ErrResponse struct {
 	Err string `json:"error"`
 }

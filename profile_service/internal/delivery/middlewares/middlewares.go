@@ -33,27 +33,42 @@ func (w *statusWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
-func AccessLog(log logger.Logger, next http.Handler) http.Handler {
+func AccessLog(baseLogger logger.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		reqID := r.Header.Get("X-Request-ID")
+		reqID := r.Header.Get("X-Request-Id")
 		if reqID == "" {
 			reqID = uuid.NewString()
 		}
+
+		// set request id in trace and response header
 		ctx := trace.SetRequestID(r.Context(), reqID)
+		ctx = logger.ContextWithRequestID(ctx, reqID)
+		w.Header().Set("X-Request-Id", reqID)
+
+		// create per-request logger and put into context
+		reqLogger := baseLogger.With(
+			slog.String("request_id", reqID),
+			slog.String("method", r.Method),
+			slog.String("url", r.URL.Path),
+			slog.String("remote_addr", r.RemoteAddr),
+			slog.String("user_agent", r.UserAgent()),
+		)
+
+		ctx = logger.ContextWithLogger(ctx, reqLogger)
 		r = r.WithContext(ctx)
-		w.Header().Set("X-Request-ID", reqID)
 
 		sw := &statusWriter{ResponseWriter: w}
 		start := time.Now()
 
-		log.Info("request started", slog.String("method", r.Method), slog.String("url", r.URL.Path))
+		reqLogger.InfoContext(ctx, "request started")
 		next.ServeHTTP(sw, r)
-		log.Info("request completed",
-			slog.String("method", r.Method),
-			slog.String("url", r.URL.Path),
-			slog.Any("status", sw.status),
-			slog.Any("bytes", sw.bytes),
-			slog.Any("duration_ms", time.Since(start).Milliseconds()))
+
+		duration := time.Since(start)
+		reqLogger.InfoContext(ctx, "request completed",
+			slog.Int("status", sw.status),
+			slog.Int("bytes", sw.bytes),
+			slog.Int64("duration_ms", duration.Milliseconds()),
+			slog.Float64("duration_seconds", duration.Seconds()))
 	})
 }
 
