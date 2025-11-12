@@ -16,14 +16,12 @@ import (
 )
 
 type StoreRepoPostgres struct {
-	db  PgxIface
-	log logger.Logger
+	db PgxIface
 }
 
-func NewStoreRepoPostgres(db PgxIface, log logger.Logger) *StoreRepoPostgres {
+func NewStoreRepoPostgres(db PgxIface) *StoreRepoPostgres {
 	return &StoreRepoPostgres{
-		db:  db,
-		log: log,
+		db: db,
 	}
 }
 
@@ -82,7 +80,8 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 }
 
 func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.StoreAgg, error) {
-	r.log.Debug("GetStores начало обработки",
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "GetStores начало обработки",
 		slog.String("tag_id", filter.TagID),
 		slog.String("city_id", filter.CityID),
 		slog.String("sorted", filter.Sorted),
@@ -91,7 +90,7 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 
 	query, args := generateQuery(filter)
 
-	r.log.Debug("Сгенерированный SQL запрос",
+	log.DebugContext(ctx, "Сгенерированный SQL запрос",
 		slog.String("query", query),
 		slog.Any("args", args),
 		slog.Int("args_count", len(args)),
@@ -99,7 +98,7 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
-		r.log.Error("GetStores ошибка выполнения SQL",
+		log.ErrorContext(ctx, "GetStores ошибка выполнения SQL",
 			slog.Any("err", err),
 			slog.String("query", query),
 			slog.Any("args", args),
@@ -111,7 +110,7 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	var stores []*domain.StoreAgg
 	for rows.Next() {
 		var store domain.StoreAgg
-		var tagIDs []string // ← массив UUID → []string
+		var tagIDs []string
 
 		err = rows.Scan(
 			&store.ID,
@@ -123,10 +122,10 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 			&store.Rating,
 			&store.OpenAt,
 			&store.ClosedAt,
-			&tagIDs, // ← 10-й аргумент
+			&tagIDs,
 		)
 		if err != nil {
-			r.log.Error("GetStores ошибка при декодировании данных", slog.Any("err", err))
+			log.ErrorContext(ctx, "GetStores ошибка при декодировании данных", slog.Any("err", err))
 			return nil, err
 		}
 
@@ -135,19 +134,19 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	}
 
 	if err = rows.Err(); err != nil {
-		r.log.Error("GetStores ошибка после чтения строк", slog.Any("err", err))
+		log.ErrorContext(ctx, "GetStores ошибка после чтения строк", slog.Any("err", err))
 		return nil, err
 	}
 
 	if len(stores) == 0 {
-		r.log.Debug("GetStores пустой ответ",
+		log.DebugContext(ctx, "GetStores пустой результат",
 			slog.String("tag_id", filter.TagID),
 			slog.String("city_id", filter.CityID),
 		)
-		return nil, domain.ErrRowsNotFound
+		return []*domain.StoreAgg{}, nil
 	}
 
-	r.log.Debug("GetStores завершено успешно", slog.Int("stores_count", len(stores)))
+	log.DebugContext(ctx, "GetStores завершено успешно", slog.Int("stores_count", len(stores)))
 	return stores, nil
 }
 
@@ -155,11 +154,12 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 var getStoreQuery string
 
 func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.StoreAgg, error) {
-	r.log.Debug("GetStore начало обработки", slog.String("id", id))
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "GetStore начало обработки", slog.String("id", id))
 
 	rows, err := r.db.Query(ctx, getStoreQuery, id)
 	if err != nil {
-		r.log.Error("GetStore ошибка бд", slog.Any("err", err), slog.String("id", id))
+		log.ErrorContext(ctx, "GetStore ошибка бд", slog.Any("err", err), slog.String("id", id))
 		return nil, err
 	}
 	defer rows.Close()
@@ -184,17 +184,17 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.St
 		&tagIDs,
 	)
 	if err != nil {
-		r.log.Error("GetStore ошибка при декодировании данных", slog.Any("err", err))
+		log.ErrorContext(ctx, "GetStore ошибка при декодировании данных", slog.Any("err", err))
 		return nil, err
 	}
 
 	if err = rows.Err(); err != nil {
-		r.log.Error("GetStore ошибка после чтения строк", slog.Any("err", err), slog.String("id", id))
+		log.ErrorContext(ctx, "GetStore ошибка после чтения строк", slog.Any("err", err), slog.String("id", id))
 		return nil, err
 	}
 
 	store.TagsID = tagIDs
-	r.log.Debug("GetStore завершено успешно", slog.String("id", id))
+	log.DebugContext(ctx, "GetStore завершено успешно", slog.String("id", id))
 	return &store, nil
 }
 
@@ -202,11 +202,12 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.St
 var getStoreReview string
 
 func (r *StoreRepoPostgres) GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error) {
-	r.log.Debug("GetStoreReview начало обработки", slog.String("id", id))
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "GetStoreReview начало обработки", slog.String("id", id))
 
 	rows, err := r.db.Query(ctx, getStoreReview, id)
 	if err != nil {
-		r.log.Error("GetStoreReview ошибка бд", slog.Any("err", err), slog.String("id", id))
+		log.ErrorContext(ctx, "GetStoreReview ошибка бд", slog.Any("err", err), slog.String("id", id))
 		return nil, err
 	}
 	defer rows.Close()
@@ -218,7 +219,7 @@ func (r *StoreRepoPostgres) GetStoreReview(ctx context.Context, id string) ([]*d
 
 		err = rows.Scan(&review.UserName, &review.Rating, &review.Comment, &createdAt)
 		if err != nil {
-			r.log.Error("GetStoreReview ошибка при декодировании данных", slog.Any("err", err))
+			log.ErrorContext(ctx, "GetStoreReview ошибка при декодировании данных", slog.Any("err", err))
 			return nil, err
 		}
 
@@ -227,16 +228,16 @@ func (r *StoreRepoPostgres) GetStoreReview(ctx context.Context, id string) ([]*d
 	}
 
 	if err = rows.Err(); err != nil {
-		r.log.Error("GetStoreReview ошибка после чтения строк", slog.Any("err", err), slog.String("id", id))
+		log.ErrorContext(ctx, "GetStoreReview ошибка после чтения строк", slog.Any("err", err), slog.String("id", id))
 		return nil, err
 	}
 
 	if len(reviews) == 0 {
-		r.log.Debug("GetStoreReview пустой ответ", slog.String("id", id))
-		return nil, domain.ErrRowsNotFound
+		log.DebugContext(ctx, "GetStoreReview пустой ответ", slog.String("id", id))
+		return []*domain.StoreReview{}, nil
 	}
 
-	r.log.Debug("GetStoreReview завершено успешно", slog.String("id", id))
+	log.DebugContext(ctx, "GetStoreReview завершено успешно", slog.String("id", id))
 	return reviews, nil
 }
 
@@ -244,7 +245,8 @@ func (r *StoreRepoPostgres) GetStoreReview(ctx context.Context, id string) ([]*d
 var createStore string
 
 func (r *StoreRepoPostgres) CreateStore(ctx context.Context, store *domain.Store) error {
-	r.log.Debug("CreateStore начало обработки")
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "CreateStore начало обработки")
 
 	store.ID = uuid.New().String()
 	_, err := r.db.Exec(ctx, createStore, store.ID, store.Name, store.Description,
@@ -252,14 +254,14 @@ func (r *StoreRepoPostgres) CreateStore(ctx context.Context, store *domain.Store
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			r.log.Warn("CreateStore unique ограничение", slog.Any("err", err))
+			log.WarnContext(ctx, "CreateStore unique ограничение", slog.Any("err", err))
 			return domain.ErrStoreExist
 		}
-		r.log.Error("CreateStore ошибка бд", slog.Any("err", err))
+		log.ErrorContext(ctx, "CreateStore ошибка бд", slog.Any("err", err))
 		return err
 	}
 
-	r.log.Debug("CreateStore завершено успешно")
+	log.DebugContext(ctx, "CreateStore завершено успешно")
 	return nil
 }
 
@@ -267,11 +269,12 @@ func (r *StoreRepoPostgres) CreateStore(ctx context.Context, store *domain.Store
 var getTags string
 
 func (r *StoreRepoPostgres) GetTags(ctx context.Context) ([]*domain.StoreTag, error) {
-	r.log.Debug("GetTags начало обработки")
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "GetTags начало обработки")
 
 	rows, err := r.db.Query(ctx, getTags)
 	if err != nil {
-		r.log.Error("GetTags ошибка бд", slog.Any("err", err))
+		log.ErrorContext(ctx, "GetTags ошибка бд", slog.Any("err", err))
 		return nil, err
 	}
 	defer rows.Close()
@@ -281,23 +284,23 @@ func (r *StoreRepoPostgres) GetTags(ctx context.Context) ([]*domain.StoreTag, er
 		var tag domain.StoreTag
 		err = rows.Scan(&tag.ID, &tag.Name)
 		if err != nil {
-			r.log.Error("GetTags ошибка при декодировании данных", slog.Any("err", err))
+			log.ErrorContext(ctx, "GetTags ошибка при декодировании данных", slog.Any("err", err))
 			return nil, err
 		}
 		tags = append(tags, &tag)
 	}
 
 	if err = rows.Err(); err != nil {
-		r.log.Error("GetTags ошибка после чтения строк", slog.Any("err", err))
+		log.ErrorContext(ctx, "GetTags ошибка после чтения строк", slog.Any("err", err))
 		return nil, err
 	}
 
 	if len(tags) == 0 {
-		r.log.Debug("GetTags пустой ответ")
+		log.DebugContext(ctx, "GetTags пустой ответ")
 		return nil, domain.ErrRowsNotFound
 	}
 
-	r.log.Debug("GetTags завершено успешно")
+	log.DebugContext(ctx, "GetTags завершено успешно")
 	return tags, nil
 }
 
@@ -305,11 +308,12 @@ func (r *StoreRepoPostgres) GetTags(ctx context.Context) ([]*domain.StoreTag, er
 var getCity string
 
 func (r *StoreRepoPostgres) GetCities(ctx context.Context) ([]*domain.City, error) {
-	r.log.Debug("GetCities начало обработки")
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "GetCities начало обработки")
 
 	rows, err := r.db.Query(ctx, getCity)
 	if err != nil {
-		r.log.Error("GetCities ошибка бд", slog.Any("err", err))
+		log.ErrorContext(ctx, "GetCities ошибка бд", slog.Any("err", err))
 		return nil, err
 	}
 	defer rows.Close()
@@ -319,22 +323,22 @@ func (r *StoreRepoPostgres) GetCities(ctx context.Context) ([]*domain.City, erro
 		var city domain.City
 		err = rows.Scan(&city.ID, &city.Name)
 		if err != nil {
-			r.log.Error("GetCities ошибка при декодировании данных", slog.Any("err", err))
+			log.ErrorContext(ctx, "GetCities ошибка при декодировании данных", slog.Any("err", err))
 			return nil, err
 		}
 		cities = append(cities, &city)
 	}
 
 	if err = rows.Err(); err != nil {
-		r.log.Error("GetCities ошибка после чтения строк", slog.Any("err", err))
+		log.ErrorContext(ctx, "GetCities ошибка после чтения строк", slog.Any("err", err))
 		return nil, err
 	}
 
 	if len(cities) == 0 {
-		r.log.Debug("GetCities пустой ответ")
+		log.DebugContext(ctx, "GetCities пустой ответ")
 		return nil, domain.ErrRowsNotFound
 	}
 
-	r.log.Debug("GetCities завершено успешно")
+	log.DebugContext(ctx, "GetCities завершено успешно")
 	return cities, nil
 }

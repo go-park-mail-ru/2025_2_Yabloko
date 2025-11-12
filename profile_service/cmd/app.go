@@ -16,7 +16,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Run запускает profile_service без передачи логгеров — всё использует logger.Global()
 func Run() {
 	conf := config.LoadConfig()
 
@@ -28,7 +27,7 @@ func Run() {
 
 	mux := http.NewServeMux()
 
-	// Статика для аватарок
+	// статика для аватарок
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -62,7 +61,6 @@ func Run() {
 		http.ServeFile(w, r, fullPath)
 	})
 
-	// Роутер без передачи логгера
 	protectedMux := http.NewServeMux()
 	phttp.NewProfileRouter(protectedMux, dbPool, "/api/v0", conf.UploadPath, conf.BaseURL)
 
@@ -80,7 +78,7 @@ func Run() {
 	)
 
 	addr := fmt.Sprintf("0.0.0.0:%s", conf.AppPort)
-	log.Printf("✅ Profile service running on http://%s:%s", conf.AppHost, conf.AppPort)
-	log.Printf("✅ Avatar URL base: %s", conf.BaseURL)
+	log.Printf("Profile service running on http://%s:%s", conf.AppHost, conf.AppPort)
+	log.Printf("Avatar URL base: %s", conf.BaseURL)
 	log.Fatal(http.ListenAndServe(addr, handler))
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 )
@@ -20,26 +21,24 @@ var deleteCartItems string
 var insertCartItems string
 
 type CartRepoPostgres struct {
-	db  PgxIface
-	log logger.Logger
+	db PgxIface
 }
 
-func NewCartRepoPostgres(db PgxIface, log logger.Logger) *CartRepoPostgres {
+func NewCartRepoPostgres(db PgxIface) *CartRepoPostgres {
 	return &CartRepoPostgres{
-		db:  db,
-		log: log,
+		db: db,
 	}
 }
 
 func (r *CartRepoPostgres) GetCartItems(ctx context.Context, userID string) ([]*domain.CartItem, error) {
-	r.log.Debug("🔍 GetCartItems", map[string]interface{}{"userID": userID})
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "GetCartItems начало обработки", slog.String("user_id", userID))
 
 	rows, err := r.db.Query(ctx, getCartItems, userID)
 	if err != nil {
-		r.log.Error("❌ GetCartItems: query failed", map[string]interface{}{
-			"userID": userID,
-			"err":    err,
-		})
+		log.ErrorContext(ctx, "GetCartItems query failed",
+			slog.Any("err", err),
+			slog.String("user_id", userID))
 		return nil, err
 	}
 	defer rows.Close()
@@ -48,152 +47,164 @@ func (r *CartRepoPostgres) GetCartItems(ctx context.Context, userID string) ([]*
 	for rows.Next() {
 		var item domain.CartItem
 		if err := rows.Scan(&item.ID, &item.Name, &item.CardImg, &item.Price, &item.Quantity); err != nil {
-			r.log.Error("❌ GetCartItems: scan failed", map[string]interface{}{
-				"userID": userID,
-				"err":    err,
-			})
+			log.ErrorContext(ctx, "GetCartItems scan failed",
+				slog.Any("err", err),
+				slog.String("user_id", userID))
 			return nil, err
 		}
 		items = append(items, &item)
 	}
 
 	if err = rows.Err(); err != nil {
-		r.log.Error("❌ GetCartItems: rows iteration error", map[string]interface{}{
-			"userID": userID,
-			"err":    err,
-		})
+		log.ErrorContext(ctx, "GetCartItems rows iteration error",
+			slog.Any("err", err),
+			slog.String("user_id", userID))
 		return nil, err
 	}
 
 	if len(items) == 0 {
-		r.log.Warn("📭 Cart is empty", map[string]interface{}{"userID": userID})
+		log.DebugContext(ctx, "GetCartItems cart is empty", slog.String("user_id", userID))
 		return nil, domain.ErrRowsNotFound
 	}
 
-	r.log.Debug("✅ GetCartItems succeeded", map[string]interface{}{
-		"userID":    userID,
-		"itemCount": len(items),
-	})
+	log.DebugContext(ctx, "GetCartItems завершено успешно",
+		slog.String("user_id", userID),
+		slog.Int("items_count", len(items)))
 	return items, nil
 }
 
 func (r *CartRepoPostgres) DeleteCartItems(ctx context.Context, userID string) error {
-	r.log.Debug("🧹 DeleteCartItems", map[string]interface{}{"userID": userID})
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "DeleteCartItems начало обработки", slog.String("user_id", userID))
 
 	_, err := r.db.Exec(ctx, deleteCartItems, userID)
 	if err != nil {
-		r.log.Error("❌ DeleteCartItems failed", map[string]interface{}{
-			"userID": userID,
-			"err":    err,
-		})
+		log.ErrorContext(ctx, "DeleteCartItems failed",
+			slog.Any("err", err),
+			slog.String("user_id", userID))
 		return err
 	}
 
-	r.log.Debug("✅ DeleteCartItems succeeded", map[string]interface{}{"userID": userID})
+	log.DebugContext(ctx, "DeleteCartItems завершено успешно", slog.String("user_id", userID))
 	return nil
 }
 
 func (r *CartRepoPostgres) UpdateCartItems(ctx context.Context, userID string, newItems *domain.CartUpdate) error {
-	r.log.Debug("🔄 UpdateCartItems", map[string]interface{}{
-		"userID": userID,
-		"itemCount": func() int {
-			if newItems == nil {
-				return 0
+	log := logger.FromContext(ctx)
+
+	itemsCount := 0
+	if newItems != nil {
+		itemsCount = len(newItems.Items)
+	}
+
+	log.DebugContext(ctx, "UpdateCartItems начало обработки",
+		slog.String("user_id", userID),
+		slog.Int("items_count", itemsCount))
+
+	if newItems != nil && len(newItems.Items) > 0 {
+		for i, item := range newItems.Items {
+			var exists bool
+			checkQuery := `SELECT EXISTS(SELECT 1 FROM store_item WHERE id = $1)`
+			err := r.db.QueryRow(ctx, checkQuery, item.ID).Scan(&exists)
+			if err != nil {
+				log.ErrorContext(ctx, "UpdateCartItems ошибка проверки store_item",
+					slog.Any("err", err),
+					slog.String("item_id", item.ID))
+				return err
 			}
-			return len(newItems.Items)
-		}(),
-	})
+			if !exists {
+				log.WarnContext(ctx, "UpdateCartItems store_item не найден",
+					slog.String("item_id", item.ID),
+					slog.Int("item_index", i))
+				return domain.ErrRowsNotFound
+			}
+		}
+	}
 
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		r.log.Error("❌ Failed to begin transaction", map[string]interface{}{
-			"userID": userID,
-			"err":    err,
-		})
+		log.ErrorContext(ctx, "UpdateCartItems transaction begin failed",
+			slog.Any("err", err),
+			slog.String("user_id", userID))
 		return err
 	}
 	defer func() {
 		if tx != nil {
 			if rollbackErr := tx.Rollback(ctx); rollbackErr != nil && rollbackErr.Error() != "tx is not open" {
-				r.log.Warn("⚠️ Rollback failed", map[string]interface{}{
-					"userID": userID,
-					"err":    rollbackErr,
-				})
+				log.WarnContext(ctx, "UpdateCartItems rollback failed",
+					slog.Any("err", rollbackErr),
+					slog.String("user_id", userID))
 			}
 		}
 	}()
 
-	// Шаг 1: Получаем или создаём корзину
 	var cartID string
 	err = tx.QueryRow(ctx, "SELECT id FROM cart WHERE user_id = $1", userID).Scan(&cartID)
 	if err != nil {
-		r.log.Debug("🆕 Creating new cart (not found)", map[string]interface{}{"userID": userID})
+		log.DebugContext(ctx, "UpdateCartItems creating new cart", slog.String("user_id", userID))
 		cartID = uuid.New().String()
 		_, err = tx.Exec(ctx, "INSERT INTO cart (id, user_id) VALUES ($1, $2)", cartID, userID)
 		if err != nil {
-			r.log.Error("❌ Failed to create cart", map[string]interface{}{
-				"userID": userID,
-				"err":    err,
-			})
+			log.ErrorContext(ctx, "UpdateCartItems create cart failed",
+				slog.Any("err", err),
+				slog.String("user_id", userID))
 			return err
 		}
 	} else {
-		r.log.Debug("📥 Using existing cart", map[string]interface{}{"cartID": cartID})
+		log.DebugContext(ctx, "UpdateCartItems using existing cart",
+			slog.String("cart_id", cartID),
+			slog.String("user_id", userID))
 	}
 
-	// Шаг 2: Удаляем старые элементы
 	_, err = tx.Exec(ctx, "DELETE FROM cart_item WHERE cart_id = $1", cartID)
 	if err != nil {
-		r.log.Error("❌ Failed to delete old cart items", map[string]interface{}{
-			"cartID": cartID,
-			"err":    err,
-		})
+		log.ErrorContext(ctx, "UpdateCartItems delete old items failed",
+			slog.Any("err", err),
+			slog.String("cart_id", cartID),
+			slog.String("user_id", userID))
 		return err
 	}
 
-	// Шаг 3: Вставляем новые элементы
 	if newItems == nil || len(newItems.Items) == 0 {
-		r.log.Warn("⚠️ Skipping item insertion: no items provided", map[string]interface{}{
-			"cartID": cartID,
-			"userID": userID,
-		})
+		log.DebugContext(ctx, "UpdateCartItems no items to insert",
+			slog.String("cart_id", cartID),
+			slog.String("user_id", userID))
 	} else {
 		for i, item := range newItems.Items {
 			if item.ID == "" {
-				r.log.Error("🔥 Item ID is empty", map[string]interface{}{
-					"index":  i,
-					"cartID": cartID,
-				})
+				log.ErrorContext(ctx, "UpdateCartItems empty item ID",
+					slog.Int("item_index", i),
+					slog.String("cart_id", cartID))
 				return fmt.Errorf("item[%d]: ID is empty", i)
 			}
 
 			_, err := tx.Exec(ctx, insertCartItems, uuid.New().String(), cartID, item.ID, item.Quantity)
 			if err != nil {
-				r.log.Error("❌ Failed to insert cart item", map[string]interface{}{
-					"index":  i,
-					"itemID": item.ID,
-					"cartID": cartID,
-					"err":    err,
-				})
+				log.ErrorContext(ctx, "UpdateCartItems insert item failed",
+					slog.Any("err", err),
+					slog.Int("item_index", i),
+					slog.String("item_id", item.ID),
+					slog.String("cart_id", cartID),
+					slog.Int("quantity", item.Quantity))
 				return err
 			}
 		}
+		log.DebugContext(ctx, "UpdateCartItems items inserted successfully",
+			slog.String("cart_id", cartID),
+			slog.Int("items_count", len(newItems.Items)))
 	}
 
-	// Шаг 4: Коммит
 	if err := tx.Commit(ctx); err != nil {
-		r.log.Error("❌ Transaction commit failed", map[string]interface{}{
-			"cartID": cartID,
-			"userID": userID,
-			"err":    err,
-		})
+		log.ErrorContext(ctx, "UpdateCartItems transaction commit failed",
+			slog.Any("err", err),
+			slog.String("cart_id", cartID),
+			slog.String("user_id", userID))
 		return err
 	}
 
-	r.log.Debug("✅ UpdateCartItems succeeded", map[string]interface{}{
-		"cartID":    cartID,
-		"userID":    userID,
-		"itemCount": len(newItems.Items),
-	})
+	log.DebugContext(ctx, "UpdateCartItems завершено успешно",
+		slog.String("cart_id", cartID),
+		slog.String("user_id", userID),
+		slog.Int("items_count", itemsCount))
 	return nil
 }

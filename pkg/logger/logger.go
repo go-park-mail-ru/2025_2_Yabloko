@@ -86,17 +86,17 @@ func (h *DevJSONHandler) Handle(ctx context.Context, r slog.Record) error {
 		"message": r.Message,
 	}
 
-	// 1. Добавляем request_id из контекста
+	// 1 - добавляем request_id из контекста
 	if rid := RequestIDFromContext(ctx); rid != "" {
 		data["request_id"] = rid
 	}
 
-	// 2. Добавляем атрибуты из handler (method, url, remote_addr и т.д.)
+	// 2 - добавляем атрибуты из handler (method, url, remote_addr и тд)
 	for _, attr := range h.attrs {
 		data[attr.Key] = attr.Value.Any()
 	}
 
-	// 3. Добавляем атрибуты из записи
+	// 3 - добавляем атрибуты из записи
 	r.Attrs(func(a slog.Attr) bool {
 		data[a.Key] = a.Value.Any()
 		return true

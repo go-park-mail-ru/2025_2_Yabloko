@@ -33,126 +33,126 @@ var getOrder string
 //go:embed sql/order/get_user_orders.sql
 var getUserOrders string
 
-// Уже объявлено в cart_repo.go
-//
 //go:embed sql/cart/delete_items.sql
 var deleteCartItemsForOrder string
 
 type OrderRepoPostgres struct {
-	db  PgxIface
-	log logger.Logger
+	db PgxIface
 }
 
-func NewOrderRepoPostgres(db PgxIface, log logger.Logger) *OrderRepoPostgres {
+func NewOrderRepoPostgres(db PgxIface) *OrderRepoPostgres {
 	return &OrderRepoPostgres{
-		db:  db,
-		log: log,
+		db: db,
 	}
 }
 
 func (r *OrderRepoPostgres) GetOrderUserID(ctx context.Context, orderID string) (string, error) {
-	r.log.Debug("GetOrderUserID начало обработки", slog.String("order_id", orderID))
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "repo GetOrderUserID start", slog.String("order_id", orderID))
 
 	var userID string
 	err := r.db.QueryRow(ctx, getOrderUser, orderID).Scan(&userID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			r.log.Warn("GetOrderUserID заказ не существует", slog.String("order_id", orderID))
+			log.WarnContext(ctx, "repo GetOrderUserID order not found", slog.String("order_id", orderID))
 			return "", domain.ErrRowsNotFound
 		}
-		r.log.Error("GetOrderUserID ошибка выполнения запроса", slog.String("order_id", orderID), slog.Any("err", err))
-		return "", err
+		log.ErrorContext(ctx, "repo GetOrderUserID query failed", slog.String("order_id", orderID), slog.Any("err", err))
+		return "", domain.ErrInternalServer
 	}
 
-	r.log.Debug("GetOrderUserID завершено успешно", slog.String("order_id", orderID))
+	log.DebugContext(ctx, "repo GetOrderUserID success", slog.String("order_id", orderID))
 	return userID, nil
 }
 
 func (r *OrderRepoPostgres) CreateOrder(ctx context.Context, userID string) (string, error) {
-	r.log.Debug("CreateOrder начало обработки", slog.String("user_id", userID))
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "repo CreateOrder start", slog.String("user_id", userID))
 
-	// Проверка: есть ли товары в корзине?
-	var cnt int // TODO Вынести в запросы попозже
+	// проверка есть ли товары в корзине
+	var cnt int
 	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM cart_item ci JOIN cart c ON c.id = ci.cart_id WHERE c.user_id = $1", userID).Scan(&cnt)
 	if err != nil {
-		r.log.Error("CreateOrder ошибка проверки корзины", slog.String("user_id", userID), slog.Any("err", err))
-		return "", err
+		log.ErrorContext(ctx, "repo CreateOrder cart check failed", slog.String("user_id", userID), slog.Any("err", err))
+		return "", domain.ErrInternalServer
 	}
 	if cnt == 0 {
-		r.log.Warn("CreateOrder корзина пуста", slog.String("user_id", userID))
+		log.WarnContext(ctx, "repo CreateOrder cart is empty", slog.String("user_id", userID))
 		return "", domain.ErrCartEmpty
 	}
 
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		r.log.Error("CreateOrder ошибка начала транзакции", slog.String("user_id", userID), slog.Any("err", err))
-		return "", err
+		log.ErrorContext(ctx, "repo CreateOrder transaction begin failed", slog.String("user_id", userID), slog.Any("err", err))
+		return "", domain.ErrInternalServer
 	}
 	defer tx.Rollback(ctx)
 
-	// 1. Создаём заказ
+	// 1 - создаем заказ
 	orderID := uuid.New().String()
 	_, err = tx.Exec(ctx, insertEmptyOrder, orderID, userID)
 	if err != nil {
-		r.log.Error("CreateOrder ошибка создания заказа", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
-		return "", err
+		log.ErrorContext(ctx, "repo CreateOrder create order failed", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
+		return "", domain.ErrInternalServer
 	}
 
-	// 2. Переносим товары из корзины
+	// 2 - переносим товары из корзины
 	_, err = tx.Exec(ctx, insertItemOrder, orderID, userID)
 	if err != nil {
-		r.log.Error("CreateOrder ошибка переноса товаров", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
-		return "", err
+		log.ErrorContext(ctx, "repo CreateOrder transfer items failed", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
+		return "", domain.ErrInternalServer
 	}
 
-	// 3. Обновляем итоговую сумму
+	// 3 - обновляем итоговую сумму
 	_, err = tx.Exec(ctx, updateOrderTotal, orderID)
 	if err != nil {
-		r.log.Error("CreateOrder ошибка обновления суммы", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
-		return "", err
+		log.ErrorContext(ctx, "repo CreateOrder update total failed", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
+		return "", domain.ErrInternalServer
 	}
 
-	// 4. Очищаем корзину
+	// 4 - очищаем корзину
 	_, err = tx.Exec(ctx, deleteCartItemsForOrder, userID)
 	if err != nil {
-		r.log.Error("CreateOrder ошибка удаления записи", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
-		return "", err
+		log.ErrorContext(ctx, "repo CreateOrder clear cart failed", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
+		return "", domain.ErrInternalServer
 	}
 
 	err = tx.Commit(ctx)
 	if err != nil {
-		r.log.Error("CreateOrder ошибка закрытия транзакции", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
+		log.ErrorContext(ctx, "repo CreateOrder transaction commit failed", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
 		return "", domain.ErrInternalServer
 	}
 
-	r.log.Debug("CreateOrder завершено успешно", slog.String("user_id", userID), slog.String("order_id", orderID))
+	log.DebugContext(ctx, "repo CreateOrder success", slog.String("user_id", userID), slog.String("order_id", orderID))
 	return orderID, nil
 }
 
 func (r *OrderRepoPostgres) UpdateOrderStatus(ctx context.Context, orderID, status string) error {
-	r.log.Debug("UpdateOrderStatus начало обработки", slog.String("order_id", orderID), slog.String("status", status))
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "repo UpdateOrderStatus start", slog.String("order_id", orderID), slog.String("status", status))
 
 	_, err := r.db.Exec(ctx, updateOrderStatus, orderID, status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			r.log.Warn("UpdateOrderStatus заказ отсутствует", slog.String("order_id", orderID), slog.String("status", status))
+			log.WarnContext(ctx, "repo UpdateOrderStatus order not found", slog.String("order_id", orderID), slog.String("status", status))
 			return domain.ErrRowsNotFound
 		}
-		r.log.Error("UpdateOrderStatus ошибка обновления статуса", slog.String("order_id", orderID), slog.String("status", status), slog.Any("err", err))
-		return err
+		log.ErrorContext(ctx, "repo UpdateOrderStatus update failed", slog.String("order_id", orderID), slog.String("status", status), slog.Any("err", err))
+		return domain.ErrInternalServer
 	}
 
-	r.log.Debug("UpdateOrderStatus завершено успешно", slog.String("order_id", orderID), slog.String("status", status))
+	log.DebugContext(ctx, "repo UpdateOrderStatus success", slog.String("order_id", orderID), slog.String("status", status))
 	return nil
 }
 
 func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*domain.OrderInfo, error) {
-	r.log.Debug("GetOrder начало обработки", slog.String("order_id", orderID))
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "repo GetOrder start", slog.String("order_id", orderID))
 
 	rows, err := r.db.Query(ctx, getOrder, orderID)
 	if err != nil {
-		r.log.Error("GetOrder ошибка бд", slog.String("order_id", orderID), slog.Any("err", err))
-		return nil, err
+		log.ErrorContext(ctx, "repo GetOrder query failed", slog.String("order_id", orderID), slog.Any("err", err))
+		return nil, domain.ErrInternalServer
 	}
 	defer rows.Close()
 
@@ -172,34 +172,35 @@ func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*doma
 			&item.Quantity,
 		)
 		if err != nil {
-			r.log.Error("GetOrder ошибка при декодировании данных", slog.String("order_id", orderID), slog.Any("err", err))
-			return nil, err
+			log.ErrorContext(ctx, "repo GetOrder scan failed", slog.String("order_id", orderID), slog.Any("err", err))
+			return nil, domain.ErrInternalServer
 		}
 		items = append(items, &item)
 	}
 
 	if err = rows.Err(); err != nil {
-		r.log.Error("GetOrder ошибка после чтения строк", slog.String("order_id", orderID), slog.Any("err", err))
-		return nil, err
+		log.ErrorContext(ctx, "repo GetOrder rows error", slog.String("order_id", orderID), slog.Any("err", err))
+		return nil, domain.ErrInternalServer
 	}
 
 	if len(items) == 0 {
-		r.log.Warn("GetOrder пустой ответ", slog.String("order_id", orderID))
+		log.WarnContext(ctx, "repo GetOrder no items found", slog.String("order_id", orderID))
 		return nil, domain.ErrRowsNotFound
 	}
 
 	order.Items = items
-	r.log.Debug("GetOrder завершено успешно", slog.String("order_id", orderID), slog.Int("items_count", len(items)))
+	log.DebugContext(ctx, "repo GetOrder success", slog.String("order_id", orderID), slog.Int("items_count", len(items)))
 	return &order, nil
 }
 
 func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, userID string) ([]*domain.Order, error) {
-	r.log.Debug("GetOrdersUser начало обработки", slog.String("user_id", userID))
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "repo GetOrdersUser start", slog.String("user_id", userID))
 
 	rows, err := r.db.Query(ctx, getUserOrders, userID)
 	if err != nil {
-		r.log.Error("GetOrdersUser ошибка бд", slog.String("user_id", userID), slog.Any("err", err))
-		return nil, err
+		log.ErrorContext(ctx, "repo GetOrdersUser query failed", slog.String("user_id", userID), slog.Any("err", err))
+		return nil, domain.ErrInternalServer
 	}
 	defer rows.Close()
 
@@ -213,22 +214,22 @@ func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, userID string) ([
 			&order.CreatedAt,
 		)
 		if err != nil {
-			r.log.Error("GetOrdersUser ошибка при декодировании данных", slog.String("user_id", userID), slog.Any("err", err))
-			return nil, err
+			log.ErrorContext(ctx, "repo GetOrdersUser scan failed", slog.String("user_id", userID), slog.Any("err", err))
+			return nil, domain.ErrInternalServer
 		}
 		orders = append(orders, &order)
 	}
 
 	if err = rows.Err(); err != nil {
-		r.log.Error("GetOrdersUser ошибка после чтения строк", slog.String("user_id", userID), slog.Any("err", err))
-		return nil, err
+		log.ErrorContext(ctx, "repo GetOrdersUser rows error", slog.String("user_id", userID), slog.Any("err", err))
+		return nil, domain.ErrInternalServer
 	}
 
 	if len(orders) == 0 {
-		r.log.Debug("GetOrdersUser пустой ответ", slog.String("user_id", userID))
+		log.DebugContext(ctx, "repo GetOrdersUser no orders found", slog.String("user_id", userID))
 		return nil, domain.ErrRowsNotFound
 	}
 
-	r.log.Debug("GetOrdersUser завершено успешно", slog.String("user_id", userID), slog.Int("orders_count", len(orders)))
+	log.DebugContext(ctx, "repo GetOrdersUser success", slog.String("user_id", userID), slog.Int("orders_count", len(orders)))
 	return orders, nil
 }

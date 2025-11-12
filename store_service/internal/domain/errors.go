@@ -9,7 +9,9 @@ var (
 	ErrUnauthorized   = errors.New("ошибка аутентификации")
 	ErrForbidden      = errors.New("доступ запрещен")
 
-	ErrRowsNotFound = errors.New("не найдено записей")
-	ErrStoreExist   = errors.New("магазин уже существует")
-	ErrCartEmpty    = errors.New("карточка пустая")
+	ErrRowsNotFound     = errors.New("не найдено записей")
+	ErrStoreExist       = errors.New("магазин уже существует")
+	ErrCartEmpty        = errors.New("карточка пустая")
+	ErrCartItemNotFound = errors.New("товар в корзине не найден")
+	ErrInvalidQuantity  = errors.New("неверное количество товара")
 )

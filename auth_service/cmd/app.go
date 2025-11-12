@@ -23,7 +23,6 @@ func csrfHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Run запускает auth_service без передачи логгеров — всё использует logger.Global()
 func Run() {
 	conf := config.LoadConfig()
 

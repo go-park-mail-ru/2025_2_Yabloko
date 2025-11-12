@@ -9,10 +9,9 @@ import (
 // @title Store Service API
 // @version 1.0
 // @description Store Service
-// @host localhost:8083
+// @host localhost:8080
 // @BasePath /api/v0
 func main() {
-	accessLog := logger.NewLogger("../../logs/access.log", slog.LevelDebug)
-	appLog := logger.NewLogger("../../logs/app.log", slog.LevelDebug)
-	cmd.Run(appLog, accessLog)
+	_ = logger.NewLogger("", slog.LevelInfo)
+	cmd.Run()
 }

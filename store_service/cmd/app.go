@@ -14,9 +14,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Run(appLog, accessLog logger.Logger) {
+func Run() {
 	conf := config.MustConfig()
 	apiV0Prefix := "/api/v0/"
+
 	dbPool, err := pgxpool.New(context.Background(), conf.DBPath())
 	if err != nil {
 		log.Fatal(err)
@@ -26,46 +27,52 @@ func Run(appLog, accessLog logger.Logger) {
 	openMux := http.NewServeMux()
 	protectedMux := http.NewServeMux()
 
-	shttp.NewStoreRouter(openMux, dbPool, apiV0Prefix, appLog)
-	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix, appLog)
+	// все роутеры без передачи логгера
+	shttp.NewStoreRouter(openMux, dbPool, apiV0Prefix)
+	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix)
+	shttp.NewCartRouter(protectedMux, dbPool, apiV0Prefix)
+	shttp.NewOrderRouter(protectedMux, dbPool, apiV0Prefix)
 
-	// ← ДОБАВЛЕНО: PaymentHandler для заглушки
-	paymentHandler := shttp.NewPaymentHandler(appLog)
+	paymentHandler := shttp.NewPaymentHandler()
 	openMux.HandleFunc(apiV0Prefix+"fake-payment", paymentHandler.FakePayment)
-
-	// ЗАЩИЩЁННЫЕ ручки
-	shttp.NewCartRouter(protectedMux, dbPool, apiV0Prefix, appLog)
-	shttp.NewOrderRouter(protectedMux, dbPool, apiV0Prefix, appLog)
 
 	protectedHandler := middlewares.AuthMiddleware(protectedMux, conf.JWTSecret)
 
 	mux := http.NewServeMux()
 
+	// статика для изображений товаров
 	mux.Handle("/images/items/", http.StripPrefix("/images/items/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fullPath := filepath.Join(conf.UploadItemDir, r.URL.Path)
-		appLog.Debug("Serving item image",
+		logger.Global().Debug("Serving item image",
 			"url_path", r.URL.Path,
 			"fs_path", fullPath,
 		)
 		http.ServeFile(w, r, fullPath)
 	})))
 
+	// статика для изображений магазинов
 	mux.Handle("/images/stores/", http.StripPrefix("/images/stores/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fullPath := filepath.Join(conf.UploadStoreDir, r.URL.Path)
-		appLog.Debug("Serving store image",
+		logger.Global().Debug("Serving store image",
 			"path", r.URL.Path,
 			"file", fullPath,
 		)
 		http.ServeFile(w, r, fullPath)
 	})))
 
+	// маршрутизация API
 	mux.Handle(apiV0Prefix+"cart", protectedHandler)
 	mux.Handle(apiV0Prefix+"orders", protectedHandler)
 	mux.Handle(apiV0Prefix+"orders/", protectedHandler)
 	mux.Handle(apiV0Prefix, openMux)
 
-	handler := middlewares.CorsMiddleware(middlewares.AccessLog(accessLog, mux))
+	// middleware цепочка
+	handler := middlewares.AccessLog(
+		logger.Global(),
+		middlewares.CorsMiddleware(mux),
+	)
 
-	log.Println(fmt.Sprintf("Store service running on %s", conf.AppPort))
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("0.0.0.0:%s", conf.AppPort), handler))
+	addr := fmt.Sprintf("0.0.0.0:%s", conf.AppPort)
+	log.Printf("Store service running on http://localhost:%s", conf.AppPort)
+	log.Fatal(http.ListenAndServe(addr, handler))
 }

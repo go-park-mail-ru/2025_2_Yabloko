@@ -54,14 +54,12 @@ func AccessLog(baseLogger logger.Logger, next http.Handler) http.Handler {
 			slog.String("user_agent", r.UserAgent()),
 		)
 
-		// Добавляем логгер в контекст
 		ctx = logger.ContextWithLogger(ctx, reqLogger)
 		r = r.WithContext(ctx)
 
 		sw := &statusWriter{ResponseWriter: w}
 		start := time.Now()
 
-		// Логируем через per-request логгер ИСПОЛЬЗУЯ КОНТЕКСТ
 		reqLogger.InfoContext(ctx, "request started")
 		next.ServeHTTP(sw, r)
 

@@ -13,6 +13,5 @@ import (
 // @BasePath /api/v0
 func main() {
 	_ = logger.NewLogger("", slog.LevelInfo)
-
 	cmd.Run()
 }
