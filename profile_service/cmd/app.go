@@ -16,7 +16,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Run(appLog, accessLog logger.Logger) {
+// Run запускает profile_service без передачи логгеров — всё использует logger.Global()
+func Run() {
 	conf := config.LoadConfig()
 
 	dbPool, err := pgxpool.New(context.Background(), conf.DBPath())
@@ -27,6 +28,7 @@ func Run(appLog, accessLog logger.Logger) {
 
 	mux := http.NewServeMux()
 
+	// Статика для аватарок
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -60,14 +62,16 @@ func Run(appLog, accessLog logger.Logger) {
 		http.ServeFile(w, r, fullPath)
 	})
 
+	// Роутер без передачи логгера
 	protectedMux := http.NewServeMux()
-	phttp.NewProfileRouter(protectedMux, dbPool, "/api/v0", appLog, conf.UploadPath, conf.BaseURL)
+	phttp.NewProfileRouter(protectedMux, dbPool, "/api/v0", conf.UploadPath, conf.BaseURL)
 
 	jwtSecret := conf.JWTSecret
 	protectedHandler := middlewares.AuthMiddleware(protectedMux, jwtSecret)
 	mux.Handle("/api/v0/", protectedHandler)
 
-	handler := middlewares.AccessLog(accessLog,
+	handler := middlewares.AccessLog(
+		logger.Global(),
 		middlewares.CorsMiddleware(
 			middlewares.CSRFTokenMiddleware(
 				middlewares.CSRFMiddleware(mux),

@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -28,10 +29,19 @@ type ProfileHandler struct {
 	profilesPath string
 }
 
-func NewProfileHandler(uc ProfileUsecaseInterface, log logger.Logger, apiPrefix string) *ProfileHandler {
+// derefString безопасно разыменовывает *string, возвращая "<nil>", если указатель nil.
+func derefString(s *string) string {
+	if s == nil {
+		return "<nil>"
+	}
+	return *s
+}
+
+// NewProfileHandler создаёт хендлер без логгера
+func NewProfileHandler(uc ProfileUsecaseInterface, apiPrefix string) *ProfileHandler {
 	return &ProfileHandler{
 		uc:           uc,
-		rs:           http_response.NewResponseSender(log),
+		rs:           http_response.NewResponseSender(logger.Global()), // глобальный логгер
 		profilesPath: strings.TrimRight(apiPrefix, "/") + "/profiles/",
 	}
 }
@@ -40,16 +50,16 @@ func NewProfileRouter(
 	mux *http.ServeMux,
 	db repository.PgxIface,
 	apiPrefix string,
-	appLog logger.Logger,
 	uploadPath string,
 	baseURL string,
 ) {
-	profileRepo := repository.NewProfileRepoPostgres(db, appLog)
+	// Репозиторий тоже не должен принимать логгер (должен использовать logger.FromContext)
+	profileRepo := repository.NewProfileRepoPostgres(db)
 	profileUC := usecase.NewProfileUsecase(profileRepo)
 	avatarUC := usecase.NewAvatarUsecase(profileRepo, baseURL, uploadPath)
 
-	profileHandler := NewProfileHandler(profileUC, appLog, apiPrefix)
-	avatarHandler := NewAvatarHandler(avatarUC, appLog)
+	profileHandler := NewProfileHandler(profileUC, apiPrefix)
+	avatarHandler := NewAvatarHandler(avatarUC)
 
 	mux.Handle(apiPrefix+"/profiles/",
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +74,6 @@ func NewProfileRouter(
 }
 
 func (h *ProfileHandler) extractIDFromRequest(r *http.Request) string {
-
 	path := strings.TrimPrefix(r.URL.Path, h.profilesPath)
 	if path == "" {
 		return ""
@@ -76,21 +85,33 @@ func (h *ProfileHandler) extractIDFromRequest(r *http.Request) string {
 }
 
 func (h *ProfileHandler) handleProfileRoutes(w http.ResponseWriter, r *http.Request) {
+	log := logger.FromContext(r.Context())
+	log.Info("handler handleProfileRoutes start",
+		slog.String("method", r.Method),
+		slog.String("path", r.URL.Path))
+
 	id := h.extractIDFromRequest(r)
 
 	if id == "me" {
 		if sub, ok := middlewares.UserIDFromContext(r.Context()); ok && sub != "" {
 			id = sub
+			log.Debug("handler handleProfileRoutes resolved 'me'", slog.String("user_id", id))
 		} else {
+			log.Warn("handler handleProfileRoutes unauthorized - no user in context for 'me'")
 			h.rs.Error(r.Context(), w, http.StatusUnauthorized, "ProfileRoutes", domain.ErrUnauthorized, nil)
 			return
 		}
 	}
 
 	if id == "" {
+		log.Warn("handler handleProfileRoutes empty id")
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "ProfileRoutes", domain.ErrRequestParams, nil)
 		return
 	}
+
+	log.Info("handler handleProfileRoutes routing",
+		slog.String("user_id", id),
+		slog.String("method", r.Method))
 
 	switch r.Method {
 	case http.MethodGet:
@@ -100,6 +121,7 @@ func (h *ProfileHandler) handleProfileRoutes(w http.ResponseWriter, r *http.Requ
 	case http.MethodDelete:
 		h.DeleteProfile(w, r, id)
 	default:
+		log.Warn("handler handleProfileRoutes method not allowed", slog.String("method", r.Method))
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "ProfileRoutes", domain.ErrHTTPMethod, nil)
 	}
 }
@@ -118,19 +140,28 @@ func (h *ProfileHandler) handleProfileRoutes(w http.ResponseWriter, r *http.Requ
 // @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
 // @Router /profiles/{id} [get]
 func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request, id string) {
+	log := logger.FromContext(r.Context())
+	log.Info("handler GetProfile start", slog.String("user_id", id))
 
 	sub, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || sub == "" {
+		log.Warn("handler GetProfile unauthorized - no user in context")
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "GetProfile", domain.ErrUnauthorized, nil)
 		return
 	}
 	if sub != id {
+		log.Warn("handler GetProfile forbidden",
+			slog.String("subject", sub),
+			slog.String("target", id))
 		h.rs.Error(r.Context(), w, http.StatusForbidden, "GetProfile", domain.ErrForbidden, nil)
 		return
 	}
 
 	profile, err := h.uc.GetProfile(r.Context(), id)
 	if err != nil {
+		log.Error("handler GetProfile usecase failed",
+			slog.Any("err", err),
+			slog.String("user_id", id))
 		switch {
 		case errors.Is(err, domain.ErrInvalidProfileData):
 			h.rs.Error(r.Context(), w, http.StatusBadRequest, "GetProfile", err, nil)
@@ -144,6 +175,9 @@ func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request, id s
 		}
 	}
 
+	log.Info("handler GetProfile success",
+		slog.String("user_id", id),
+		slog.String("name", derefString(profile.Name)))
 	responseProfile := transport.ToProfileResponse(profile)
 	h.rs.Send(r.Context(), w, http.StatusOK, responseProfile)
 }
@@ -163,8 +197,12 @@ func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request, id s
 // @Failure 500 {object} http_response.ErrResponse "Внутренняя ошибка сервера"
 // @Router /profiles/{id} [put]
 func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, id string) {
+	log := logger.FromContext(r.Context())
+	log.Info("handler UpdateProfile start", slog.String("user_id", id))
+
 	sub, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || sub == "" {
+		log.Warn("handler UpdateProfile unauthorized - no user in context")
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "UpdateProfile", domain.ErrUnauthorized, nil)
 		return
 	}
@@ -172,9 +210,15 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, i
 
 	var req transport.UpdateProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Error("handler UpdateProfile decode failed", slog.Any("err", err))
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateProfile", domain.ErrRequestParams, err)
 		return
 	}
+
+	log.Info("handler UpdateProfile processing",
+		slog.String("user_id", targetID),
+		slog.String("name", derefString(req.Name)),
+		slog.String("city_id", derefString(req.CityID)))
 
 	profile := &domain.Profile{
 		ID:      targetID,
@@ -186,6 +230,9 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, i
 
 	err := h.uc.UpdateProfile(r.Context(), profile)
 	if err != nil {
+		log.Error("handler UpdateProfile usecase failed",
+			slog.Any("err", err),
+			slog.String("user_id", targetID))
 		switch {
 		case errors.Is(err, domain.ErrInvalidProfileData):
 			h.rs.Error(r.Context(), w, http.StatusBadRequest, "UpdateProfile", err, nil)
@@ -199,6 +246,7 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, i
 		}
 	}
 
+	log.Info("handler UpdateProfile success", slog.String("user_id", targetID))
 	h.rs.Send(r.Context(), w, http.StatusOK, map[string]string{"message": "Профиль успешно обновлен"})
 }
 
@@ -216,18 +264,28 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, i
 // @Failure 500 {object} map[string]string "Внутренняя ошибка сервера"
 // @Router /profiles/{id} [delete]
 func (h *ProfileHandler) DeleteProfile(w http.ResponseWriter, r *http.Request, id string) {
+	log := logger.FromContext(r.Context())
+	log.Info("handler DeleteProfile start", slog.String("user_id", id))
+
 	sub, ok := middlewares.UserIDFromContext(r.Context())
 	if !ok || sub == "" {
+		log.Warn("handler DeleteProfile unauthorized - no user in context")
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "DeleteProfile", domain.ErrUnauthorized, nil)
 		return
 	}
 	if sub != id {
+		log.Warn("handler DeleteProfile forbidden",
+			slog.String("subject", sub),
+			slog.String("target", id))
 		h.rs.Error(r.Context(), w, http.StatusForbidden, "DeleteProfile", domain.ErrForbidden, nil)
 		return
 	}
 
 	err := h.uc.DeleteProfile(r.Context(), id)
 	if err != nil {
+		log.Error("handler DeleteProfile usecase failed",
+			slog.Any("err", err),
+			slog.String("user_id", id))
 		switch {
 		case errors.Is(err, domain.ErrInvalidProfileData):
 			h.rs.Error(r.Context(), w, http.StatusBadRequest, "DeleteProfile", err, nil)
@@ -241,5 +299,6 @@ func (h *ProfileHandler) DeleteProfile(w http.ResponseWriter, r *http.Request, i
 		}
 	}
 
+	log.Info("handler DeleteProfile success", slog.String("user_id", id))
 	h.rs.Send(r.Context(), w, http.StatusNoContent, nil)
 }

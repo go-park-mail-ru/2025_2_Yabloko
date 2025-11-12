@@ -12,7 +12,7 @@ import (
 // @host localhost:8082
 // @BasePath /api/v0
 func main() {
-	appLog := logger.NewLogger("auth_service", slog.LevelInfo)
-	accessLog := logger.NewLogger("auth_access", slog.LevelInfo)
-	cmd.Run(appLog, accessLog)
+	_ = logger.NewLogger("", slog.LevelInfo)
+
+	cmd.Run()
 }

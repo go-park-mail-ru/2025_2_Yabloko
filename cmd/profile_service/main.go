@@ -12,8 +12,9 @@ import (
 // @host localhost:8081
 // @BasePath /api/v0
 func main() {
-	appLog := logger.NewLogger("./logs/app.log", slog.LevelDebug)
-	accessLog := logger.NewLogger("./logs/access.log", slog.LevelDebug)
+	// Инициализируем глобальный логгер один раз
+	_ = logger.NewLogger("", slog.LevelInfo)
 
-	cmd.Run(appLog, accessLog)
+	// Запускаем без передачи логгеров
+	cmd.Run()
 }

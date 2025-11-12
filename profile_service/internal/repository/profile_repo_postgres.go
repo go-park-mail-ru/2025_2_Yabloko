@@ -12,18 +12,20 @@ import (
 )
 
 type ProfileRepoPostgres struct {
-	db  PgxIface
-	log logger.Logger
+	db PgxIface
+	// Убираем log logger.Logger — он не нужен!
 }
 
-func NewProfileRepoPostgres(db PgxIface, log logger.Logger) *ProfileRepoPostgres {
-	return &ProfileRepoPostgres{db: db, log: log}
+func NewProfileRepoPostgres(db PgxIface) *ProfileRepoPostgres {
+	return &ProfileRepoPostgres{db: db}
 }
 
 //go:embed sql/profile/get_profile.sql
 var getProfileQuery string
 
 func (r *ProfileRepoPostgres) GetProfile(ctx context.Context, id string) (*domain.Profile, error) {
+	log := logger.FromContext(ctx)
+	log.Info("repo GetProfile start", slog.String("id", id))
 
 	p := &domain.Profile{}
 	err := r.db.QueryRow(ctx, getProfileQuery, id).Scan(
@@ -40,14 +42,14 @@ func (r *ProfileRepoPostgres) GetProfile(ctx context.Context, id string) (*domai
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			r.log.Warn("GetProfile профиль не найден", slog.String("id", id))
+			log.Warn("repo GetProfile profile not found", slog.String("id", id))
 			return nil, domain.ErrProfileNotFound
 		}
-		r.log.Error("GetProfile ошибка БД", slog.Any("err", err), slog.Any("id", id))
+		log.Error("repo GetProfile db error", slog.Any("err", err), slog.String("id", id))
 		return nil, err
 	}
 
-	r.log.Debug("GetProfile завершено успешно", slog.String("id", id))
+	log.Info("repo GetProfile success", slog.String("id", id))
 	return p, nil
 }
 
@@ -55,8 +57,8 @@ func (r *ProfileRepoPostgres) GetProfile(ctx context.Context, id string) (*domai
 var updateProfileQuery string
 
 func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, p *domain.Profile) error {
-
-	r.log.Debug("UpdateProfile начало обработки", slog.String("id", p.ID))
+	log := logger.FromContext(ctx)
+	log.Info("repo UpdateProfile start", slog.String("id", p.ID))
 
 	res, err := r.db.Exec(ctx, updateProfileQuery,
 		p.Name,
@@ -68,16 +70,16 @@ func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, p *domain.Profi
 	)
 
 	if err != nil {
-		r.log.Error("UpdateProfile ошибка БД", slog.String("id", p.ID), slog.Any("err", err))
+		log.Error("repo UpdateProfile db error", slog.String("id", p.ID), slog.Any("err", err))
 		return err
 	}
 
 	if res.RowsAffected() == 0 {
-		r.log.Warn("UpdateProfile профиль не найден", slog.String("id", p.ID))
+		log.Warn("repo UpdateProfile profile not found", slog.String("id", p.ID))
 		return domain.ErrProfileNotFound
 	}
 
-	r.log.Debug("UpdateProfile завершено успешно", slog.String("id", p.ID))
+	log.Info("repo UpdateProfile success", slog.String("id", p.ID))
 	return nil
 }
 
@@ -85,21 +87,21 @@ func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, p *domain.Profi
 var deleteProfileQuery string
 
 func (r *ProfileRepoPostgres) DeleteProfile(ctx context.Context, id string) error {
-
-	r.log.Debug("DeleteProfile начало обработки", slog.String("id", id))
+	log := logger.FromContext(ctx)
+	log.Info("repo DeleteProfile start", slog.String("id", id))
 
 	res, err := r.db.Exec(ctx, deleteProfileQuery, id)
 
 	if err != nil {
-		r.log.Error("DeleteProfile ошибка БД", slog.String("id", id))
+		log.Error("repo DeleteProfile db error", slog.String("id", id), slog.Any("err", err))
 		return err
 	}
 
 	if res.RowsAffected() == 0 {
-		r.log.Warn("DeleteProfile профиль не найден", slog.String("id", id))
+		log.Warn("repo DeleteProfile profile not found", slog.String("id", id))
 		return domain.ErrProfileNotFound
 	}
 
-	r.log.Debug("DeleteProfile завершено успешно", slog.String("id", id))
+	log.Info("repo DeleteProfile success", slog.String("id", id))
 	return nil
 }

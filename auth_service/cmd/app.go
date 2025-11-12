@@ -23,14 +23,8 @@ func csrfHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func Run(appLog, accessLog logger.Logger) {
-	if appLog == nil {
-		log.Fatal("app log is nil")
-	}
-	if accessLog == nil {
-		log.Fatal("access log is nil")
-	}
-
+// Run запускает auth_service без передачи логгеров — всё использует logger.Global()
+func Run() {
 	conf := config.LoadConfig()
 
 	dbPool, err := pgxpool.New(context.Background(), conf.DBPath())
@@ -43,10 +37,8 @@ func Run(appLog, accessLog logger.Logger) {
 	uc := usecase.NewAuthUseCase(repo, conf.SecretKeyStr())
 
 	authMux := http.NewServeMux()
-
 	authMux.Handle("/csrf", http.HandlerFunc(csrfHandler))
-
-	authhttp.NewAuthRouter(authMux, "/auth", appLog, uc)
+	authhttp.NewAuthRouter(authMux, "/auth", uc)
 
 	authHandler := authmw.CSRFTokenMiddleware(
 		authmw.CSRFMiddleware(authMux),
@@ -56,7 +48,7 @@ func Run(appLog, accessLog logger.Logger) {
 	mainMux.Handle("/api/v0/", http.StripPrefix("/api/v0", authHandler))
 
 	handler := authmw.CorsMiddleware(
-		authmw.AccessLog(accessLog, mainMux),
+		authmw.AccessLog(logger.Global(), mainMux),
 	)
 
 	addr := fmt.Sprintf("0.0.0.0:%s", conf.AppPortStr())

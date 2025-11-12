@@ -8,6 +8,7 @@ import (
 	"apple_backend/pkg/logger"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -28,8 +29,20 @@ type AuthHandler struct {
 	rs *http_response.ResponseSender
 }
 
-func NewAuthHandler(uc AuthUseCaseInterface, log logger.Logger) *AuthHandler {
-	return &AuthHandler{uc: uc, rs: http_response.NewResponseSender(log)}
+func NewAuthRouter(mux *http.ServeMux, base string, uc AuthUseCaseInterface) {
+	h := NewAuthHandler(uc) // убираем appLog из параметров
+
+	mux.Handle(base+"/signup", rateLimitHandler(h.Register))
+	mux.Handle(base+"/login", rateLimitHandler(h.Login))
+	mux.Handle(base+"/refresh", rateLimitHandler(h.RefreshToken))
+	mux.Handle(base+"/logout", rateLimitHandler(h.Logout))
+}
+
+func NewAuthHandler(uc AuthUseCaseInterface) *AuthHandler {
+	return &AuthHandler{
+		uc: uc,
+		rs: http_response.NewResponseSender(logger.Global()), // используем глобальный
+	}
 }
 
 func setAuthCookie(w http.ResponseWriter, token string, expires time.Time) {
@@ -74,11 +87,16 @@ func clearAuthCookie(w http.ResponseWriter) {
 }
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	log := logger.FromContext(r.Context())
+	log.Info("handler Register start", slog.String("method", r.Method), slog.String("path", r.URL.Path))
+
 	if r.Method != http.MethodPost {
+		log.Info("handler Register wrong method")
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "Register", domain.ErrHTTPMethod, nil)
 		return
 	}
 	if ct := strings.ToLower(r.Header.Get("Content-Type")); !strings.HasPrefix(ct, "application/json") {
+		log.Info("handler Register unsupported content type", slog.String("content_type", ct))
 		h.rs.Error(r.Context(), w, http.StatusUnsupportedMediaType, "Register", domain.ErrRequestParams, nil)
 		return
 	}
@@ -88,12 +106,14 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
+		log.Error("handler Register decode failed", slog.Any("err", err))
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "Register", domain.ErrRequestParams, err)
 		return
 	}
 
 	res, err := h.uc.Register(r.Context(), req.Email, req.Password)
 	if err != nil {
+		log.Error("usecase Register failed", slog.Any("err", err))
 		switch err {
 		case domain.ErrUserAlreadyExists:
 			h.rs.Error(r.Context(), w, http.StatusConflict, "Register", err, nil)
@@ -107,14 +127,20 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	setAuthCookie(w, res.Token, res.Expires)
 	h.rs.Send(r.Context(), w, http.StatusOK, res)
+	log.Info("handler Register success", slog.String("user_id", res.UserID))
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	log := logger.FromContext(r.Context())
+	log.Info("handler Login start", slog.String("method", r.Method), slog.String("path", r.URL.Path))
+
 	if r.Method != http.MethodPost {
+		log.Info("handler Login wrong method")
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "Login", domain.ErrHTTPMethod, nil)
 		return
 	}
 	if ct := strings.ToLower(r.Header.Get("Content-Type")); !strings.HasPrefix(ct, "application/json") {
+		log.Info("handler Login unsupported content type", slog.String("content_type", ct))
 		h.rs.Error(r.Context(), w, http.StatusUnsupportedMediaType, "Login", domain.ErrRequestParams, nil)
 		return
 	}
@@ -124,12 +150,14 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
+		log.Error("handler Login decode failed", slog.Any("err", err))
 		h.rs.Error(r.Context(), w, http.StatusBadRequest, "Login", domain.ErrRequestParams, err)
 		return
 	}
 
 	res, err := h.uc.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
+		log.Error("usecase Login failed", slog.Any("err", err))
 		switch err {
 		case domain.ErrUserNotFound, domain.ErrInvalidPassword:
 			h.rs.Error(r.Context(), w, http.StatusUnauthorized, "Login", err, nil)
@@ -143,47 +171,51 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	setAuthCookie(w, res.Token, res.Expires)
 	h.rs.Send(r.Context(), w, http.StatusOK, res)
+	log.Info("handler Login success", slog.String("user_id", res.UserID))
 }
 
 func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	log := logger.FromContext(r.Context())
+	log.Info("handler RefreshToken start", slog.String("method", r.Method), slog.String("path", r.URL.Path))
+
 	if r.Method != http.MethodPost {
+		log.Info("handler RefreshToken wrong method")
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "RefreshToken", domain.ErrHTTPMethod, nil)
 		return
 	}
 
 	c, err := r.Cookie("jwt_token")
 	if err != nil || c.Value == "" {
+		log.Info("handler RefreshToken missing jwt cookie")
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "RefreshToken", domain.ErrUnauthorized, nil)
 		return
 	}
 
 	res, err := h.uc.RefreshToken(r.Context(), c.Value)
 	if err != nil {
+		log.Error("usecase RefreshToken failed", slog.Any("err", err))
 		h.rs.Error(r.Context(), w, http.StatusUnauthorized, "RefreshToken", domain.ErrInvalidToken, err)
 		return
 	}
 
 	setAuthCookie(w, res.Token, res.Expires)
 	h.rs.Send(r.Context(), w, http.StatusOK, res)
+	log.Info("handler RefreshToken success", slog.String("user_id", res.UserID))
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	log := logger.FromContext(r.Context())
+	log.Info("handler Logout start", slog.String("method", r.Method), slog.String("path", r.URL.Path))
+
 	if r.Method != http.MethodPost {
+		log.Info("handler Logout wrong method")
 		h.rs.Error(r.Context(), w, http.StatusMethodNotAllowed, "Logout", domain.ErrHTTPMethod, nil)
 		return
 	}
 
 	clearAuthCookie(w)
 	h.rs.Send(r.Context(), w, http.StatusOK, map[string]string{"message": "logged out"})
-}
-
-func NewAuthRouter(mux *http.ServeMux, base string, appLog logger.Logger, uc AuthUseCaseInterface) {
-	h := NewAuthHandler(uc, appLog)
-
-	mux.Handle(base+"/signup", rateLimitHandler(h.Register))
-	mux.Handle(base+"/login", rateLimitHandler(h.Login))
-	mux.Handle(base+"/refresh", rateLimitHandler(h.RefreshToken))
-	mux.Handle(base+"/logout", rateLimitHandler(h.Logout))
+	log.Info("handler Logout success")
 }
 
 func rateLimitHandler(fn http.HandlerFunc) http.Handler {
