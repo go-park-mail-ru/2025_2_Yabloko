@@ -107,7 +107,7 @@ func NewProfileRouter(
 		}),
 	)
 
-	mux.HandleFunc("/", ServeAvatarStatic(uploadPath))
+	// mux.HandleFunc("/", ServeAvatarStatic(uploadPath))
 }
 
 func (h *ProfileHandler) extractIDFromRequest(r *http.Request) string {
