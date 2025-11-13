@@ -13,6 +13,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -44,6 +46,42 @@ func NewProfileHandler(uc ProfileUsecaseInterface, apiPrefix string) *ProfileHan
 	}
 }
 
+// ServeAvatarStatic обрабатывает статические файлы аватарок
+func ServeAvatarStatic(uploadPath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		name := filepath.Base(r.URL.Path)
+		if name == "." || name == ".." || strings.Contains(name, "/") {
+			http.NotFound(w, r)
+			return
+		}
+
+		if !strings.Contains(name, "_") {
+			http.NotFound(w, r)
+			return
+		}
+
+		ext := strings.ToLower(filepath.Ext(name))
+		if ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp" {
+			http.NotFound(w, r)
+			return
+		}
+
+		fullPath := filepath.Join(uploadPath, name)
+		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+			http.NotFound(w, r)
+			return
+		}
+
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		http.ServeFile(w, r, fullPath)
+	}
+}
+
 func NewProfileRouter(
 	mux *http.ServeMux,
 	db repository.PgxIface,
@@ -68,6 +106,8 @@ func NewProfileRouter(
 			profileHandler.handleProfileRoutes(w, r)
 		}),
 	)
+
+	mux.HandleFunc("/", ServeAvatarStatic(uploadPath))
 }
 
 func (h *ProfileHandler) extractIDFromRequest(r *http.Request) string {
