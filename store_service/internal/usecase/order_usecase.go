@@ -12,7 +12,7 @@ type OrderRepository interface {
 	CreateOrder(ctx context.Context, userID string) (string, error)
 	UpdateOrderStatus(ctx context.Context, orderID, status string) error
 	GetOrder(ctx context.Context, orderID string) (*domain.OrderInfo, error)
-	GetOrdersUser(ctx context.Context, userID string) ([]*domain.Order, error)
+	GetOrdersUser(ctx context.Context, filter *domain.OrderFilter) ([]*domain.Order, error)
 }
 
 type OrderUsecase struct {
@@ -91,8 +91,18 @@ func (uc *OrderUsecase) GetOrder(ctx context.Context, orderID, userID string) (*
 	return uc.repo.GetOrder(ctx, orderID)
 }
 
-func (uc *OrderUsecase) GetOrdersUser(ctx context.Context, userID string) ([]*domain.Order, error) {
-	orders, err := uc.repo.GetOrdersUser(ctx, userID)
+func (uc *OrderUsecase) GetOrdersUser(ctx context.Context, filter *domain.OrderFilter) ([]*domain.Order, error) {
+	if filter == nil {
+		return nil, domain.ErrRequestParams
+	}
+	if filter.Limit <= 0 || filter.Limit > 100 {
+		return nil, domain.ErrRequestParams
+	}
+	if filter.UserID == "" {
+		return nil, domain.ErrRequestParams
+	}
+
+	orders, err := uc.repo.GetOrdersUser(ctx, filter)
 	if err != nil {
 		if errors.Is(err, domain.ErrRowsNotFound) {
 			return nil, err

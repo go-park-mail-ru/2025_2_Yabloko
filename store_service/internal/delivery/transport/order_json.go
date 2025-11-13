@@ -45,13 +45,12 @@ func toOrderResponse(order *domain.Order) *Order {
 	}
 }
 
-func ToOrdersResponse(orders []*domain.Order) *Orders {
+func ToOrdersResponse(orders []*domain.Order) []*Order {
 	ordersList := make([]*Order, 0, len(orders))
 	for _, order := range orders {
 		ordersList = append(ordersList, toOrderResponse(order))
 	}
-
-	return &Orders{Orders: ordersList}
+	return ordersList
 }
 
 func toOrderItemResponse(item *domain.OrderItemInfo) *OrderItemInfo {

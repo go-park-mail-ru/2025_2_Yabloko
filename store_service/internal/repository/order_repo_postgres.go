@@ -193,13 +193,18 @@ func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*doma
 	return &order, nil
 }
 
-func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, userID string) ([]*domain.Order, error) {
+func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, filter *domain.OrderFilter) ([]*domain.Order, error) {
 	log := logger.FromContext(ctx)
-	log.DebugContext(ctx, "repo GetOrdersUser start", slog.String("user_id", userID))
+	log.DebugContext(ctx, "repo GetOrdersUser params",
+		slog.String("user_id", filter.UserID),
+		slog.Int("limit", filter.Limit),
+		slog.String("last_id", filter.LastID),
+		slog.String("status", filter.Status))
 
-	rows, err := r.db.Query(ctx, getUserOrders, userID)
+	rows, err := r.db.Query(ctx, getUserOrders, filter.UserID, filter.LastID, filter.Limit)
 	if err != nil {
-		log.ErrorContext(ctx, "repo GetOrdersUser query failed", slog.String("user_id", userID), slog.Any("err", err))
+		log.ErrorContext(ctx, "repo GetOrdersUser query failed",
+			slog.String("user_id", filter.UserID), slog.Any("err", err))
 		return nil, domain.ErrInternalServer
 	}
 	defer rows.Close()
@@ -214,22 +219,26 @@ func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, userID string) ([
 			&order.CreatedAt,
 		)
 		if err != nil {
-			log.ErrorContext(ctx, "repo GetOrdersUser scan failed", slog.String("user_id", userID), slog.Any("err", err))
+			log.ErrorContext(ctx, "repo GetOrdersUser scan failed",
+				slog.String("user_id", filter.UserID), slog.Any("err", err))
 			return nil, domain.ErrInternalServer
 		}
 		orders = append(orders, &order)
 	}
 
 	if err = rows.Err(); err != nil {
-		log.ErrorContext(ctx, "repo GetOrdersUser rows error", slog.String("user_id", userID), slog.Any("err", err))
+		log.ErrorContext(ctx, "repo GetOrdersUser rows error",
+			slog.String("user_id", filter.UserID), slog.Any("err", err))
 		return nil, domain.ErrInternalServer
 	}
 
 	if len(orders) == 0 {
-		log.DebugContext(ctx, "repo GetOrdersUser no orders found", slog.String("user_id", userID))
+		log.DebugContext(ctx, "repo GetOrdersUser no orders found", slog.String("user_id", filter.UserID))
 		return nil, domain.ErrRowsNotFound
 	}
 
-	log.DebugContext(ctx, "repo GetOrdersUser success", slog.String("user_id", userID), slog.Int("orders_count", len(orders)))
+	log.DebugContext(ctx, "repo GetOrdersUser success",
+		slog.String("user_id", filter.UserID),
+		slog.Int("orders_count", len(orders)))
 	return orders, nil
 }

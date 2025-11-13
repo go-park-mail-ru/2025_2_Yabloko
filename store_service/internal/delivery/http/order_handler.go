@@ -9,6 +9,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"apple_backend/store_service/internal/delivery/transport"
 	"apple_backend/store_service/internal/domain"
@@ -21,7 +22,7 @@ import (
 type OrderUsecaseInterface interface {
 	CreateOrder(ctx context.Context, userID string) (*domain.OrderInfo, error)
 	UpdateOrderStatus(ctx context.Context, orderID, userID, status string) error
-	GetOrdersUser(ctx context.Context, userID string) ([]*domain.Order, error)
+	GetOrdersUser(ctx context.Context, filter *domain.OrderFilter) ([]*domain.Order, error)
 	GetOrder(ctx context.Context, orderID, userID string) (*domain.OrderInfo, error)
 }
 
@@ -109,13 +110,37 @@ func (h *OrderHandler) GetOrdersUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orders, err := h.uc.GetOrdersUser(ctx, userID)
+	q := r.URL.Query()
+	limitStr := q.Get("limit")
+	if limitStr == "" {
+		log.WarnContext(ctx, "handler GetOrdersUser missing limit")
+		h.rs.Error(ctx, w, http.StatusBadRequest, "GetOrdersUser", domain.ErrRequestParams, errors.New("limit required"))
+		return
+	}
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 || limit > 100 {
+		log.WarnContext(ctx, "handler GetOrdersUser invalid limit", slog.String("limit", limitStr))
+		h.rs.Error(ctx, w, http.StatusBadRequest, "GetOrdersUser", domain.ErrRequestParams, errors.New("invalid limit"))
+		return
+	}
+
+	filter := &domain.OrderFilter{
+		UserID: userID,
+		Limit:  limit,
+		LastID: q.Get("last_id"),
+		Status: q.Get("status"),
+		Desc:   q.Has("desc") && q.Get("desc") == "true",
+	}
+
+	orders, err := h.uc.GetOrdersUser(ctx, filter)
 	if err != nil {
 		log.ErrorContext(ctx, "handler GetOrdersUser failed", slog.Any("err", err))
 
 		switch {
 		case errors.Is(err, domain.ErrRowsNotFound):
 			h.rs.Error(ctx, w, http.StatusNotFound, "GetOrdersUser", domain.ErrRowsNotFound, err)
+		case errors.Is(err, domain.ErrRequestParams):
+			h.rs.Error(ctx, w, http.StatusBadRequest, "GetOrdersUser", domain.ErrRequestParams, err)
 		case errors.Is(err, domain.ErrInternalServer):
 			h.rs.Error(ctx, w, http.StatusInternalServerError, "GetOrdersUser", domain.ErrInternalServer, err)
 		default:

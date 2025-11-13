@@ -39,7 +39,7 @@ func (r *CartRepoPostgres) GetCartItems(ctx context.Context, userID string) ([]*
 		log.ErrorContext(ctx, "GetCartItems query failed",
 			slog.Any("err", err),
 			slog.String("user_id", userID))
-		return nil, err
+		return nil, domain.ErrInternalServer
 	}
 	defer rows.Close()
 
@@ -50,7 +50,7 @@ func (r *CartRepoPostgres) GetCartItems(ctx context.Context, userID string) ([]*
 			log.ErrorContext(ctx, "GetCartItems scan failed",
 				slog.Any("err", err),
 				slog.String("user_id", userID))
-			return nil, err
+			return nil, domain.ErrInternalServer
 		}
 		items = append(items, &item)
 	}
@@ -59,12 +59,12 @@ func (r *CartRepoPostgres) GetCartItems(ctx context.Context, userID string) ([]*
 		log.ErrorContext(ctx, "GetCartItems rows iteration error",
 			slog.Any("err", err),
 			slog.String("user_id", userID))
-		return nil, err
+		return nil, domain.ErrInternalServer
 	}
 
 	if len(items) == 0 {
 		log.DebugContext(ctx, "GetCartItems cart is empty", slog.String("user_id", userID))
-		return nil, domain.ErrRowsNotFound
+		return []*domain.CartItem{}, nil
 	}
 
 	log.DebugContext(ctx, "GetCartItems завершено успешно",

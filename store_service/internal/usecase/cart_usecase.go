@@ -3,6 +3,7 @@ package usecase
 import (
 	"apple_backend/store_service/internal/domain"
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 )
@@ -24,6 +25,9 @@ func NewCartUsecase(repo CartRepository) *CartUsecase {
 func (uc *CartUsecase) GetCart(ctx context.Context, userID string) (*domain.Cart, error) {
 	items, err := uc.repo.GetCartItems(ctx, userID)
 	if err != nil {
+		if errors.Is(err, domain.ErrRowsNotFound) {
+			return &domain.Cart{Items: []*domain.CartItem{}}, nil
+		}
 		return nil, err
 	}
 	return &domain.Cart{Items: items}, nil

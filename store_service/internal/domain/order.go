@@ -25,3 +25,11 @@ type Order struct {
 	Total     float64
 	CreatedAt time.Time
 }
+
+type OrderFilter struct {
+	UserID string
+	Limit  int
+	LastID string
+	Status string
+	Desc   bool // сортировка по убыванию (новые сначала)
+}
