@@ -24,6 +24,6 @@ WORKDIR /
 COPY --from=build-stage /order_service_bin /order_service_bin
 RUN chmod +x /order_service_bin
 
-EXPOSE 8080
+EXPOSE 8084
 
 ENTRYPOINT ["/order_service_bin"]
