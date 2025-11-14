@@ -17,6 +17,10 @@ type Config struct {
 	AppPort string `validate:"required"`
 
 	JWTSecret string `validate:"required"`
+
+	YookassaShopID  string `validate:"required"`
+	YookassaSecret  string `validate:"required"`
+	YookassaBaseURL string `validate:"required"`
 }
 
 func MustConfig() *Config {
@@ -28,6 +32,10 @@ func MustConfig() *Config {
 		DBName:     os.Getenv("DB_NAME"),
 		AppPort:    os.Getenv("ORDER_SERVICE_PORT"),
 		JWTSecret:  os.Getenv("SECRET_KEY"),
+
+		YookassaShopID:  os.Getenv("YOOKASSA_SHOP_ID"),
+		YookassaSecret:  os.Getenv("YOOKASSA_SECRET_KEY"),
+		YookassaBaseURL: getEnv("YOOKASSA_BASE_URL", "https://api.yookassa.ru/v3"),
 	}
 
 	if err := validator.New().Struct(conf); err != nil {
@@ -42,4 +50,11 @@ func (c *Config) DBPath() string {
 		"postgres://%s:%s@%s:%s/%s",
 		c.DBUser, c.DBPassword, c.DBHost, c.DBPort, c.DBName,
 	)
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
