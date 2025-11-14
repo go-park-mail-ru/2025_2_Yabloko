@@ -136,6 +136,39 @@ services:
       - "service.type=store"
       - "log.format=json"
 
+  order_service:
+    build:
+      context: .
+      dockerfile: ./order_service/Dockerfile
+    container_name: order_service
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+      auth_service:
+        condition: service_started
+    ports:
+      - "${ORDER_SERVICE_PORT}:${ORDER_SERVICE_PORT}"
+    env_file: [ .env ]
+    environment:
+      POSTGRES_HOST: ${DB_HOST}
+      POSTGRES_PORT: ${DB_PORT}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      APP_PORT: "${ORDER_SERVICE_PORT}"
+      AUTH_URL: http://auth_service:${AUTH_PORT}
+      SECRET_KEY: ${SECRET_KEY}
+      CSRF_SECRET: ${CSRF_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      COOKIE_SECURE: ${COOKIE_SECURE}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE}
+    restart: unless-stopped
+    labels:
+      - "service.type=order"
+      - "log.format=json"
+
   dozzle:
     image: amir20/dozzle:latest
     container_name: doozle
