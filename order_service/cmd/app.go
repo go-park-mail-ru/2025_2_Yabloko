@@ -24,27 +24,29 @@ func Run() {
 	defer dbPool.Close()
 
 	openMux := http.NewServeMux()
+	// TODO Cut fake handler
+	fakeHandler := shttp.NewFakePaymentHandler()
+	openMux.HandleFunc(apiV0Prefix+"fake-payment", fakeHandler.FakePayment)
+
 	protectedMux := http.NewServeMux()
-
 	shttp.NewOrderRouter(protectedMux, dbPool, apiV0Prefix)
-
-	paymentHandler := shttp.NewPaymentHandler()
-	openMux.HandleFunc(apiV0Prefix+"fake-payment", paymentHandler.FakePayment)
+	shttp.NewPaymentRouter(protectedMux, dbPool, conf, apiV0Prefix)
 
 	protectedHandler := middlewares.AuthMiddleware(protectedMux, conf.JWTSecret)
 
 	mux := http.NewServeMux()
 	mux.Handle(apiV0Prefix+"orders", protectedHandler)
 	mux.Handle(apiV0Prefix+"orders/", protectedHandler)
+	mux.Handle(apiV0Prefix+"payments", protectedHandler)
+	mux.Handle(apiV0Prefix+"payments/", protectedHandler)
 	mux.Handle(apiV0Prefix, openMux)
 
-	// middleware цепочка
 	handler := middlewares.AccessLog(
 		logger.Global(),
 		middlewares.CorsMiddleware(mux),
 	)
 
 	addr := fmt.Sprintf("0.0.0.0:%s", conf.AppPort)
-	log.Printf("Store service running on http://localhost:%s", conf.AppPort)
+	log.Printf("Order service running on http://localhost:%s", conf.AppPort)
 	log.Fatal(http.ListenAndServe(addr, handler))
 }
