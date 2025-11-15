@@ -5,3 +5,8 @@
 *.git
 *.txt
 *.md
+.git
+logs
+tmp
+docker-compose.yml
+Dockerfile
