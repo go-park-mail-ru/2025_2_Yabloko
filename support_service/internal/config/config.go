@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -20,6 +21,9 @@ type Config struct {
 }
 
 func MustConfig() *Config {
+	if err := godotenv.Load(); err != nil {
+		os.Exit(1)
+	}
 	conf := &Config{
 		DBUser:     os.Getenv("DB_USER"),
 		DBPassword: os.Getenv("DB_PASSWORD"),
