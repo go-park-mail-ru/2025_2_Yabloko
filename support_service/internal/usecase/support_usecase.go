@@ -1,14 +1,13 @@
 package usecase
 
 import (
+	"apple_backend/support_service/internal/domain"
 	"context"
-	"support_service/internal/domain"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-// Интерфейсы репозиториев
 type TicketRepository interface {
 	CreateTicket(ctx context.Context, ticket *domain.Ticket) error
 	GetTicket(ctx context.Context, id string) (*domain.Ticket, error)
@@ -49,7 +48,6 @@ func NewSupportUsecase(
 	}
 }
 
-// CreateTicket - создание тикета (для авторизованных и гостей)
 func (uc *SupportUsecase) CreateTicket(
 	ctx context.Context,
 	userID, guestID *string,
@@ -60,7 +58,6 @@ func (uc *SupportUsecase) CreateTicket(
 		return nil, domain.ErrRequestParams
 	}
 
-	// Сначала получаем данные пользователя (если авторизован)
 	var finalUserName, finalUserEmail string
 
 	if userID != nil {
@@ -71,12 +68,10 @@ func (uc *SupportUsecase) CreateTicket(
 		finalUserName = user.Name
 		finalUserEmail = user.Email
 	} else {
-		// Для гостя используем переданные данные
 		finalUserName = userName
 		finalUserEmail = userEmail
 	}
 
-	// Создаем полноценный объект
 	ticket := &domain.Ticket{
 		ID:          uuid.New().String(),
 		UserID:      userID,
@@ -99,7 +94,6 @@ func (uc *SupportUsecase) CreateTicket(
 	return ticket, nil
 }
 
-// GetUserTickets - получение тикетов пользователя
 func (uc *SupportUsecase) GetUserTickets(ctx context.Context, userID, guestID *string) ([]*domain.Ticket, error) {
 	tickets, err := uc.ticketRepo.GetUserTickets(ctx, userID, guestID)
 	if err != nil {
@@ -108,7 +102,6 @@ func (uc *SupportUsecase) GetUserTickets(ctx context.Context, userID, guestID *s
 	return tickets, nil
 }
 
-// GetTicketWithMessages - получение тикета с сообщениями и рейтингом
 func (uc *SupportUsecase) GetTicketWithMessages(ctx context.Context, ticketID string, userID, guestID *string) (*domain.TicketWithMessages, error) {
 	ticket, err := uc.validateTicketAccess(ctx, ticketID, userID, guestID)
 	if err != nil {
@@ -129,7 +122,6 @@ func (uc *SupportUsecase) GetTicketWithMessages(ctx context.Context, ticketID st
 	}, nil
 }
 
-// AddMessage - добавление сообщения в тикет
 func (uc *SupportUsecase) AddMessage(
 	ctx context.Context,
 	ticketID string,
@@ -159,7 +151,6 @@ func (uc *SupportUsecase) AddMessage(
 	return uc.messageRepo.CreateMessage(ctx, message)
 }
 
-// AddRating - добавление оценки к тикету
 func (uc *SupportUsecase) AddRating(
 	ctx context.Context,
 	ticketID string,
@@ -193,7 +184,6 @@ func (uc *SupportUsecase) AddRating(
 	return uc.ratingRepo.CreateRating(ctx, ratingObj)
 }
 
-// GetAllTickets - получение всех тикетов (для админов)
 func (uc *SupportUsecase) GetAllTickets(ctx context.Context, filter *domain.TicketFilter) ([]*domain.Ticket, error) {
 	tickets, err := uc.ticketRepo.GetAllTickets(ctx, filter)
 	if err != nil {
@@ -202,19 +192,16 @@ func (uc *SupportUsecase) GetAllTickets(ctx context.Context, filter *domain.Tick
 	return tickets, nil
 }
 
-// UpdateTicketStatus - обновление статуса тикета (для админов)
 func (uc *SupportUsecase) UpdateTicketStatus(ctx context.Context, ticketID, status string) error {
 	return uc.ticketRepo.UpdateTicketStatus(ctx, ticketID, status)
 }
 
-// GetStatistics - получение статистики (для админов)
 func (uc *SupportUsecase) GetStatistics(ctx context.Context) (*domain.Statistics, error) {
 	stats, err := uc.ticketRepo.GetStatistics(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Получаем средний рейтинг
 	avgRating, err := uc.ratingRepo.GetAverageRating(ctx)
 	if err == nil {
 		stats.AverageRating = avgRating
@@ -222,8 +209,6 @@ func (uc *SupportUsecase) GetStatistics(ctx context.Context) (*domain.Statistics
 
 	return stats, nil
 }
-
-// Вспомогательные методы
 
 func (uc *SupportUsecase) determinePriority(category string) string {
 	switch category {
@@ -246,7 +231,6 @@ func (uc *SupportUsecase) isTicketOwner(ticket *domain.Ticket, userID, guestID *
 	return false
 }
 
-// validateTicketAccess - проверка доступа к тикету
 func (uc *SupportUsecase) validateTicketAccess(
 	ctx context.Context,
 	ticketID string,
@@ -277,7 +261,6 @@ func (uc *SupportUsecase) UpdateTicket(
 		return err
 	}
 
-	// Обновляем поля
 	ticket.Title = title
 	ticket.Description = description
 	ticket.Category = category

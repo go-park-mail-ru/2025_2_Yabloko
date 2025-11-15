@@ -13,4 +13,5 @@ var (
 	ErrRatingExists    = errors.New("rating already exists for this ticket")
 	ErrUserNotFound    = errors.New("user not found")
 	ErrTicketClosed    = errors.New("ticket is closed")
+	ErrForbidden       = errors.New("access denied")
 )

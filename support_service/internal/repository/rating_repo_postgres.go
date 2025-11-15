@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"support_service/internal/domain"
-	"support_service/pkg/logger"
+	"apple_backend/pkg/logger"
+	"apple_backend/support_service/internal/domain"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -22,7 +22,6 @@ func NewRatingRepoPostgres(db PgxIface) *RatingRepoPostgres {
 func (r *RatingRepoPostgres) CreateRating(ctx context.Context, rating *domain.Rating) error {
 	log := logger.FromContext(ctx)
 
-	// ✅ Объект УЖЕ готовый из UseCase (с ID и временем)
 	query := `INSERT INTO support_rating (id, ticket_id, rating, comment, created_at) VALUES ($1,$2,$3,$4,$5)`
 	_, err := r.db.Exec(ctx, query, rating.ID, rating.TicketID, rating.Rating, rating.Comment, rating.CreatedAt)
 	if err != nil {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"support_service/internal/domain"
-	"support_service/pkg/logger"
+	"apple_backend/pkg/logger"
+	"apple_backend/support_service/internal/domain"
 )
 
 type MessageRepoPostgres struct {
@@ -19,7 +19,6 @@ func NewMessageRepoPostgres(db PgxIface) *MessageRepoPostgres {
 func (r *MessageRepoPostgres) CreateMessage(ctx context.Context, m *domain.Message) error {
 	log := logger.FromContext(ctx)
 
-	// ✅ Объект УЖЕ готовый из UseCase (с ID и временем)
 	query := `INSERT INTO support_message (id, ticket_id, user_id, guest_id, user_role, content, created_at)
 			  VALUES ($1,$2,$3,$4,$5,$6,$7)`
 	_, err := r.db.Exec(ctx, query, m.ID, m.TicketID, m.UserID, m.GuestID, m.UserRole, m.Content, m.CreatedAt)

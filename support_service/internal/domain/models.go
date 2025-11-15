@@ -35,6 +35,28 @@ type Rating struct {
 	CreatedAt time.Time
 }
 
+type TicketWithMessages struct {
+	Ticket   *Ticket
+	Messages []*Message
+	Rating   *Rating
+}
+
+type TicketFilter struct {
+	Status   *string
+	Category *string
+	Limit    int
+	Offset   int
+}
+
+type Statistics struct {
+	TotalTickets      int
+	OpenTickets       int
+	InProgressTickets int
+	ClosedTickets     int
+	TicketsByCategory map[string]int
+	AverageRating     float64
+}
+
 type UserInfo struct {
 	ID    string
 	Name  string

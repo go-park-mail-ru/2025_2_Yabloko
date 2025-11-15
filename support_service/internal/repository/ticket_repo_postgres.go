@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"support_service/internal/domain"
-	"support_service/pkg/logger"
+	"apple_backend/pkg/logger"
+	"apple_backend/support_service/internal/domain"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -23,7 +23,6 @@ func (r *TicketRepoPostgres) CreateTicket(ctx context.Context, t *domain.Ticket)
 	log := logger.FromContext(ctx)
 	log.DebugContext(ctx, "CreateTicket start")
 
-	// ✅ Объект УЖЕ готовый из UseCase (с ID и временем)
 	query := `
 	INSERT INTO support_ticket
 	(id, user_id, guest_id, user_name, user_email, category, status, priority, title, description, created_at, updated_at)
@@ -119,7 +118,6 @@ func (r *TicketRepoPostgres) GetUserByID(ctx context.Context, userID string) (*d
 	return &u, nil
 }
 
-// Добавляем недостающие методы
 func (r *TicketRepoPostgres) GetAllTickets(ctx context.Context, filter *domain.TicketFilter) ([]*domain.Ticket, error) {
 	log := logger.FromContext(ctx)
 
@@ -172,7 +170,6 @@ func (r *TicketRepoPostgres) GetAllTickets(ctx context.Context, filter *domain.T
 }
 
 func (r *TicketRepoPostgres) GetStatistics(ctx context.Context) (*domain.Statistics, error) {
-	log := logger.FromContext(ctx)
 
 	stats := &domain.Statistics{
 		TicketsByCategory: make(map[string]int),
