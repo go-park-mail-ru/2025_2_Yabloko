@@ -12,7 +12,7 @@ RUN go mod download
 COPY . .
 
 RUN go mod tidy
-RUN CGO_ENABLED=1 GOOS=linux go build -o /store_service_bin ./cmd/store_service
+RUN CGO_ENABLED=1 GOOS=linux go build -o /support_service_bin ./cmd/store_service
 
 #FROM build-stage AS run-test-stage
 #RUN go test -v ./...
