@@ -179,5 +179,39 @@ services:
     environment:
       - DOZZLE_NO_ANALYTICS=true
 
+  support_service:
+    build:
+      context: .
+      dockerfile: ./support_service/Dockerfile
+    container_name: support_service
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    ports:
+      - "${SUPPORT_SERVICE_PORT}:${SUPPORT_SERVICE_PORT}"
+    env_file: [ .env ]
+    environment:
+      POSTGRES_HOST: ${DB_HOST}
+      POSTGRES_PORT: ${DB_PORT}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      PROFILE_SERVICE_PORT: "${SUPPORT_SERVICE_PORT}"
+      UPLOAD_PATH: ${UPLOAD_DIR:-/app/avatars}
+      BASE_URL: http://localhost:${PROFILE_SERVICE_PORT}
+      SECRET_KEY: ${SECRET_KEY}
+      CSRF_SECRET: ${CSRF_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      COOKIE_SECURE: ${COOKIE_SECURE}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE}
+    volumes:
+      - ./.data/avatars:/app/avatars
+    restart: unless-stopped
+    labels:
+      - "service.type=support"
+      - "log.format=json"
+
 volumes:
   db_data: {}
