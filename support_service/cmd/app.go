@@ -4,6 +4,8 @@ import (
 	"apple_backend/support_service/internal/config"
 	shttp "apple_backend/support_service/internal/delivery/http"
 	"apple_backend/support_service/internal/delivery/middlewares"
+	ws "apple_backend/support_service/internal/delivery/ws"
+	"apple_backend/support_service/internal/repository"
 	"context"
 	"fmt"
 	"log"
@@ -25,6 +27,8 @@ func Run() {
 	openMux := http.NewServeMux()
 
 	shttp.NewSupportRouter(openMux, dbPool, apiV0Prefix)
+	ticketRepo := repository.NewTicketRepoPostgres(dbPool)
+	ws.NewRealtimeRouter(openMux, ticketRepo)
 
 	mux := http.NewServeMux()
 	mux.Handle(apiV0Prefix, openMux)
