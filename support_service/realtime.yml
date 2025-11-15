@@ -1,0 +1,92 @@
+asyncapi: 2.6.0
+info:
+  title: Support Service Realtime
+  version: 1.0.0
+  description: |
+    WebSocket-каналы для поддержки:  
+    - Админ получает `ticket.updated` в реальном времени  
+    - Все участники получают `message.created`
+
+servers:
+  production:
+    url: ws://localhost:8085
+    protocol: ws
+
+channels:
+  ticket/{ticketId}:
+    description: Подписка на события тикета по его ID
+    parameters:
+      ticketId:
+        description: UUID тикета
+        schema:
+          type: string
+          format: uuid
+    subscribe:
+      summary: Клиент подписывается на события тикета
+      message:
+        oneOf:
+          - $ref: "#/components/messages/ticketUpdated"
+          - $ref: "#/components/messages/messageCreated"
+
+components:
+  messages:
+    ticketUpdated:
+      name: ticket.updated
+      title: Обновление тикета
+      summary: Только для админа — при изменении статуса или приоритета
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/TicketUpdatePayload"
+
+    messageCreated:
+      name: message.created
+      title: Новое сообщение
+      summary: Для всех — когда добавлено сообщение в чат
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/MessagePayload"
+
+  schemas:
+    TicketUpdatePayload:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [open, in_progress, closed]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, status, updated_at]
+
+    MessagePayload:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticket_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        guest_id:
+          type: string
+          nullable: true
+        user_role:
+          type: string
+          enum: [user, guest, admin, support]
+        content:
+          type: string
+          maxLength: 2000
+        created_at:
+          type: string
+          format: date-time
+      required: [id, ticket_id, user_role, content, created_at]

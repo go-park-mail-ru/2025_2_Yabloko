@@ -1,0 +1,282 @@
+openapi: 3.0.3
+info:
+  title: Support Service — REST API
+  version: 1.0.0
+  description: |
+    HTTP API для работы с тикетами поддержки.  
+    Поддержка авторизованных пользователей и гостей (`X-Guest-ID`).  
+    Админские методы требуют JWT с ролью `admin`.
+
+servers:
+  - url: http://localhost:8085
+    description: Local development
+
+security:
+  - JWTAuth: []
+
+paths:
+  /tickets:
+    post:
+      summary: Создать новый тикет
+      tags: [Tickets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicketRequest"
+      responses:
+        "201":
+          description: Успешно создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketResponse"
+        "400": { description: Некорректные данные }
+        "401": { description: Неавторизован }
+
+    get:
+      summary: Мои тикеты
+      tags: [Tickets]
+      responses:
+        "200":
+          description: Список тикетов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TicketResponse"
+        "401": { description: Неавторизован (и нет X-Guest-ID) }
+
+  /tickets/{id}:
+    get:
+      summary: Тикет с сообщениями и рейтингом
+      tags: [Tickets]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Успешно
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketWithMessagesResponse"
+        "403": { description: Доступ запрещён }
+        "404": { description: Не найден }
+
+    put:
+      summary: Обновить тикет (пока открыт)
+      tags: [Tickets]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string, maxLength: 200 }
+                description: { type: string, maxLength: 2000 }
+                category: { type: string, enum: [bug, feature, complaint] }
+              required: [title, description, category]
+      responses:
+        "204": { description: Обновлено }
+        "400": { description: Ошибка валидации }
+        "403": { description: Доступ запрещён }
+        "409": { description: Тикет закрыт — нельзя редактировать }
+
+  /tickets/{id}/messages:
+    post:
+      summary: Отправить сообщение в тикет
+      tags: [Messages]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddMessageRequest"
+      responses:
+        "204": { description: Сообщение добавлено }
+        "403": { description: Доступ запрещён }
+        "409": { description: Тикет закрыт }
+
+  /tickets/{id}/rating:
+    post:
+      summary: Оценить тикет (только после закрытия)
+      tags: [Ratings]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                comment: { type: string, maxLength: 500 }
+              required: [rating]
+      responses:
+        "204": { description: Оценка добавлена }
+        "403": { description: Доступ запрещён }
+        "409": { description: Тикет не закрыт / оценка уже есть }
+
+  /admin/tickets:
+    get:
+      summary: Все тикеты (админ)
+      tags: [Admin]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, in_progress, closed] }
+        - name: category
+          in: query
+          schema: { type: string, enum: [bug, feature, complaint] }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Список тикетов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TicketResponse"
+        "403": { description: Не админ }
+
+  /admin/tickets/{id}/status:
+    put:
+      summary: Изменить статус тикета
+      tags: [Admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [open, in_progress, closed] }
+              required: [status]
+      responses:
+        "204": { description: Статус изменён }
+        "400": { description: Недопустимый статус }
+        "403": { description: Не админ }
+
+  /admin/statistics:
+    get:
+      summary: Статистика
+      tags: [Admin]
+      responses:
+        "200":
+          description: Статистика
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatisticsResponse"
+        "403": { description: Не админ }
+
+components:
+  securitySchemes:
+    JWTAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Для админов — JWT с ролью `admin`. Для пользователей — JWT с `user_id`. Гости могут не использовать JWT, но должны передавать `X-Guest-ID`.
+
+  schemas:
+    CreateTicketRequest:
+      type: object
+      required: [category, title, description]
+      properties:
+        user_name: { type: string, maxLength: 100 }
+        user_email: { type: string, format: email, maxLength: 100 }
+        category: { type: string, enum: [bug, feature, complaint] }
+        title: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+
+    AddMessageRequest:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, maxLength: 2000 }
+
+    TicketResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_name: { type: string }
+        user_email: { type: string }
+        category: { type: string, enum: [bug, feature, complaint] }
+        status: { type: string, enum: [open, in_progress, closed] }
+        priority: { type: string, enum: [low, medium, high] }
+        title: { type: string }
+        description: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    MessageResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        ticket_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid, nullable: true }
+        guest_id: { type: string, nullable: true }
+        user_role: { type: string, enum: [user, guest, admin, support] }
+        content: { type: string }
+        created_at: { type: string, format: date-time }
+
+    RatingResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        ticket_id: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    TicketWithMessagesResponse:
+      type: object
+      properties:
+        ticket: { $ref: "#/components/schemas/TicketResponse" }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/MessageResponse" }
+        rating: { $ref: "#/components/schemas/RatingResponse", nullable: true }
+
+    StatisticsResponse:
+      type: object
+      properties:
+        total_tickets: { type: integer }
+        open_tickets: { type: integer }
+        in_progress_tickets: { type: integer }
+        closed_tickets: { type: integer }
+        tickets_by_category:
+          type: object
+          additionalProperties: { type: integer }
+        average_rating: { type: number, format: float }
