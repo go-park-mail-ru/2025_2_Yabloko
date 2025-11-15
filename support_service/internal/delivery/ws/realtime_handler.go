@@ -1,10 +1,10 @@
 package ws
 
 import (
-	"pkg/http_response"
-	"pkg/logger"
-	"support_service/internal/domain"
-	"support_service/internal/usecase"
+	"apple_backend/pkg/http_response"
+	"apple_backend/pkg/logger"
+	"apple_backend/support_service/internal/domain"
+	"apple_backend/support_service/internal/usecase"
 
 	"context"
 	"encoding/json"
@@ -186,7 +186,7 @@ func (h *RealtimeHandler) SubscribeTicket(w http.ResponseWriter, r *http.Request
 	}
 
 	// Проверка доступа к тикету
-	ticket, err := h.validateTicketAccess(ctx, ticketID, userID, guestID)
+	_, err := h.validateTicketAccess(ctx, ticketID, userID, guestID)
 	if err != nil {
 		log.ErrorContext(ctx, "handler SubscribeTicket access validation failed", slog.Any("err", err))
 		if errors.Is(err, domain.ErrAccessDenied) {

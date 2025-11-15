@@ -5,6 +5,7 @@ import "errors"
 var (
 	ErrRowsNotFound    = errors.New("rows not found")
 	ErrRequestParams   = errors.New("invalid request parameters")
+	ErrUnauthorized    = errors.New("Unauthorized")
 	ErrHTTPMethod      = errors.New("http method not allowed")
 	ErrInternalServer  = errors.New("internal server error")
 	ErrAccessDenied    = errors.New("access denied")
