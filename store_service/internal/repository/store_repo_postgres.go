@@ -37,6 +37,11 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 	args := []any{}
 	where := []string{}
 
+	if filter.Search != "" {
+		where = append(where, fmt.Sprintf("to_tsvector('russian', s.name || ' ' || s.description) @@ to_tsquery('russian', $%d)", len(args)+1))
+		args = append(args, filter.Search)
+	}
+
 	// фильтрация по тегу
 	if filter.TagID != "" {
 		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_tag st2 WHERE st2.store_id = s.id AND st2.tag_id = $%d)", len(args)+1))
@@ -63,7 +68,11 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 
 	// сортировка
 	orderBy := " ORDER BY s.id"
-	if filter.Sorted != "" {
+	if filter.Search != "" {
+		// При поиске сортируем по релевантности
+		orderBy = fmt.Sprintf(" ORDER BY ts_rank(to_tsvector('russian', s.name || ' ' || s.description), to_tsquery('russian', $%d)) DESC, s.id", len(args)+1)
+		args = append(args, filter.Search)
+	} else if filter.Sorted != "" {
 		dir := "ASC"
 		if filter.Desc {
 			dir = "DESC"

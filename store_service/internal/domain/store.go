@@ -38,6 +38,7 @@ type City struct {
 
 type StoreFilter struct {
 	Limit  int
+	Search string
 	LastID string
 	TagID  string
 	CityID string
