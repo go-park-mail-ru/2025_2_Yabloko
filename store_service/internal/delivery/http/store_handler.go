@@ -49,13 +49,14 @@ func NewStoreRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string
 	storeUC := usecase.NewStoreUsecase(storeRepo)
 	storeHandler := NewStoreHandler(storeUC)
 
-	mux.HandleFunc(apiPrefix+"stores/{id}", storeHandler.GetStore)
-	mux.HandleFunc(apiPrefix+"stores", storeHandler.GetStores)
 	mux.HandleFunc(apiPrefix+"stores/search/items", storeHandler.SearchStoresWithItems)
-	mux.HandleFunc(apiPrefix+"stores/{id}/reviews", storeHandler.GetStoreReview)
 	mux.HandleFunc(apiPrefix+"stores/cities", storeHandler.GetCities)
 	mux.HandleFunc(apiPrefix+"stores/tags", storeHandler.GetTags)
 	mux.HandleFunc(apiPrefix+"stores/categories", storeHandler.GetCategories)
+
+	mux.HandleFunc(apiPrefix+"stores/{id}/reviews", storeHandler.GetStoreReview) // TIDO Вынести
+	mux.HandleFunc(apiPrefix+"stores/{id}", storeHandler.GetStore)
+	mux.HandleFunc(apiPrefix+"stores", storeHandler.GetStores)
 }
 
 func (h *StoreHandler) CreateStore(w http.ResponseWriter, r *http.Request) {
