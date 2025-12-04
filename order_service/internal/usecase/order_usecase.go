@@ -105,7 +105,7 @@ func (uc *OrderUsecase) GetOrdersUser(ctx context.Context, filter *domain.OrderF
 	orders, err := uc.repo.GetOrdersUser(ctx, filter)
 	if err != nil {
 		if errors.Is(err, domain.ErrRowsNotFound) {
-			return nil, err
+			return []*domain.Order{}, nil
 		}
 		return nil, domain.ErrInternalServer
 	}

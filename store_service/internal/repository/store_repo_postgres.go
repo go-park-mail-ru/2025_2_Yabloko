@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/lib/pq"
 )
 
 type StoreRepoPostgres struct {
@@ -32,8 +32,8 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
     SELECT 
         s.id, s.name, s.description, s.city_id, s.address, 
         s.card_img, s.rating, s.open_at, s.closed_at,
-        COALESCE(array_agg(DISTINCT st.tag_id::text) FILTER (WHERE st.tag_id IS NOT NULL), '{}') AS tag_ids,
-        COALESCE(array_agg(DISTINCT sc.category_id::text) FILTER (WHERE sc.category_id IS NOT NULL), '{}') AS category_ids
+        COALESCE(json_agg(DISTINCT st.tag_id) FILTER (WHERE st.tag_id IS NOT NULL), '[]'::json) AS tag_ids,
+        COALESCE(json_agg(DISTINCT sc.category_id) FILTER (WHERE sc.category_id IS NOT NULL), '[]'::json) AS category_ids
     FROM store s
     LEFT JOIN store_tag st ON s.id = st.store_id
     LEFT JOIN store_category sc ON s.id = sc.store_id
@@ -47,14 +47,18 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 		args = append(args, filter.Search)
 	}
 
+	// TagIDs как ANY (ИЛИ) - если передано, то найди магазины с ЛЮБЫМ из этих тегов
 	if len(filter.TagIDs) > 0 {
 		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_tag st2 WHERE st2.store_id = s.id AND st2.tag_id = ANY($%d))", len(args)+1))
 		args = append(args, filter.TagIDs)
 	}
 
+	// CategoryIDs как AND (И) - должны быть ВСЕ категории
 	if len(filter.CategoryIDs) > 0 {
-		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_category sc2 WHERE sc2.store_id = s.id AND sc2.category_id = ANY($%d))", len(args)+1))
-		args = append(args, filter.CategoryIDs)
+		for _, catID := range filter.CategoryIDs {
+			where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_category sc2 WHERE sc2.store_id = s.id AND sc2.category_id = $%d)", len(args)+1))
+			args = append(args, catID)
+		}
 	}
 
 	if filter.CityID != "" {
@@ -97,12 +101,12 @@ func generateSearchWithItemsQuery(filter *domain.StoreSearchFilter) (string, []a
     SELECT 
         s.id, s.name, s.description, s.city_id, s.address, 
         s.card_img, s.rating, s.open_at, s.closed_at,
-        COALESCE(array_agg(DISTINCT st.tag_id::text) FILTER (WHERE st.tag_id IS NOT NULL), '{}') AS tag_ids,
-        COALESCE(array_agg(DISTINCT sc.category_id::text) FILTER (WHERE sc.category_id IS NOT NULL), '{}') AS category_ids,
+        COALESCE(json_agg(DISTINCT st.tag_id) FILTER (WHERE st.tag_id IS NOT NULL), '[]'::json) AS tag_ids,
+        COALESCE(json_agg(DISTINCT sc.category_id) FILTER (WHERE sc.category_id IS NOT NULL), '[]'::json) AS category_ids,
         si.id AS item_id,
         i.name AS item_name,
         si.price,
-        COALESCE(array_agg(DISTINCT it.type_id::text) FILTER (WHERE it.type_id IS NOT NULL), '{}') AS item_types
+        COALESCE(json_agg(DISTINCT it.type_id) FILTER (WHERE it.type_id IS NOT NULL), '[]'::json) AS item_types
     FROM store s
     LEFT JOIN store_tag st ON s.id = st.store_id
     LEFT JOIN store_category sc ON s.id = sc.store_id
@@ -114,7 +118,6 @@ func generateSearchWithItemsQuery(filter *domain.StoreSearchFilter) (string, []a
 	args := []any{}
 	where := []string{}
 
-	// TODO: Добавить семантический поиск вместо полнотекстового
 	if filter.Search != "" {
 		paramNum := len(args) + 1
 		where = append(where, fmt.Sprintf(`
@@ -124,14 +127,18 @@ func generateSearchWithItemsQuery(filter *domain.StoreSearchFilter) (string, []a
 		args = append(args, filter.Search)
 	}
 
+	// TagIDs как ANY (ИЛИ)
 	if len(filter.TagIDs) > 0 {
 		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_tag st2 WHERE st2.store_id = s.id AND st2.tag_id = ANY($%d))", len(args)+1))
 		args = append(args, filter.TagIDs)
 	}
 
+	// CategoryIDs как AND (И)
 	if len(filter.CategoryIDs) > 0 {
-		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_category sc2 WHERE sc2.store_id = s.id AND sc2.category_id = ANY($%d))", len(args)+1))
-		args = append(args, filter.CategoryIDs)
+		for _, catID := range filter.CategoryIDs {
+			where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_category sc2 WHERE sc2.store_id = s.id AND sc2.category_id = $%d)", len(args)+1))
+			args = append(args, catID)
+		}
 	}
 
 	if filter.CityID != "" {
@@ -198,8 +205,8 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	var stores []*domain.StoreAgg
 	for rows.Next() {
 		var store domain.StoreAgg
-		var tagIDs pq.StringArray
-		var categoryIDs pq.StringArray
+		var tagIDsJSON string
+		var categoryIDsJSON string
 
 		err = rows.Scan(
 			&store.ID,
@@ -211,13 +218,19 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 			&store.Rating,
 			&store.OpenAt,
 			&store.ClosedAt,
-			&tagIDs,
-			&categoryIDs,
+			&tagIDsJSON,
+			&categoryIDsJSON,
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "GetStores ошибка при декодировании данных", slog.Any("err", err))
 			return nil, err
 		}
+
+		var tagIDs []string
+		var categoryIDs []string
+
+		json.Unmarshal([]byte(tagIDsJSON), &tagIDs)
+		json.Unmarshal([]byte(categoryIDsJSON), &categoryIDs)
 
 		store.TagsID = tagIDs
 		store.CategoriesID = categoryIDs
@@ -276,11 +289,12 @@ func (r *StoreRepoPostgres) SearchStoresWithItems(ctx context.Context, filter *d
 	for rows.Next() {
 		var storeID, storeName, description, cityID, address, cardImg, openAt, closedAt string
 		var rating float64
-		var tagIDs, categoryIDs pq.StringArray
+		var tagIDsJSON string
+		var categoryIDsJSON string
 		var itemID sql.NullString
 		var itemName sql.NullString
 		var price sql.NullFloat64
-		var itemTypes pq.StringArray
+		var itemTypesJSON string
 
 		err = rows.Scan(
 			&storeID,
@@ -292,17 +306,25 @@ func (r *StoreRepoPostgres) SearchStoresWithItems(ctx context.Context, filter *d
 			&rating,
 			&openAt,
 			&closedAt,
-			&tagIDs,
-			&categoryIDs,
+			&tagIDsJSON,
+			&categoryIDsJSON,
 			&itemID,
 			&itemName,
 			&price,
-			&itemTypes,
+			&itemTypesJSON,
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "SearchStoresWithItems ошибка при декодировании", slog.Any("err", err))
 			return nil, err
 		}
+
+		var tagIDs []string
+		var categoryIDs []string
+		var itemTypes []string
+
+		json.Unmarshal([]byte(tagIDsJSON), &tagIDs)
+		json.Unmarshal([]byte(categoryIDsJSON), &categoryIDs)
+		json.Unmarshal([]byte(itemTypesJSON), &itemTypes)
 
 		if _, exists := storesMap[storeID]; !exists {
 			store := &domain.StoreWithItems{
@@ -367,8 +389,8 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.St
 	}
 
 	var store domain.StoreAgg
-	var tagIDs pq.StringArray
-	var categoryIDs pq.StringArray
+	var tagIDsJSON string
+	var categoryIDsJSON string
 
 	err = rows.Scan(
 		&store.ID,
@@ -380,8 +402,8 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.St
 		&store.Rating,
 		&store.OpenAt,
 		&store.ClosedAt,
-		&tagIDs,
-		&categoryIDs,
+		&tagIDsJSON,
+		&categoryIDsJSON,
 	)
 	if err != nil {
 		log.ErrorContext(ctx, "GetStore ошибка при декодировании данных", slog.Any("err", err))
@@ -392,6 +414,12 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.St
 		log.ErrorContext(ctx, "GetStore ошибка после чтения строк", slog.Any("err", err), slog.String("id", id))
 		return nil, err
 	}
+
+	var tagIDs []string
+	var categoryIDs []string
+
+	json.Unmarshal([]byte(tagIDsJSON), &tagIDs)
+	json.Unmarshal([]byte(categoryIDsJSON), &categoryIDs)
 
 	store.TagsID = tagIDs
 	store.CategoriesID = categoryIDs

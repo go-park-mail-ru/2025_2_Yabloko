@@ -152,11 +152,21 @@ func (h *StoreHandler) GetStores(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tagIDs := q["tag_id"]
+	if tagIDs == nil {
+		tagIDs = []string{}
+	}
+
+	categoryIDs := q["category_id"]
+	if categoryIDs == nil {
+		categoryIDs = []string{}
+	}
+
 	filter := &domain.StoreFilter{
 		Limit:       limit,
 		LastID:      q.Get("last_id"),
-		TagIDs:      q["tag_id"],
-		CategoryIDs: q["category_id"],
+		TagIDs:      tagIDs,
+		CategoryIDs: categoryIDs,
 		CityID:      q.Get("city_id"),
 		Search:      q.Get("search"),
 		Sorted:      q.Get("sorted"),
@@ -223,13 +233,27 @@ func (h *StoreHandler) SearchStoresWithItems(w http.ResponseWriter, r *http.Requ
 			maxPrice = p
 		}
 	}
+	tagIDs := q["tag_id"]
+	if tagIDs == nil {
+		tagIDs = []string{}
+	}
+
+	categoryIDs := q["category_id"]
+	if categoryIDs == nil {
+		categoryIDs = []string{}
+	}
+
+	itemTypes := q["item_type"]
+	if itemTypes == nil {
+		itemTypes = []string{}
+	}
 
 	filter := &domain.StoreSearchFilter{
 		Search:      q.Get("search"),
-		TagIDs:      q["tag_id"],
-		CategoryIDs: q["category_id"],
+		TagIDs:      tagIDs,
+		CategoryIDs: categoryIDs,
 		CityID:      q.Get("city_id"),
-		ItemTypes:   q["item_type"],
+		ItemTypes:   itemTypes,
 		MinPrice:    minPrice,
 		MaxPrice:    maxPrice,
 		Limit:       limit,

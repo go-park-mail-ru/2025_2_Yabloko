@@ -3,11 +3,11 @@ SELECT o.id          as id,
        o.total_price as total,
        o.created_at  as created_at
 FROM orders o
-WHERE o.user_id = $1
+WHERE o.user_id = $1::uuid
 AND (
-    $2 = '' 
+    $2::uuid IS NULL
     OR o.created_at < (
-        SELECT created_at FROM orders WHERE id = $2
+        SELECT created_at FROM orders WHERE id = $2::uuid
     )
 )
 ORDER BY o.created_at DESC

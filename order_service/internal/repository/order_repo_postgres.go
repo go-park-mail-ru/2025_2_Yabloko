@@ -198,10 +198,16 @@ func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, filter *domain.Or
 	log.DebugContext(ctx, "repo GetOrdersUser params",
 		slog.String("user_id", filter.UserID),
 		slog.Int("limit", filter.Limit),
-		slog.String("last_id", filter.LastID),
-		slog.String("status", filter.Status))
+		slog.String("last_id", filter.LastID))
 
-	rows, err := r.db.Query(ctx, getUserOrders, filter.UserID, filter.LastID, filter.Limit)
+	var lastID interface{}
+	if filter.LastID != "" {
+		lastID = filter.LastID
+	} else {
+		lastID = nil
+	}
+
+	rows, err := r.db.Query(ctx, getUserOrders, filter.UserID, lastID, filter.Limit)
 	if err != nil {
 		log.ErrorContext(ctx, "repo GetOrdersUser query failed",
 			slog.String("user_id", filter.UserID), slog.Any("err", err))
@@ -212,12 +218,7 @@ func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, filter *domain.Or
 	var orders []*domain.Order
 	for rows.Next() {
 		var order domain.Order
-		err = rows.Scan(
-			&order.ID,
-			&order.Status,
-			&order.Total,
-			&order.CreatedAt,
-		)
+		err = rows.Scan(&order.ID, &order.Status, &order.Total, &order.CreatedAt)
 		if err != nil {
 			log.ErrorContext(ctx, "repo GetOrdersUser scan failed",
 				slog.String("user_id", filter.UserID), slog.Any("err", err))
@@ -238,7 +239,6 @@ func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, filter *domain.Or
 	}
 
 	log.DebugContext(ctx, "repo GetOrdersUser success",
-		slog.String("user_id", filter.UserID),
-		slog.Int("orders_count", len(orders)))
+		slog.String("user_id", filter.UserID), slog.Int("orders_count", len(orders)))
 	return orders, nil
 }

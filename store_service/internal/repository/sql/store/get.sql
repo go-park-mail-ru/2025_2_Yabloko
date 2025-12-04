@@ -9,18 +9,18 @@ SELECT
     s.open_at,
     s.closed_at,
     COALESCE(
-        array_agg(DISTINCT st.tag_id::text) FILTER (
+        json_agg(DISTINCT st.tag_id) FILTER (
             WHERE
                 st.tag_id IS NOT NULL
         ),
-        '{}'
+        '[]'::json
     ) AS tag_ids,
     COALESCE(
-        array_agg(DISTINCT sc.category_id::text) FILTER (
+        json_agg(DISTINCT sc.category_id) FILTER (
             WHERE
                 sc.category_id IS NOT NULL
         ),
-        '{}'
+        '[]'::json
     ) AS category_ids
 FROM
     store s
