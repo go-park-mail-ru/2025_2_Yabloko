@@ -12,6 +12,6 @@ import (
 // @host localhost:8084
 // @BasePath /api/v0
 func main() {
-	_ = logger.NewLogger("", slog.LevelInfo)
+	_ = logger.NewLogger("", slog.LevelDebug)
 	cmd.Run()
 }

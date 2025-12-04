@@ -1,19 +1,23 @@
 package transport
 
-import "apple_backend/store_service/internal/domain"
+import (
+	"apple_backend/store_service/internal/domain"
+
+	"github.com/lib/pq"
+)
 
 type StoreResponse struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Description  string   `json:"description"`
-	CityID       string   `json:"city_id"`
-	Address      string   `json:"address"`
-	CardImg      string   `json:"card_img"`
-	Rating       float64  `json:"rating"`
-	TagsID       []string `json:"tags_id"`
-	CategoriesID []string `json:"categories_id"`
-	OpenAt       string   `json:"open_at"`
-	ClosedAt     string   `json:"closed_at"`
+	ID           string        `json:"id"`
+	Name         string        `json:"name"`
+	Description  string        `json:"description"`
+	CityID       string        `json:"city_id"`
+	Address      string        `json:"address"`
+	CardImg      string        `json:"card_img"`
+	Rating       float64       `json:"rating"`
+	TagsID       pq.UUID8Array `json:"tag_ids"`
+	CategoriesID pq.UUID8Array `json:"category_ids"`
+	OpenAt       string        `json:"open_at"`
+	ClosedAt     string        `json:"closed_at"`
 } // @name StoreResponse
 
 type CityResponse struct {
