@@ -90,6 +90,7 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 
 	return query, args
 }
+
 func generateSearchWithItemsQuery(filter *domain.StoreSearchFilter) (string, []any) {
 	query := `
         SELECT 
@@ -113,11 +114,12 @@ func generateSearchWithItemsQuery(filter *domain.StoreSearchFilter) (string, []a
 
 	// TODO: Добавить семантический поиск вместо полнотекстового
 	if filter.Search != "" {
+		paramNum := len(args) + 1
 		where = append(where, fmt.Sprintf(`
             (to_tsvector('russian', s.name || ' ' || s.description) @@ to_tsquery('russian', $%d)
             OR to_tsvector('russian', i.name) @@ to_tsquery('russian', $%d))
-        `, len(args)+1, len(args)+1))
-		args = append(args, filter.Search, filter.Search)
+        `, paramNum, paramNum))
+		args = append(args, filter.Search)
 	}
 
 	if len(filter.TagIDs) > 0 {
