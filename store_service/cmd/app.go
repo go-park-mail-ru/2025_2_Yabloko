@@ -31,10 +31,6 @@ func Run() {
 	shttp.NewStoreRouter(openMux, dbPool, apiV0Prefix)
 	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix)
 	shttp.NewCartRouter(protectedMux, dbPool, apiV0Prefix)
-	shttp.NewOrderRouter(protectedMux, dbPool, apiV0Prefix)
-
-	paymentHandler := shttp.NewPaymentHandler()
-	openMux.HandleFunc(apiV0Prefix+"fake-payment", paymentHandler.FakePayment)
 
 	protectedHandler := middlewares.AuthMiddleware(protectedMux, conf.JWTSecret)
 
@@ -62,8 +58,6 @@ func Run() {
 
 	// маршрутизация API
 	mux.Handle(apiV0Prefix+"cart", protectedHandler)
-	mux.Handle(apiV0Prefix+"orders", protectedHandler)
-	mux.Handle(apiV0Prefix+"orders/", protectedHandler)
 	mux.Handle(apiV0Prefix, openMux)
 
 	// middleware цепочка
