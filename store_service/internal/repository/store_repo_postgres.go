@@ -90,7 +90,6 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 
 	return query, args
 }
-
 func generateSearchWithItemsQuery(filter *domain.StoreSearchFilter) (string, []any) {
 	query := `
         SELECT 
@@ -113,7 +112,6 @@ func generateSearchWithItemsQuery(filter *domain.StoreSearchFilter) (string, []a
 	where := []string{}
 
 	// TODO: Добавить семантический поиск вместо полнотекстового
-	// Сейчас: полнотекстовый поиск по названию магазина ИЛИ названию товара
 	if filter.Search != "" {
 		where = append(where, fmt.Sprintf(`
             (to_tsvector('russian', s.name || ' ' || s.description) @@ to_tsquery('russian', $%d)
@@ -155,11 +153,8 @@ func generateSearchWithItemsQuery(filter *domain.StoreSearchFilter) (string, []a
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
 
-	query += `
-        GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at,
-                 si.id, i.name, si.price
-        ORDER BY s.id, si.id
-    `
+	query += ` GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at,
+                 si.id, i.name, si.price`
 
 	query += fmt.Sprintf(" LIMIT $%d", len(args)+1)
 	args = append(args, filter.Limit)
