@@ -65,7 +65,7 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
 
-	query += " GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at"
+	query += " GROUP BY s.id"
 
 	if filter.LastID != "" {
 		query += fmt.Sprintf(" HAVING s.id > $%d", len(args)+1)
