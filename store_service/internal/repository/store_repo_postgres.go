@@ -193,11 +193,6 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	}
 	defer rows.Close()
 
-	log.DebugContext(ctx, "SQL columns info",
-		slog.Any("field_descriptions", rows.FieldDescriptions()),
-		slog.Int("field_count", len(rows.FieldDescriptions())),
-	) // DEBUG
-
 	var stores []*domain.StoreAgg
 	for rows.Next() {
 		var store domain.StoreAgg
