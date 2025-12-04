@@ -29,12 +29,4 @@ FROM
 WHERE
     s.id = $1
 GROUP BY
-    s.id,
-    s.name,
-    s.description,
-    s.city_id,
-    s.address,
-    s.card_img,
-    s.rating,
-    s.open_at,
-    s.closed_at
+    s.id
