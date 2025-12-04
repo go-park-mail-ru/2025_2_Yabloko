@@ -12,5 +12,6 @@ CREATE TRIGGER trg_update_type_updated_at
     ON type
     FOR EACH ROW
 EXECUTE FUNCTION update_updated_at();
+
 ---- create above / drop below ----
 drop table if exists type;

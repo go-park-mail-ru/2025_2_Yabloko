@@ -2,6 +2,6 @@ SELECT
     id,
     name
 FROM
-    tag
+    category
 ORDER BY
     name ASC

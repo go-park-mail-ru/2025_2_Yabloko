@@ -6,12 +6,18 @@ import (
 )
 
 type StoreRepository interface {
+	GetCities(ctx context.Context) ([]*domain.City, error)
+
 	GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.StoreAgg, error)
 	GetStore(ctx context.Context, id string) (*domain.StoreAgg, error)
-	GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error)
 	CreateStore(ctx context.Context, store *domain.Store) error
-	GetCities(ctx context.Context) ([]*domain.City, error)
+
+	GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error) // TODO Вынести
+
 	GetTags(ctx context.Context) ([]*domain.StoreTag, error)
+	GetCategories(ctx context.Context) ([]*domain.Category, error)
+
+	SearchStoresWithItems(ctx context.Context, filter *domain.StoreSearchFilter) ([]*domain.StoreWithItems, error)
 }
 
 type StoreUsecase struct {
@@ -62,10 +68,30 @@ func (uc *StoreUsecase) GetStores(ctx context.Context, filter *domain.StoreFilte
 	return stores, nil
 }
 
+func (uc *StoreUsecase) SearchStoresWithItems(ctx context.Context, filter *domain.StoreSearchFilter) ([]*domain.StoreWithItems, error) {
+	if filter.Limit <= 0 {
+		return nil, domain.ErrRequestParams
+	}
+	if filter.MaxPrice < filter.MinPrice {
+		return nil, domain.ErrRequestParams
+	}
+
+	stores, err := uc.repo.SearchStoresWithItems(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	return stores, nil
+}
+
 func (uc *StoreUsecase) GetCities(ctx context.Context) ([]*domain.City, error) {
 	return uc.repo.GetCities(ctx)
 }
 
 func (uc *StoreUsecase) GetTags(ctx context.Context) ([]*domain.StoreTag, error) {
 	return uc.repo.GetTags(ctx)
+}
+
+func (uc *StoreUsecase) GetCategories(ctx context.Context) ([]*domain.Category, error) {
+	return uc.repo.GetCategories(ctx)
 }

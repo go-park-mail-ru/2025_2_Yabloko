@@ -67,10 +67,10 @@ UPDATE
     ON store_item FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 ---- create above / drop below ----
-drop table if exists store;
+DROP TABLE IF EXISTS store_category CASCADE;
 
-drop table if exists store_tag;
+DROP TABLE IF EXISTS store_tag CASCADE;
 
-drop table if exists store_category;
+DROP TABLE IF EXISTS store_item CASCADE;
 
-drop table if exists store_item;
+DROP TABLE IF EXISTS store CASCADE;

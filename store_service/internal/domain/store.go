@@ -14,19 +14,25 @@ type Store struct {
 }
 
 type StoreAgg struct {
-	ID          string
-	Name        string
-	Description string
-	CityID      string
-	Address     string
-	CardImg     string
-	Rating      float64
-	TagsID      []string
-	OpenAt      string
-	ClosedAt    string
+	ID           string
+	Name         string
+	Description  string
+	CityID       string
+	Address      string
+	CardImg      string
+	Rating       float64
+	TagsID       []string
+	CategoriesID []string
+	OpenAt       string
+	ClosedAt     string
 }
 
 type StoreTag struct {
+	ID   string
+	Name string
+}
+
+type Category struct {
 	ID   string
 	Name string
 }
@@ -37,13 +43,14 @@ type City struct {
 }
 
 type StoreFilter struct {
-	Limit  int
-	Search string
-	LastID string
-	TagID  string
-	CityID string
-	Sorted string
-	Desc   bool
+	Limit       int
+	Search      string
+	LastID      string
+	TagIDs      []string
+	CategoryIDs []string
+	CityID      string
+	Sorted      string
+	Desc        bool
 }
 
 type StoreReview struct {
@@ -51,4 +58,31 @@ type StoreReview struct {
 	Rating    float64
 	Comment   string
 	CreatedAt string
+}
+
+type StoreSearchFilter struct {
+	Search      string
+	TagIDs      []string
+	CategoryIDs []string
+	CityID      string
+	ItemTypes   []string
+	MinPrice    float64
+	MaxPrice    float64
+	Limit       int
+	LastID      string
+}
+
+type StoreWithItems struct {
+	ID           string
+	Name         string
+	Description  string
+	CityID       string
+	Address      string
+	CardImg      string
+	Rating       float64
+	TagsID       []string
+	CategoriesID []string
+	OpenAt       string
+	ClosedAt     string
+	Items        []*Item
 }

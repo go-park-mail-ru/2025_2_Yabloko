@@ -4,6 +4,7 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/store_service/internal/domain"
 	"context"
+	"database/sql"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
 )
 
 type StoreRepoPostgres struct {
@@ -30,9 +32,11 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
         SELECT 
             s.id, s.name, s.description, s.city_id, s.address, 
             s.card_img, s.rating, s.open_at, s.closed_at,
-            COALESCE(array_agg(st.tag_id) FILTER (WHERE st.tag_id IS NOT NULL), '{}') AS tag_ids
+            COALESCE(array_agg(DISTINCT st.tag_id) FILTER (WHERE st.tag_id IS NOT NULL), '{}') AS tag_ids,
+            COALESCE(array_agg(DISTINCT sc.category_id) FILTER (WHERE sc.category_id IS NOT NULL), '{}') AS category_ids
         FROM store s
         LEFT JOIN store_tag st ON s.id = st.store_id
+        LEFT JOIN store_category sc ON s.id = sc.store_id
     `
 	args := []any{}
 	where := []string{}
@@ -42,13 +46,16 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 		args = append(args, filter.Search)
 	}
 
-	// фильтрация по тегу
-	if filter.TagID != "" {
-		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_tag st2 WHERE st2.store_id = s.id AND st2.tag_id = $%d)", len(args)+1))
-		args = append(args, filter.TagID)
+	if len(filter.TagIDs) > 0 {
+		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_tag st2 WHERE st2.store_id = s.id AND st2.tag_id = ANY($%d))", len(args)+1))
+		args = append(args, filter.TagIDs)
 	}
 
-	// фильтрация по городу
+	if len(filter.CategoryIDs) > 0 {
+		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_category sc2 WHERE sc2.store_id = s.id AND sc2.category_id = ANY($%d))", len(args)+1))
+		args = append(args, filter.CategoryIDs)
+	}
+
 	if filter.CityID != "" {
 		where = append(where, fmt.Sprintf("s.city_id = $%d", len(args)+1))
 		args = append(args, filter.CityID)
@@ -60,16 +67,13 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 
 	query += " GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at"
 
-	// пагинация
 	if filter.LastID != "" {
 		query += fmt.Sprintf(" HAVING s.id > $%d", len(args)+1)
 		args = append(args, filter.LastID)
 	}
 
-	// сортировка
 	orderBy := " ORDER BY s.id"
 	if filter.Search != "" {
-		// При поиске сортируем по релевантности
 		orderBy = fmt.Sprintf(" ORDER BY ts_rank(to_tsvector('russian', s.name || ' ' || s.description), to_tsquery('russian', $%d)) DESC, s.id", len(args)+1)
 		args = append(args, filter.Search)
 	} else if filter.Sorted != "" {
@@ -81,7 +85,82 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 	}
 	query += orderBy
 
-	// лимит
+	query += fmt.Sprintf(" LIMIT $%d", len(args)+1)
+	args = append(args, filter.Limit)
+
+	return query, args
+}
+
+func generateSearchWithItemsQuery(filter *domain.StoreSearchFilter) (string, []any) {
+	query := `
+        SELECT 
+            s.id, s.name, s.description, s.city_id, s.address, 
+            s.card_img, s.rating, s.open_at, s.closed_at,
+            COALESCE(array_agg(DISTINCT st.tag_id) FILTER (WHERE st.tag_id IS NOT NULL), '{}') AS tag_ids,
+            COALESCE(array_agg(DISTINCT sc.category_id) FILTER (WHERE sc.category_id IS NOT NULL), '{}') AS category_ids,
+            si.id AS item_id,
+            i.name AS item_name,
+            si.price,
+            COALESCE(array_agg(DISTINCT it.type_id) FILTER (WHERE it.type_id IS NOT NULL), '{}') AS item_types
+        FROM store s
+        LEFT JOIN store_tag st ON s.id = st.store_id
+        LEFT JOIN store_category sc ON s.id = sc.store_id
+        LEFT JOIN store_item si ON s.id = si.store_id
+        LEFT JOIN item i ON si.item_id = i.id
+        LEFT JOIN item_type it ON i.id = it.item_id
+    `
+	args := []any{}
+	where := []string{}
+
+	// TODO: Добавить семантический поиск вместо полнотекстового
+	// Сейчас: полнотекстовый поиск по названию магазина ИЛИ названию товара
+	if filter.Search != "" {
+		where = append(where, fmt.Sprintf(`
+            (to_tsvector('russian', s.name || ' ' || s.description) @@ to_tsquery('russian', $%d)
+            OR to_tsvector('russian', i.name) @@ to_tsquery('russian', $%d))
+        `, len(args)+1, len(args)+1))
+		args = append(args, filter.Search, filter.Search)
+	}
+
+	if len(filter.TagIDs) > 0 {
+		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_tag st2 WHERE st2.store_id = s.id AND st2.tag_id = ANY($%d))", len(args)+1))
+		args = append(args, filter.TagIDs)
+	}
+
+	if len(filter.CategoryIDs) > 0 {
+		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_category sc2 WHERE sc2.store_id = s.id AND sc2.category_id = ANY($%d))", len(args)+1))
+		args = append(args, filter.CategoryIDs)
+	}
+
+	if filter.CityID != "" {
+		where = append(where, fmt.Sprintf("s.city_id = $%d", len(args)+1))
+		args = append(args, filter.CityID)
+	}
+
+	if len(filter.ItemTypes) > 0 {
+		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM item_type it2 WHERE it2.item_id = i.id AND it2.type_id = ANY($%d))", len(args)+1))
+		args = append(args, filter.ItemTypes)
+	}
+
+	if filter.MinPrice > 0 {
+		where = append(where, fmt.Sprintf("si.price >= $%d", len(args)+1))
+		args = append(args, filter.MinPrice)
+	}
+	if filter.MaxPrice < 999999 {
+		where = append(where, fmt.Sprintf("si.price <= $%d", len(args)+1))
+		args = append(args, filter.MaxPrice)
+	}
+
+	if len(where) > 0 {
+		query += " WHERE " + strings.Join(where, " AND ")
+	}
+
+	query += `
+        GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at,
+                 si.id, i.name, si.price
+        ORDER BY s.id, si.id
+    `
+
 	query += fmt.Sprintf(" LIMIT $%d", len(args)+1)
 	args = append(args, filter.Limit)
 
@@ -91,7 +170,8 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.StoreAgg, error) {
 	log := logger.FromContext(ctx)
 	log.DebugContext(ctx, "GetStores начало обработки",
-		slog.String("tag_id", filter.TagID),
+		slog.Any("tag_ids", filter.TagIDs),
+		slog.Any("category_ids", filter.CategoryIDs),
 		slog.String("city_id", filter.CityID),
 		slog.String("sorted", filter.Sorted),
 		slog.Int("limit", filter.Limit),
@@ -119,7 +199,8 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	var stores []*domain.StoreAgg
 	for rows.Next() {
 		var store domain.StoreAgg
-		var tagIDs []string
+		var tagIDs pq.StringArray
+		var categoryIDs pq.StringArray
 
 		err = rows.Scan(
 			&store.ID,
@@ -132,6 +213,7 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 			&store.OpenAt,
 			&store.ClosedAt,
 			&tagIDs,
+			&categoryIDs,
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "GetStores ошибка при декодировании данных", slog.Any("err", err))
@@ -139,6 +221,7 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 		}
 
 		store.TagsID = tagIDs
+		store.CategoriesID = categoryIDs
 		stores = append(stores, &store)
 	}
 
@@ -149,7 +232,8 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 
 	if len(stores) == 0 {
 		log.DebugContext(ctx, "GetStores пустой результат",
-			slog.String("tag_id", filter.TagID),
+			slog.Any("tag_ids", filter.TagIDs),
+			slog.Any("category_ids", filter.CategoryIDs),
 			slog.String("city_id", filter.CityID),
 		)
 		return []*domain.StoreAgg{}, nil
@@ -157,6 +241,112 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 
 	log.DebugContext(ctx, "GetStores завершено успешно", slog.Int("stores_count", len(stores)))
 	return stores, nil
+}
+
+func (r *StoreRepoPostgres) SearchStoresWithItems(ctx context.Context, filter *domain.StoreSearchFilter) ([]*domain.StoreWithItems, error) {
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "SearchStoresWithItems начало обработки",
+		slog.String("search", filter.Search),
+		slog.Any("tag_ids", filter.TagIDs),
+		slog.Any("category_ids", filter.CategoryIDs),
+		slog.Any("item_types", filter.ItemTypes),
+		slog.Float64("min_price", filter.MinPrice),
+		slog.Float64("max_price", filter.MaxPrice),
+	)
+
+	query, args := generateSearchWithItemsQuery(filter)
+
+	log.DebugContext(ctx, "Сгенерированный SQL запрос",
+		slog.String("query", query),
+		slog.Any("args", args),
+	)
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		log.ErrorContext(ctx, "SearchStoresWithItems ошибка выполнения SQL",
+			slog.Any("err", err),
+			slog.String("query", query),
+		)
+		return nil, err
+	}
+	defer rows.Close()
+
+	storesMap := make(map[string]*domain.StoreWithItems)
+	var storeOrder []*domain.StoreWithItems
+
+	for rows.Next() {
+		var storeID, storeName, description, cityID, address, cardImg, openAt, closedAt string
+		var rating float64
+		var tagIDs, categoryIDs pq.StringArray
+		var itemID sql.NullString
+		var itemName sql.NullString
+		var price sql.NullFloat64
+		var itemTypes pq.StringArray
+
+		err = rows.Scan(
+			&storeID,
+			&storeName,
+			&description,
+			&cityID,
+			&address,
+			&cardImg,
+			&rating,
+			&openAt,
+			&closedAt,
+			&tagIDs,
+			&categoryIDs,
+			&itemID,
+			&itemName,
+			&price,
+			&itemTypes,
+		)
+		if err != nil {
+			log.ErrorContext(ctx, "SearchStoresWithItems ошибка при декодировании", slog.Any("err", err))
+			return nil, err
+		}
+
+		if _, exists := storesMap[storeID]; !exists {
+			store := &domain.StoreWithItems{
+				ID:           storeID,
+				Name:         storeName,
+				Description:  description,
+				CityID:       cityID,
+				Address:      address,
+				CardImg:      cardImg,
+				Rating:       rating,
+				OpenAt:       openAt,
+				ClosedAt:     closedAt,
+				TagsID:       tagIDs,
+				CategoriesID: categoryIDs,
+				Items:        make([]*domain.Item, 0),
+			}
+			storesMap[storeID] = store
+			storeOrder = append(storeOrder, store)
+		}
+
+		if itemID.Valid && itemName.Valid && price.Valid {
+			item := &domain.Item{
+				ID:      itemID.String,
+				Name:    itemName.String,
+				Price:   price.Float64,
+				TypesID: itemTypes,
+			}
+			storesMap[storeID].Items = append(storesMap[storeID].Items, item)
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		log.ErrorContext(ctx, "SearchStoresWithItems ошибка после чтения строк", slog.Any("err", err))
+		return nil, err
+	}
+
+	if len(storeOrder) == 0 {
+		log.DebugContext(ctx, "SearchStoresWithItems пустой результат")
+		return []*domain.StoreWithItems{}, nil
+	}
+
+	log.DebugContext(ctx, "SearchStoresWithItems завершено успешно", slog.Int("stores_count", len(storeOrder)))
+	return storeOrder, nil
 }
 
 //go:embed sql/store/get.sql
@@ -178,7 +368,8 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.St
 	}
 
 	var store domain.StoreAgg
-	var tagIDs []string
+	var tagIDs pq.StringArray
+	var categoryIDs pq.StringArray
 
 	err = rows.Scan(
 		&store.ID,
@@ -191,6 +382,7 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.St
 		&store.OpenAt,
 		&store.ClosedAt,
 		&tagIDs,
+		&categoryIDs,
 	)
 	if err != nil {
 		log.ErrorContext(ctx, "GetStore ошибка при декодировании данных", slog.Any("err", err))
@@ -203,6 +395,7 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.St
 	}
 
 	store.TagsID = tagIDs
+	store.CategoriesID = categoryIDs
 	log.DebugContext(ctx, "GetStore завершено успешно", slog.String("id", id))
 	return &store, nil
 }
@@ -309,8 +502,47 @@ func (r *StoreRepoPostgres) GetTags(ctx context.Context) ([]*domain.StoreTag, er
 		return nil, domain.ErrRowsNotFound
 	}
 
-	log.DebugContext(ctx, "GetTags завершено успешно")
+	log.DebugContext(ctx, "GetTags завершено успешно", slog.Int("tags_count", len(tags)))
 	return tags, nil
+}
+
+//go:embed sql/store/get_category.sql
+var getCategories string
+
+func (r *StoreRepoPostgres) GetCategories(ctx context.Context) ([]*domain.Category, error) {
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "GetCategories начало обработки")
+
+	rows, err := r.db.Query(ctx, getCategories)
+	if err != nil {
+		log.ErrorContext(ctx, "GetCategories ошибка бд", slog.Any("err", err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []*domain.Category
+	for rows.Next() {
+		var category domain.Category
+		err = rows.Scan(&category.ID, &category.Name)
+		if err != nil {
+			log.ErrorContext(ctx, "GetCategories ошибка при декодировании данных", slog.Any("err", err))
+			return nil, err
+		}
+		categories = append(categories, &category)
+	}
+
+	if err = rows.Err(); err != nil {
+		log.ErrorContext(ctx, "GetCategories ошибка после чтения строк", slog.Any("err", err))
+		return nil, err
+	}
+
+	if len(categories) == 0 {
+		log.DebugContext(ctx, "GetCategories пустой ответ")
+		return nil, domain.ErrRowsNotFound
+	}
+
+	log.DebugContext(ctx, "GetCategories завершено успешно", slog.Int("categories_count", len(categories)))
+	return categories, nil
 }
 
 //go:embed sql/store/get_city.sql
@@ -348,6 +580,6 @@ func (r *StoreRepoPostgres) GetCities(ctx context.Context) ([]*domain.City, erro
 		return nil, domain.ErrRowsNotFound
 	}
 
-	log.DebugContext(ctx, "GetCities завершено успешно")
+	log.DebugContext(ctx, "GetCities завершено успешно", slog.Int("cities_count", len(cities)))
 	return cities, nil
 }

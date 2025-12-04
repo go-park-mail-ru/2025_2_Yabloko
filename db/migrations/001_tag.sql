@@ -21,5 +21,6 @@ CREATE TRIGGER trg_update_tag_updated_at
     ON tag
     FOR EACH ROW
 EXECUTE FUNCTION update_updated_at();
+
 ---- create above / drop below ----
 drop table if exists tag;

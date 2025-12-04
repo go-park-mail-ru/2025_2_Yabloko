@@ -6,6 +6,8 @@ import (
 	"context"
 	_ "embed"
 	"log/slog"
+
+	"github.com/lib/pq"
 )
 
 //go:embed sql/item/get_types.sql
@@ -53,7 +55,7 @@ func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, storeID string) ([]
 
 	if len(itemTypes) == 0 {
 		log.DebugContext(ctx, "GetItemTypes пустой ответ", slog.String("store_id", storeID))
-		return []*domain.ItemType{}, nil // возвращаем пустой массив вместо ошибки
+		return []*domain.ItemType{}, nil
 	}
 
 	log.DebugContext(ctx, "GetItemTypes завершено успешно",
@@ -62,47 +64,50 @@ func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, storeID string) ([]
 	return itemTypes, nil
 }
 
-func (r *ItemRepoPostgres) GetItems(ctx context.Context, itemTypeID string) ([]*domain.Item, error) {
+func (r *ItemRepoPostgres) GetItems(ctx context.Context, storeID string) ([]*domain.ItemAgg, error) {
 	log := logger.FromContext(ctx)
-	log.DebugContext(ctx, "GetItems начало обработки", slog.String("type_id", itemTypeID))
+	log.DebugContext(ctx, "GetItems начало обработки", slog.String("store_id", storeID))
 
-	rows, err := r.db.Query(ctx, getItems, itemTypeID)
+	rows, err := r.db.Query(ctx, getItems, storeID)
 	if err != nil {
-		log.ErrorContext(ctx, "GetItems ошибка бд", slog.Any("err", err), slog.String("type_id", itemTypeID))
+		log.ErrorContext(ctx, "GetItems ошибка бд", slog.Any("err", err), slog.String("store_id", storeID))
 		return nil, err
 	}
 	defer rows.Close()
 
-	var items []*domain.Item
+	var items []*domain.ItemAgg
 	for rows.Next() {
-		item := &domain.Item{}
+		var item domain.ItemAgg
+		var typeIDs pq.StringArray
+
 		err = rows.Scan(
 			&item.ID,
 			&item.Name,
 			&item.Price,
 			&item.Description,
 			&item.CardImg,
-			&item.TypeID,
+			&typeIDs,
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "GetItems ошибка при декодировании данных", slog.Any("err", err))
 			return nil, err
 		}
-		items = append(items, item)
+		item.TypesID = typeIDs
+		items = append(items, &item)
 	}
 
 	if err = rows.Err(); err != nil {
-		log.ErrorContext(ctx, "GetItems ошибка после чтения строк", slog.Any("err", err), slog.String("type_id", itemTypeID))
+		log.ErrorContext(ctx, "GetItems ошибка после чтения строк", slog.Any("err", err), slog.String("store_id", storeID))
 		return nil, err
 	}
 
 	if len(items) == 0 {
-		log.DebugContext(ctx, "GetItems пустой ответ", slog.String("type_id", itemTypeID))
+		log.DebugContext(ctx, "GetItems пустой ответ", slog.String("store_id", storeID))
 		return nil, domain.ErrRowsNotFound
 	}
 
 	log.DebugContext(ctx, "GetItems завершено успешно",
-		slog.String("type_id", itemTypeID),
+		slog.String("store_id", storeID),
 		slog.Int("items_count", len(items)))
 	return items, nil
 }

@@ -18,12 +18,18 @@ import (
 )
 
 type StoreUsecaseInterface interface {
+	GetCities(ctx context.Context) ([]*domain.City, error)
+
 	GetStore(ctx context.Context, id string) (*domain.StoreAgg, error)
 	GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.StoreAgg, error)
 	CreateStore(ctx context.Context, name, description, cityID, address, cardImg, openAt, closedAt string, rating float64) error
-	GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error)
-	GetCities(ctx context.Context) ([]*domain.City, error)
+
+	GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error) // TODO Вынести
+
 	GetTags(ctx context.Context) ([]*domain.StoreTag, error)
+	GetCategories(ctx context.Context) ([]*domain.Category, error)
+
+	SearchStoresWithItems(ctx context.Context, filter *domain.StoreSearchFilter) ([]*domain.StoreWithItems, error)
 }
 
 type StoreHandler struct {
@@ -45,9 +51,11 @@ func NewStoreRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string
 
 	mux.HandleFunc(apiPrefix+"stores/{id}", storeHandler.GetStore)
 	mux.HandleFunc(apiPrefix+"stores", storeHandler.GetStores)
+	mux.HandleFunc(apiPrefix+"stores/search/items", storeHandler.SearchStoresWithItems)
 	mux.HandleFunc(apiPrefix+"stores/{id}/reviews", storeHandler.GetStoreReview)
 	mux.HandleFunc(apiPrefix+"stores/cities", storeHandler.GetCities)
 	mux.HandleFunc(apiPrefix+"stores/tags", storeHandler.GetTags)
+	mux.HandleFunc(apiPrefix+"stores/categories", storeHandler.GetCategories)
 }
 
 func (h *StoreHandler) CreateStore(w http.ResponseWriter, r *http.Request) {
@@ -144,12 +152,14 @@ func (h *StoreHandler) GetStores(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filter := &domain.StoreFilter{
-		Limit:  limit,
-		LastID: q.Get("last_id"),
-		TagID:  q.Get("tag_id"),
-		CityID: q.Get("city_id"),
-		Sorted: q.Get("sorted"),
-		Desc:   q.Has("desc") && q.Get("desc") == "true",
+		Limit:       limit,
+		LastID:      q.Get("last_id"),
+		TagIDs:      q["tag_id"],
+		CategoryIDs: q["category_id"],
+		CityID:      q.Get("city_id"),
+		Search:      q.Get("search"),
+		Sorted:      q.Get("sorted"),
+		Desc:        q.Has("desc") && q.Get("desc") == "true",
 	}
 
 	stores, err := h.uc.GetStores(ctx, filter)
@@ -171,6 +181,84 @@ func (h *StoreHandler) GetStores(w http.ResponseWriter, r *http.Request) {
 
 	log.InfoContext(ctx, "handler GetStores success", slog.Int("count", len(stores)))
 	responseStores := transport.ToStoreResponses(stores)
+	h.rs.Send(ctx, w, http.StatusOK, responseStores)
+}
+
+func (h *StoreHandler) SearchStoresWithItems(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.FromContext(ctx)
+	log.InfoContext(ctx, "handler SearchStoresWithItems start")
+
+	if r.Method != http.MethodGet {
+		log.WarnContext(ctx, "handler SearchStoresWithItems wrong method")
+		h.rs.Error(ctx, w, http.StatusMethodNotAllowed, "SearchStoresWithItems", domain.ErrHTTPMethod, nil)
+		return
+	}
+
+	q := r.URL.Query()
+	limitStr := q.Get("limit")
+	if limitStr == "" {
+		limitStr = "10"
+	}
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 || limit > 100 {
+		log.WarnContext(ctx, "handler SearchStoresWithItems invalid limit", slog.String("limit", limitStr))
+		h.rs.Error(ctx, w, http.StatusBadRequest, "SearchStoresWithItems", domain.ErrRequestParams, errors.New("invalid limit"))
+		return
+	}
+
+	minPriceStr := q.Get("min_price")
+	minPrice := 0.0
+	if minPriceStr != "" {
+		if p, err := strconv.ParseFloat(minPriceStr, 64); err == nil && p >= 0 {
+			minPrice = p
+		}
+	}
+
+	maxPriceStr := q.Get("max_price")
+	maxPrice := 999999.0
+	if maxPriceStr != "" {
+		if p, err := strconv.ParseFloat(maxPriceStr, 64); err == nil && p > 0 {
+			maxPrice = p
+		}
+	}
+
+	filter := &domain.StoreSearchFilter{
+		Search:      q.Get("search"),
+		TagIDs:      q["tag_id"],
+		CategoryIDs: q["category_id"],
+		CityID:      q.Get("city_id"),
+		ItemTypes:   q["item_type"],
+		MinPrice:    minPrice,
+		MaxPrice:    maxPrice,
+		Limit:       limit,
+		LastID:      q.Get("last_id"),
+	}
+
+	stores, err := h.uc.SearchStoresWithItems(ctx, filter)
+	if err != nil {
+		log.ErrorContext(ctx, "handler SearchStoresWithItems usecase failed", slog.Any("err", err))
+		if errors.Is(err, domain.ErrRequestParams) {
+			h.rs.Error(ctx, w, http.StatusBadRequest, "SearchStoresWithItems", domain.ErrRequestParams, nil)
+			return
+		}
+		h.rs.Error(ctx, w, http.StatusInternalServerError, "SearchStoresWithItems", domain.ErrInternalServer, err)
+		return
+	}
+
+	for _, s := range stores {
+		if s.CardImg != "" {
+			s.CardImg = "/images/stores/" + s.CardImg
+		}
+		for _, item := range s.Items {
+			if item.CardImg != "" {
+				item.CardImg = "/images/items/" + item.CardImg
+			}
+		}
+	}
+
+	log.InfoContext(ctx, "handler SearchStoresWithItems success", slog.Int("count", len(stores)))
+	responseStores := transport.ToStoreWithItemsResponses(stores)
 	h.rs.Send(ctx, w, http.StatusOK, responseStores)
 }
 
@@ -262,4 +350,31 @@ func (h *StoreHandler) GetTags(w http.ResponseWriter, r *http.Request) {
 	log.InfoContext(ctx, "handler GetTags success", slog.Int("count", len(tags)))
 	responseTags := transport.ToTagResponses(tags)
 	h.rs.Send(ctx, w, http.StatusOK, responseTags)
+}
+
+func (h *StoreHandler) GetCategories(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.FromContext(ctx)
+	log.InfoContext(ctx, "handler GetCategories start")
+
+	if r.Method != http.MethodGet {
+		log.WarnContext(ctx, "handler GetCategories wrong method")
+		h.rs.Error(ctx, w, http.StatusMethodNotAllowed, "GetCategories", domain.ErrHTTPMethod, nil)
+		return
+	}
+
+	categories, err := h.uc.GetCategories(ctx)
+	if err != nil {
+		log.ErrorContext(ctx, "handler GetCategories usecase failed", slog.Any("err", err))
+		if errors.Is(err, domain.ErrRowsNotFound) {
+			h.rs.Error(ctx, w, http.StatusNotFound, "GetCategories", domain.ErrRowsNotFound, nil)
+			return
+		}
+		h.rs.Error(ctx, w, http.StatusInternalServerError, "GetCategories", domain.ErrInternalServer, err)
+		return
+	}
+
+	log.InfoContext(ctx, "handler GetCategories success", slog.Int("count", len(categories)))
+	responseCategories := transport.ToCategoryResponses(categories)
+	h.rs.Send(ctx, w, http.StatusOK, responseCategories)
 }

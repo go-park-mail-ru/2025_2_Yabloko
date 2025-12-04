@@ -16,8 +16,8 @@ import (
 )
 
 type ItemUsecaseInterface interface {
-	GetItemTypes(ctx context.Context, id string) ([]*domain.ItemType, error)
-	GetItems(ctx context.Context, id string) ([]*domain.ItemAgg, error)
+	GetItemTypes(ctx context.Context, storeID string) ([]*domain.ItemType, error)
+	GetItems(ctx context.Context, storeID string) ([]*domain.ItemAgg, error)
 }
 
 type ItemHandler struct {
@@ -52,16 +52,16 @@ func (h *ItemHandler) GetItemTypes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := r.PathValue("id")
-	if _, err := uuid.Parse(id); err != nil {
-		log.WarnContext(ctx, "handler GetItemTypes invalid id", slog.String("id", id))
+	storeID := r.PathValue("id")
+	if _, err := uuid.Parse(storeID); err != nil {
+		log.WarnContext(ctx, "handler GetItemTypes invalid id", slog.String("id", storeID))
 		h.rs.Error(ctx, w, http.StatusBadRequest, "GetItemTypes", domain.ErrRequestParams, nil)
 		return
 	}
 
-	itemTypes, err := h.uc.GetItemTypes(ctx, id)
+	itemTypes, err := h.uc.GetItemTypes(ctx, storeID)
 	if err != nil {
-		log.ErrorContext(ctx, "handler GetItemTypes usecase failed", slog.Any("err", err), slog.String("store_id", id))
+		log.ErrorContext(ctx, "handler GetItemTypes usecase failed", slog.Any("err", err), slog.String("store_id", storeID))
 		if errors.Is(err, domain.ErrRowsNotFound) {
 			h.rs.Error(ctx, w, http.StatusNotFound, "GetItemTypes", domain.ErrRowsNotFound, nil)
 			return
@@ -71,9 +71,9 @@ func (h *ItemHandler) GetItemTypes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "handler GetItemTypes success",
-		slog.String("store_id", id),
+		slog.String("store_id", storeID),
 		slog.Int("types_count", len(itemTypes)))
-	responseItemTypes := transport.ToItemTypesResponse(itemTypes)
+	responseItemTypes := transport.ToItemTypeResponses(itemTypes)
 	h.rs.Send(ctx, w, http.StatusOK, responseItemTypes)
 }
 
@@ -88,16 +88,16 @@ func (h *ItemHandler) GetItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := r.PathValue("id")
-	if _, err := uuid.Parse(id); err != nil {
-		log.WarnContext(ctx, "handler GetItems invalid id", slog.String("id", id))
+	storeID := r.PathValue("id")
+	if _, err := uuid.Parse(storeID); err != nil {
+		log.WarnContext(ctx, "handler GetItems invalid id", slog.String("id", storeID))
 		h.rs.Error(ctx, w, http.StatusBadRequest, "GetItems", domain.ErrRequestParams, nil)
 		return
 	}
 
-	items, err := h.uc.GetItems(ctx, id)
+	items, err := h.uc.GetItems(ctx, storeID)
 	if err != nil {
-		log.ErrorContext(ctx, "handler GetItems usecase failed", slog.Any("err", err), slog.String("type_id", id))
+		log.ErrorContext(ctx, "handler GetItems usecase failed", slog.Any("err", err), slog.String("store_id", storeID))
 		if errors.Is(err, domain.ErrRowsNotFound) {
 			h.rs.Error(ctx, w, http.StatusNotFound, "GetItems", domain.ErrRowsNotFound, nil)
 			return
@@ -107,8 +107,8 @@ func (h *ItemHandler) GetItems(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "handler GetItems success",
-		slog.String("type_id", id),
+		slog.String("store_id", storeID),
 		slog.Int("items_count", len(items)))
-	responseItems := transport.ToItemsResponse(items)
+	responseItems := transport.ToItemAggResponses(items)
 	h.rs.Send(ctx, w, http.StatusOK, responseItems)
 }

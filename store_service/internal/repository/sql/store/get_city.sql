@@ -1,2 +1,7 @@
-select id, name
-from city
+SELECT
+    id,
+    name
+FROM
+    city
+ORDER BY
+    name ASC
