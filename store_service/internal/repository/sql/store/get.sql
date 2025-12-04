@@ -9,14 +9,14 @@ SELECT
     s.open_at,
     s.closed_at,
     COALESCE(
-        array_agg(DISTINCT st.tag_id) FILTER (
+        array_agg(DISTINCT st.tag_id::text) FILTER (
             WHERE
                 st.tag_id IS NOT NULL
         ),
         '{}'
     ) AS tag_ids,
     COALESCE(
-        array_agg(DISTINCT sc.category_id) FILTER (
+        array_agg(DISTINCT sc.category_id::text) FILTER (
             WHERE
                 sc.category_id IS NOT NULL
         ),
