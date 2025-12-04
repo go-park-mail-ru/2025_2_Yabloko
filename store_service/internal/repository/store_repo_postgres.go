@@ -196,8 +196,8 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	var stores []*domain.StoreAgg
 	for rows.Next() {
 		var store domain.StoreAgg
-		var tagIDs pq.UUID8Array
-		var categoryIDs pq.UUID8Array
+		var tagIDs pq.StringArray
+		var categoryIDs pq.StringArray
 
 		err = rows.Scan(
 			&store.ID,
@@ -274,7 +274,7 @@ func (r *StoreRepoPostgres) SearchStoresWithItems(ctx context.Context, filter *d
 	for rows.Next() {
 		var storeID, storeName, description, cityID, address, cardImg, openAt, closedAt string
 		var rating float64
-		var tagIDs, categoryIDs pq.UUID8Array
+		var tagIDs, categoryIDs pq.StringArray
 		var itemID sql.NullString
 		var itemName sql.NullString
 		var price sql.NullFloat64
@@ -365,8 +365,8 @@ func (r *StoreRepoPostgres) GetStore(ctx context.Context, id string) (*domain.St
 	}
 
 	var store domain.StoreAgg
-	var tagIDs pq.UUID8Array
-	var categoryIDs pq.UUID8Array
+	var tagIDs pq.StringArray
+	var categoryIDs pq.StringArray
 
 	err = rows.Scan(
 		&store.ID,

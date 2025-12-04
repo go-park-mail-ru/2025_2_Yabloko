@@ -1,7 +1,5 @@
 package domain
 
-import "github.com/lib/pq"
-
 type Store struct {
 	ID          string
 	Name        string
@@ -23,8 +21,8 @@ type StoreAgg struct {
 	Address      string
 	CardImg      string
 	Rating       float64
-	TagsID       pq.UUID8Array
-	CategoriesID pq.UUID8Array
+	TagsID       []string
+	CategoriesID []string
 	OpenAt       string
 	ClosedAt     string
 }
@@ -82,8 +80,8 @@ type StoreWithItems struct {
 	Address      string
 	CardImg      string
 	Rating       float64
-	TagsID       []pq.UUID8Array
-	CategoriesID []pq.UUID8Array
+	TagsID       []string
+	CategoriesID []string
 	OpenAt       string
 	ClosedAt     string
 	Items        []*Item
