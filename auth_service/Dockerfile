@@ -1,26 +1,45 @@
-FROM golang:1.25.1-alpine AS build-stage
+FROM golang:1.25.1-bookworm AS builder
 
-RUN apk add --no-cache git build-base libwebp-dev musl-dev gcc
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    git \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
-ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-RUN go mod tidy
-RUN CGO_ENABLED=1 GOOS=linux go build -o /auth_service_bin ./cmd/auth_service
+RUN CGO_ENABLED=1 \
+    GOOS=linux \
+    GOARCH=amd64 \
+    go build \
+    -v \
+    -o /embedding_service_bin \
+    ./cmd/embedding_service/main.go
 
-FROM alpine:latest AS build-release-stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libstdc++6 \
+    libgomp1 \
+    libc6 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /
 
-COPY --from=build-stage /auth_service_bin /auth_service_bin
-RUN chmod +x /auth_service_bin
+COPY --from=builder /embedding_service_bin /embedding_service_bin
+RUN chmod +x /embedding_service_bin
 
-EXPOSE 8082
+RUN mkdir -p /models
 
-ENTRYPOINT ["/auth_service_bin"]
+VOLUME ["/models"]
+
+EXPOSE 50051
+
+ENTRYPOINT ["/embedding_service_bin"]
