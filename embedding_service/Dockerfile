@@ -28,6 +28,8 @@ RUN mkdir -p /models
 
 VOLUME ["/models"]
 
+COPY ./lib/libllama_go.so /usr/local/lib/libllama_go.so
+
 EXPOSE 50051
 
 ENTRYPOINT ["/embedding_service_bin"]
