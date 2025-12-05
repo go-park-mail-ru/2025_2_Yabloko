@@ -1,0 +1,541 @@
+openapi: 3.0.3
+info:
+  title: Store Service API
+  version: "1.0.0"
+  description: API для управления магазинами и каталогом, поиска магазинов и товаров.
+
+servers:
+  - url: /api/v0
+
+paths:
+  /stores:
+    get:
+      summary: Получить список магазинов
+      description: Возвращает список магазинов с возможностью фильтрации по тегам, категориям, городу и поисковой строке.
+      tags: [stores]
+      parameters:
+        - name: limit
+          in: query
+          required: true
+          description: Количество записей (1–100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: last_id
+          in: query
+          required: false
+          description: Идентификатор последнего магазина для постраничной выборки (cursor).
+          schema:
+            type: string
+        - name: tag_id
+          in: query
+          required: false
+          description: Фильтрация по тегам магазина (можно несколько параметров).
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: category_id
+          in: query
+          required: false
+          description: Фильтрация по категориям магазина (можно несколько параметров).
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: city_id
+          in: query
+          required: false
+          description: Фильтрация по городу.
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          description: Поисковая строка по магазинам.
+          schema:
+            type: string
+        - name: sorted
+          in: query
+          required: false
+          description: Поле сортировки (например, rating, name).
+          schema:
+            type: string
+        - name: desc
+          in: query
+          required: false
+          description: Сортировать по убыванию, если значение true.
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Список магазинов.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StoreResponse"
+        "400":
+          description: Неверные параметры запроса.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Метод не разрешён.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Внутренняя ошибка сервера.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      summary: Создать новый магазин
+      description: Создаёт магазин с указанными параметрами.
+      tags: [stores]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StoreCreateRequest"
+      responses:
+        "201":
+          description: Магазин успешно создан.
+        "400":
+          description: Неверные параметры тела запроса или магазин уже существует.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Метод не разрешён.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Внутренняя ошибка сервера.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /stores/{id}:
+    get:
+      summary: Получить магазин по ID
+      description: Возвращает агрегированную информацию о магазине.
+      tags: [stores]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Идентификатор магазина (UUID).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Магазин найден.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoreResponse"
+        "400":
+          description: Невалидный ID магазина.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Магазин не найден.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Метод не разрешён.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Внутренняя ошибка сервера.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /stores/search/items:
+    get:
+      summary: Поиск магазинов с товарами
+      description: Ищет магазины с товарами по фильтрам, включая цену и тип товара.
+      tags: [stores]
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Количество записей (1–100), по умолчанию 10.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: last_id
+          in: query
+          required: false
+          description: Идентификатор последнего магазина для постраничной выборки (cursor).
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          description: Поисковая строка по магазинам и товарам.
+          schema:
+            type: string
+        - name: tag_id
+          in: query
+          required: false
+          description: Фильтрация по тегам магазина (можно несколько параметров).
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: category_id
+          in: query
+          required: false
+          description: Фильтрация по категориям магазина (можно несколько параметров).
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: city_id
+          in: query
+          required: false
+          description: Фильтрация по городу.
+          schema:
+            type: string
+        - name: item_type
+          in: query
+          required: false
+          description: Фильтрация по типам товара (можно несколько параметров).
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: min_price
+          in: query
+          required: false
+          description: Минимальная цена товара (>= 0).
+          schema:
+            type: number
+            format: double
+            minimum: 0
+        - name: max_price
+          in: query
+          required: false
+          description: Максимальная цена товара (> 0).
+          schema:
+            type: number
+            format: double
+        # maxPrice по умолчанию 999999 в коде, но в Swagger обычно явно не указывают
+      responses:
+        "200":
+          description: Список магазинов с товарами.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StoreWithItemsResponse"
+        "400":
+          description: Неверные параметры запроса.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Метод не разрешён.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Внутренняя ошибка сервера.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /stores/cities:
+    get:
+      summary: Получить список городов
+      tags: [dictionaries]
+      responses:
+        "200":
+          description: Список городов.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CityResponse"
+        "404":
+          description: Города не найдены.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Метод не разрешён.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Внутренняя ошибка сервера.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /stores/tags:
+    get:
+      summary: Получить список тегов магазинов
+      tags: [dictionaries]
+      responses:
+        "200":
+          description: Список тегов.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TagResponse"
+        "404":
+          description: Теги не найдены.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Метод не разрешён.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Внутренняя ошибка сервера.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /stores/categories:
+    get:
+      summary: Получить список категорий магазинов
+      tags: [dictionaries]
+      responses:
+        "200":
+          description: Список категорий.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryResponse"
+        "404":
+          description: Категории не найдены.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Метод не разрешён.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Внутренняя ошибка сервера.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    StoreResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        city_id:
+          type: string
+        address:
+          type: string
+        card_img:
+          type: string
+          description: Относительный путь к изображению магазина ("/images/stores/..").
+        rating:
+          type: number
+          format: double
+        tags_id:
+          type: array
+          items:
+            type: string
+        categories_id:
+          type: array
+          items:
+            type: string
+        open_at:
+          type: string
+          description: Время открытия (формат строки, например "09:00").
+        closed_at:
+          type: string
+          description: Время закрытия (формат строки, например "21:00").
+      required:
+        - id
+        - name
+        - city_id
+        - address
+
+    StoreWithItemsResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        city_id:
+          type: string
+        address:
+          type: string
+        card_img:
+          type: string
+        rating:
+          type: number
+          format: double
+        tags_id:
+          type: array
+          items:
+            type: string
+        categories_id:
+          type: array
+          items:
+            type: string
+        open_at:
+          type: string
+        closed_at:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemResponse"
+
+    ItemResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+          format: double
+        types_id:
+          type: array
+          items:
+            type: string
+        card_img:
+          type: string
+          description: Относительный путь к изображению товара ("/images/items/..").
+
+    CityResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+
+    TagResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+
+    CategoryResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+
+    StoreCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        city_id:
+          type: string
+        address:
+          type: string
+        card_img:
+          type: string
+          description: Имя файла карточки магазина.
+        rating:
+          type: number
+          format: double
+        tag_id:
+          type: string
+          description: ID одного тега (соответствует полю TagID в domain.Store).
+        open_at:
+          type: string
+        closed_at:
+          type: string
+      required:
+        - name
+        - city_id
+        - address
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Машинно‑читаемый код ошибки (например, ERR_REQUEST_PARAMS).
+        message:
+          type: string
+          description: Описание ошибки.
+        details:
+          type: string
+          nullable: true
+          description: Дополнительная информация об ошибке.

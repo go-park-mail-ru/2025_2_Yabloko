@@ -1,0 +1,289 @@
+openapi: 3.0.3
+info:
+  title: Order Service API (8084 порт)
+  version: "1.0.0"
+  description: API для управления заказами юзеров
+
+servers:
+  - url: /api/v0
+
+paths:
+  /orders:
+    get:
+      summary: Список заказов пользователя
+      operationId: getOrders
+      responses:
+        "200":
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+              example:
+                - id: a1b2c3d4-e5f6-4000-8000-000000000001
+                  status: pending
+                  total: 2999.99
+                  created_at: "2025-11-10T01:05:10Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      summary: Создать заказ из корзины
+      operationId: createOrder
+      responses:
+        "200":
+          description: Заказ создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderInfo"
+              example:
+                order_id: a1b2c3d4-e5f6-4000-8000-000000000001
+                status: pending
+                total: 2999.99
+                created_at: "2025-11-10T01:05:10Z"
+                items:
+                  - id: x9y8z7-...
+                    name: iPhone 16 Pro
+                    card_img: iphone16pro.jpg
+                    price: 2999.99
+                    quantity: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /orders/{id}:
+    get:
+      summary: Детали заказа
+      operationId: getOrder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderInfo"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /orders/{id}/status:
+    patch:
+      summary: Отменить заказ
+      description: 'Разрешено ТОЛЬКО для статуса ''pending''. Тело: { "status": "cancelled" }'
+      operationId: updateOrderStatus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderStatusUpdate"
+            example:
+              status: cancelled
+      responses:
+        "204":
+          description: Статус обновлён
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /fake-payment:
+    get:
+      summary: Заглушка оплаты (публичная)
+      description: Возвращает HTML-страницу имитации оплаты. Автоматически редиректит на `return_url?payment_status=succeeded|canceled`.
+      operationId: fakePayment
+      security: []
+      parameters:
+        - name: order_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: return_url
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: price
+          in: query
+          required: false
+          schema:
+            type: string
+            description: Сумма оплаты (опционально, если не указана - будет сгенерирована случайная)
+          example: "2999.99"
+      responses:
+        "200":
+          description: HTML-страница оплаты
+          content:
+            text/html:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+components:
+  schemas:
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - pending
+            - paid
+            - on_the_way
+            - delivered
+            - cancelled
+        total:
+          type: number
+          format: float
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - status
+        - total
+        - created_at
+    OrderInfo:
+      type: object
+      properties:
+        order_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - pending
+            - paid
+            - on_the_way
+            - delivered
+            - cancelled
+        total:
+          type: number
+          format: float
+        created_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItemInfo"
+      required:
+        - order_id
+        - status
+        - total
+        - created_at
+        - items
+    OrderItemInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          description: store_item_id
+        name:
+          type: string
+        card_img:
+          type: string
+        price:
+          type: number
+          format: float
+        quantity:
+          type: integer
+      required:
+        - id
+        - name
+        - card_img
+        - price
+        - quantity
+    OrderStatusUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - cancelled
+          example: cancelled
+      required:
+        - status
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    BadRequest:
+      description: Некорректный запрос
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+          example:
+            error:
+              code: invalid_request
+              message: Некорректный ID заказа
+    Unauthorized:
+      description: Неавторизован
+      content:
+        application/json:
+          example:
+            error:
+              code: unauthorized
+              message: Неавторизован
+    Forbidden:
+      description: Доступ запрещён
+      content:
+        application/json:
+          example:
+            error:
+              code: forbidden
+              message: Нельзя отменить оплаченный заказ
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          example:
+            error:
+              code: not_found
+              message: Заказ не найден
+    InternalServerError:
+      description: Внутренняя ошибка сервера

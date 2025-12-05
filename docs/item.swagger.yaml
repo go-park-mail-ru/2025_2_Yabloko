@@ -1,0 +1,235 @@
+openapi: 3.0.3
+info:
+  title: Store Service API (Items)
+  version: "1.0.0"
+  description: API для управления товарами рестика
+
+servers:
+  - url: /api/v0
+
+paths:
+  /stores/{id}/items:
+    get:
+      summary: [translate:Получить товары магазина]
+      description:
+        [
+          translate:Возвращает список товаров для конкретного магазина с опциональной фильтрацией по типам и сортировкой,
+        ]
+      operationId: getItems
+      tags:
+        - Items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+          format: uuid
+          description: [translate:ID магазина]
+          example: "d0c12a9f-2b2a-4e91-8e0a-13df58d9f8af"
+
+        - name: item_type
+          in: query
+          required: false
+          type: array
+          items:
+            type: string
+            format: uuid
+          collectionFormat: multi
+          description:
+            [translate:Фильтр по типам товаров (ИЛИ логика - хотя бы один тип)]
+          example: ["a1b2c3d4-e5f6-4000-8000-000000000005"]
+
+        - name: sorted
+          in: query
+          required: false
+          type: string
+          enum: ["name", "price"]
+          description: [translate:Поле для сортировки]
+          example: "name"
+
+        - name: desc
+          in: query
+          required: false
+          type: boolean
+          description:
+            [translate:Сортировка по убыванию (по умолчанию возрастание)]
+          example: false
+
+      responses:
+        "200":
+          description: [translate:Успешно получены товары]
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/ItemAggResponse"
+          examples:
+            application/json:
+              - id: "888e1c42-0e8f-4e35-91ad-12745e437dda"
+                name: "[translate:Компот из сухофруктов]"
+                price: 160.00
+                description: "[translate:Тёплый домашний компот.]"
+                card_img: "/images/items/vse_shashliki_8.jpeg"
+                types_id: ["a1b2c3d4-e5f6-4000-8000-000000000007"]
+              - id: "6b0fc501-0ab2-495c-b7a5-765de206f81f"
+                name: "[translate:Лепёшка грузинская]"
+                price: 130.00
+                description: "[translate:Свежая лепёшка, испечённая в тандыре.]"
+                card_img: "/images/items/vse_shashliki_5.jpeg"
+                types_id: ["a1b2c3d4-e5f6-4000-8000-000000000008"]
+
+        "400":
+          description: "[translate:Неверные параметры запроса]"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            application/json:
+              error: "invalid_request"
+              message: "[translate:Неверный формат ID магазина или параметров сортировки]"
+
+        "404":
+          description: "[translate:Магазин не найден или нет товаров]"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+          examples:
+            application/json:
+              error: "not_found"
+              message: "[translate:Товары не найдены]"
+
+        "500":
+          description: "[translate:Ошибка сервера]"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /stores/{id}/item-types:
+    get:
+      summary: [translate:Получить типы товаров магазина]
+      description:
+        [
+          translate:Возвращает список всех типов (категорий) товаров,
+          которые есть в магазине,
+        ]
+      operationId: getItemTypes
+      tags:
+        - Items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+          format: uuid
+          description: [translate:ID магазина]
+          example: "d0c12a9f-2b2a-4e91-8e0a-13df58d9f8af"
+
+      responses:
+        "200":
+          description: "[translate:Успешно получены типы товаров]"
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/ItemTypeResponse"
+          examples:
+            application/json:
+              - id: "a1b2c3d4-e5f6-4000-8000-000000000005"
+                name: "[translate:Шашлычные]"
+              - id: "a1b2c3d4-e5f6-4000-8000-000000000007"
+                name: "[translate:Напитки]"
+              - id: "a1b2c3d4-e5f6-4000-8000-000000000008"
+                name: "[translate:Закуски]"
+
+        "400":
+          description: "[translate:Неверный формат ID магазина]"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+        "404":
+          description: "[translate:Магазин не найден или нет типов товаров]"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+        "500":
+          description: "[translate:Ошибка сервера]"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+definitions:
+  ItemAggResponse:
+    type: object
+    description: "[translate:Товар с полной информацией]"
+    required:
+      - id
+      - name
+      - price
+      - description
+      - card_img
+      - types_id
+    properties:
+      id:
+        type: string
+        format: uuid
+        description: "[translate:ID товара (из таблицы store_item)]"
+        example: "888e1c42-0e8f-4e35-91ad-12745e437dda"
+
+      name:
+        type: string
+        description: "[translate:Название товара]"
+        example: "[translate:Компот из сухофруктов]"
+
+      price:
+        type: number
+        format: double
+        description: "[translate:Цена товара в магазине]"
+        example: 160.00
+
+      description:
+        type: string
+        description: "[translate:Описание товара]"
+        example: "[translate:Тёплый домашний компот.]"
+
+      card_img:
+        type: string
+        description: "[translate:URL изображения товара]"
+        example: "/images/items/vse_shashliki_8.jpeg"
+
+      types_id:
+        type: array
+        items:
+          type: string
+          format: uuid
+        description: "[translate:Массив ID типов (категорий) товара]"
+        example:
+          [
+            "a1b2c3d4-e5f6-4000-8000-000000000007",
+            "a1b2c3d4-e5f6-4000-8000-000000000008",
+          ]
+
+  ItemTypeResponse:
+    type: object
+    description: "[translate:Тип товара (категория)]"
+    required:
+      - id
+      - name
+    properties:
+      id:
+        type: string
+        format: uuid
+        description: "[translate:ID типа товара]"
+        example: "a1b2c3d4-e5f6-4000-8000-000000000005"
+
+      name:
+        type: string
+        description: "[translate:Название типа]"
+        example: "[translate:Шашлычные]"
+
+  ErrorResponse:
+    type: object
+    description: "[translate:Стандартный ответ об ошибке]"
+    properties:
+      error:
+        type: string
+        description: "[translate:Код ошибки]"
+        example: "invalid_request"
+
+      message:
+        type: string
+        description: "[translate:Человеко-читаемое сообщение об ошибке]"
+        example: "[translate:Неверный формат ID магазина]"

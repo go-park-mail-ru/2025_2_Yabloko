@@ -1,0 +1,365 @@
+openapi: 3.0.3
+info:
+  title: Order (Payment) Service API (8084 порт)
+  version: "1.0.0"
+  description: API для управления оплатой
+
+servers:
+  - url: /api/v0
+
+tags:
+  - name: Payments
+    description: Операции с платежами (YooKassa)
+
+paths:
+  /payments:
+    post:
+      tags:
+        - Payments
+      summary: Создать новый платеж
+      description: |
+        Создает платеж через YooKassa.
+        Возвращает URL подтверждения для перенаправления пользователя на страницу оплаты.
+        - `return_url` должен быть **frontend URL** (например, `https://your-frontend.com/order/{id}`)
+        - Вебхук будет асинхронно обновлять статус платежа.
+      security:
+        - JWTAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentCreateRequest"
+            example:
+              order_id: "550e8400-e29b-41d4-a716-446655440000"
+              amount: "1500.50"
+              currency: "RUB"
+              description: "Заказ #123"
+              return_url: "https://your-frontend.com/order/123"
+      responses:
+        "201":
+          description: Платеж успешно создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+              example:
+                id: "a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8"
+                order_id: "550e8400-e29b-41d4-a716-446655440000"
+                yookassa_id: "2e53a8c0-000f-5000-9000-1c9d4d4f6a0a"
+                status: "pending"
+                amount: "1500.50"
+                currency: "RUB"
+                description: "Заказ #123"
+                confirmation:
+                  type: "redirect"
+                  confirmation_url: "https://yoomoney.ru/checkout/payments/..."
+                created_at: "2025-11-15T10:30:00Z"
+                updated_at: "2025-11-15T10:30:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Платеж для этого заказа уже существует
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: "payment_already_exists"
+                message: "платеж для этого заказа уже существует"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /payments/order/{id}:
+    get:
+      tags:
+        - Payments
+      summary: Получить платеж по ID заказа
+      description: Возвращает последний платеж для указанного заказа.
+      security:
+        - JWTAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Платеж найден
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+              example:
+                id: "a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8"
+                order_id: "550e8400-e29b-41d4-a716-446655440000"
+                yookassa_id: "2e53a8c0-000f-5000-9000-1c9d4d4f6a0a"
+                status: "succeeded"
+                amount: "1500.50"
+                currency: "RUB"
+                description: "Заказ #123"
+                created_at: "2025-11-15T10:30:00Z"
+                updated_at: "2025-11-15T10:32:15Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /payments/webhook:
+    post:
+      tags:
+        - Payments
+      summary: Вебхук для YooKassa
+      description: |
+        **Публичный эндпоинт** для уведомлений от YooKassa.
+        - Должен быть подписан с помощью HMAC-SHA256 (`X-Yoo-Signature`)
+        - Идемпотентный - безопасно для повторных вызовов
+        - Обрабатывает только события типа `notification`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentWebhookRequest"
+      responses:
+        "200":
+          description: Вебхук успешно обработан
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                example:
+                  status: "ok"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Неверная или отсутствующая подпись
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: "invalid_signature"
+                message: "неверная подпись"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  securitySchemes:
+    JWTAuth:
+      type: apiKey
+      in: header
+      name: X-Auth-Token
+      description: JWT токен (без префикса 'Bearer ')
+
+  schemas:
+    PaymentCreateRequest:
+      type: object
+      required:
+        - order_id
+        - amount
+        - currency
+        - return_url
+      properties:
+        order_id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        amount:
+          type: string
+          description: Сумма платежа (например, "1500.50")
+          pattern: '^\d+(\.\d{1,2})?$'
+          example: "1500.50"
+        currency:
+          type: string
+          enum: [RUB, USD, EUR]
+          example: "RUB"
+        description:
+          type: string
+          maxLength: 128
+          example: "Заказ #123"
+        return_url:
+          type: string
+          format: uri
+          description: Frontend URL для перенаправления пользователя после оплаты
+          example: "https://your-frontend.com/order/123"
+
+    PaymentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        order_id:
+          type: string
+          format: uuid
+        yookassa_id:
+          type: string
+          example: "2e53a8c0-000f-5000-9000-1c9d4d4f6a0a"
+        status:
+          type: string
+          enum: [pending, waiting_for_capture, succeeded, canceled]
+        amount:
+          type: string
+          example: "1500.50"
+        currency:
+          type: string
+          example: "RUB"
+        description:
+          type: string
+          nullable: true
+        confirmation:
+          type: object
+          nullable: true
+          properties:
+            type:
+              type: string
+              example: "redirect"
+            confirmation_url:
+              type: string
+              format: uri
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PaymentWebhookRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          example: "notification"
+        event:
+          type: string
+          example: "payment.succeeded"
+        object:
+          type: object
+          properties:
+            id:
+              type: string
+              example: "2e53a8c0-000f-5000-9000-1c9d4d4f6a0a"
+            status:
+              type: string
+              enum: [pending, waiting_for_capture, succeeded, canceled]
+            paid:
+              type: boolean
+            amount:
+              type: object
+              properties:
+                value:
+                  type: string
+                  example: "1500.50"
+                currency:
+                  type: string
+                  example: "RUB"
+            created_at:
+              type: string
+              format: date-time
+            description:
+              type: string
+            metadata:
+              type: object
+              additionalProperties: true
+      example:
+        type: "notification"
+        event: "payment.succeeded"
+        object:
+          id: "2e53a8c0-000f-5000-9000-1c9d4d4f6a0a"
+          status: "succeeded"
+          paid: true
+          amount:
+            value: "1500.50"
+            currency: "RUB"
+          created_at: "2025-11-15T10:30:00Z"
+          description: "Заказ #123"
+          metadata:
+            order_id: "550e8400-e29b-41d4-a716-446655440000"
+            user_id: "user-123"
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: "validation_failed"
+        message:
+          type: string
+          example: "неверный UUID order_id"
+        details:
+          type: object
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Неверный запрос (ошибка валидации, неверные параметры)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: "validation_failed"
+            message: "Key: 'PaymentCreateRequest.OrderID' Error:Field validation for 'OrderID' failed on the 'uuid4' tag"
+
+    Unauthorized:
+      description: Отсутствует или неверная аутентификация
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: "unauthorized"
+            message: "неавторизован"
+
+    Forbidden:
+      description: Пользователь не является владельцем заказа
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: "forbidden"
+            message: "доступ запрещен"
+
+    NotFound:
+      description: Заказ или платеж не найден
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: "not_found"
+            message: "заказ не найден"
+
+    InternalServerError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: "internal_server_error"
+            message: "внутренняя ошибка сервера"
