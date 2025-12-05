@@ -1,6 +1,6 @@
 services:
   db:
-    image: pgvector/pgvector:pg16-alpine
+    image: pgvector/pgvector:pg18
     container_name: db
     env_file: [ .env ]
     environment:
@@ -181,6 +181,11 @@ services:
       context: .
       dockerfile: ./embedding_service/Dockerfile
     container_name: embedding_service
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     env_file: [ .env ]
     environment:
       - GRPC_PORT=${GRPC_PORT}
