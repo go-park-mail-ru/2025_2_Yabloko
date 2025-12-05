@@ -44,17 +44,24 @@ func NewStoreHandler(uc StoreUsecaseInterface) *StoreHandler {
 	}
 }
 
-func NewStoreRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string) {
+func NewStoreRouter(
+	mux *http.ServeMux,
+	db repository.PgxIface,
+	embeddingClient interface {
+		GetEmbedding(ctx context.Context, text string) ([]float32, error)
+		GetEmbeddingBatch(ctx context.Context, texts []string) ([][]float32, error)
+	},
+	apiPrefix string,
+) {
 	storeRepo := repository.NewStoreRepoPostgres(db)
-	storeUC := usecase.NewStoreUsecase(storeRepo)
+	storeUC := usecase.NewStoreUsecase(storeRepo, embeddingClient)
 	storeHandler := NewStoreHandler(storeUC)
 
 	mux.HandleFunc(apiPrefix+"stores/search/items", storeHandler.SearchStoresWithItems)
 	mux.HandleFunc(apiPrefix+"stores/cities", storeHandler.GetCities)
 	mux.HandleFunc(apiPrefix+"stores/tags", storeHandler.GetTags)
 	mux.HandleFunc(apiPrefix+"stores/categories", storeHandler.GetCategories)
-
-	mux.HandleFunc(apiPrefix+"stores/{id}/reviews", storeHandler.GetStoreReview) // TIDO Вынести
+	mux.HandleFunc(apiPrefix+"stores/{id}/reviews", storeHandler.GetStoreReview) // TODO: Вынести
 	mux.HandleFunc(apiPrefix+"stores/{id}", storeHandler.GetStore)
 	mux.HandleFunc(apiPrefix+"stores", storeHandler.GetStores)
 }

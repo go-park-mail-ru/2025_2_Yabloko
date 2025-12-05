@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package embedding.v1;
+
+option go_package = "pkg/proto/embedding;embeddingv1";
+
+service EmbeddingService {
+    rpc GetEmbedding(GetEmbeddingRequest) returns (GetEmbeddingResponse);
+    rpc GetEmbeddingBatch(GetEmbeddingBatchRequest) returns (GetEmbeddingBatchResponse);
+    rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+message GetEmbeddingRequest {
+    string text = 1;
+}
+
+message GetEmbeddingResponse {
+    repeated float embedding = 1;
+    string model = 2;
+    int32 dimensions = 3;
+}
+
+message GetEmbeddingBatchRequest {
+    repeated string texts = 1;
+}
+
+message GetEmbeddingBatchResponse {
+    repeated EmbeddingResult results = 1;
+}
+
+message EmbeddingResult {
+    string text = 1;
+    repeated float embedding = 2;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+    bool healthy = 1;
+    string message = 2;
+}

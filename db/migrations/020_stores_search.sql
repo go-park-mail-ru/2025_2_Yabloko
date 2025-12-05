@@ -1,39 +1,29 @@
 -- Write your migrate up statements here
-ALTER TABLE
-    store
-ADD
-    COLUMN IF NOT EXISTS ts_name tsvector GENERATED ALWAYS AS (to_tsvector('russian', name)) STORED;
+CREATE EXTENSION IF NOT EXISTS vector;
 
 ALTER TABLE
     store
 ADD
-    COLUMN IF NOT EXISTS ts_description tsvector GENERATED ALWAYS AS (to_tsvector('russian', description)) STORED;
+    COLUMN IF NOT EXISTS embedding VECTOR(384);
 
 ALTER TABLE
-    store
+    item
 ADD
-    COLUMN IF NOT EXISTS ts_search tsvector GENERATED ALWAYS AS (
-        to_tsvector('russian', name || ' ' || description)
-    ) STORED;
+    COLUMN IF NOT EXISTS embedding VECTOR(384);
 
-CREATE INDEX IF NOT EXISTS idx_store_name_gin ON store USING GIN (ts_name);
+CREATE INDEX IF NOT EXISTS idx_store_embedding_cosine ON store USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
 
-CREATE INDEX IF NOT EXISTS idx_store_description_gin ON store USING GIN (ts_description);
-
-CREATE INDEX IF NOT EXISTS idx_store_search_gin ON store USING GIN (ts_search);
+CREATE INDEX IF NOT EXISTS idx_item_embedding_cosine ON item USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
 
 ---- create above / drop below ----
-DROP INDEX IF EXISTS idx_store_search_gin;
+DROP INDEX IF EXISTS idx_item_embedding_cosine;
 
-DROP INDEX IF EXISTS idx_store_description_gin;
-
-DROP INDEX IF EXISTS idx_store_name_gin;
+DROP INDEX IF EXISTS idx_store_embedding_cosine;
 
 ALTER TABLE
-    store DROP COLUMN IF EXISTS ts_search;
+    item DROP COLUMN IF EXISTS embedding;
 
 ALTER TABLE
-    store DROP COLUMN IF EXISTS ts_description;
+    store DROP COLUMN IF EXISTS embedding;
 
-ALTER TABLE
-    store DROP COLUMN IF EXISTS ts_name;
+DROP EXTENSION IF EXISTS vector;

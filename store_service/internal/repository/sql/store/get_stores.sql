@@ -26,7 +26,3 @@ FROM
     store s
     LEFT JOIN store_tag st ON s.id = st.store_id
     LEFT JOIN store_category sc ON s.id = sc.store_id
-WHERE
-    s.id = $1
-GROUP BY
-    s.id

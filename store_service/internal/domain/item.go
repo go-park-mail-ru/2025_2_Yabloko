@@ -28,3 +28,9 @@ type ItemType struct {
 	ID   string `json:"id"`   // type.id
 	Name string `json:"name"` // type.name
 }
+
+type ItemForEmbedding struct {
+	ID          string
+	Name        string
+	Description string
+}

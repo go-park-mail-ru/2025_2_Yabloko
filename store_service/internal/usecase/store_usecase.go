@@ -1,8 +1,10 @@
 package usecase
 
 import (
+	"apple_backend/pkg/logger"
 	"apple_backend/store_service/internal/domain"
 	"context"
+	"log/slog"
 )
 
 type StoreRepository interface {
@@ -18,14 +20,19 @@ type StoreRepository interface {
 	GetCategories(ctx context.Context) ([]*domain.Category, error)
 
 	SearchStoresWithItems(ctx context.Context, filter *domain.StoreSearchFilter) ([]*domain.StoreWithItems, error)
+	SearchStoresHybrid(ctx context.Context, filter *domain.StoreSearchFilter, embedding []float32) ([]*domain.StoreWithItems, error)
 }
 
 type StoreUsecase struct {
-	repo StoreRepository
+	repo            StoreRepository
+	embeddingClient domain.EmbeddingClient
 }
 
-func NewStoreUsecase(repo StoreRepository) *StoreUsecase {
-	return &StoreUsecase{repo: repo}
+func NewStoreUsecase(repo StoreRepository, embeddingClient domain.EmbeddingClient) *StoreUsecase {
+	return &StoreUsecase{
+		repo:            repo,
+		embeddingClient: embeddingClient,
+	}
 }
 
 func (uc *StoreUsecase) CreateStore(ctx context.Context,
@@ -69,6 +76,8 @@ func (uc *StoreUsecase) GetStores(ctx context.Context, filter *domain.StoreFilte
 }
 
 func (uc *StoreUsecase) SearchStoresWithItems(ctx context.Context, filter *domain.StoreSearchFilter) ([]*domain.StoreWithItems, error) {
+	log := logger.FromContext(ctx)
+
 	if filter.Limit <= 0 {
 		return nil, domain.ErrRequestParams
 	}
@@ -76,12 +85,27 @@ func (uc *StoreUsecase) SearchStoresWithItems(ctx context.Context, filter *domai
 		return nil, domain.ErrRequestParams
 	}
 
-	stores, err := uc.repo.SearchStoresWithItems(ctx, filter)
-	if err != nil {
-		return nil, err
+	if filter.Search == "" {
+		return uc.repo.SearchStoresWithItems(ctx, filter)
 	}
 
-	return stores, nil
+	// Гибридный поиск через embedding-сервис
+	embedding, err := uc.embeddingClient.GetEmbedding(ctx, filter.Search)
+	if err != nil {
+		log.WarnContext(ctx, "embedding service unavailable, fallback to traditional search",
+			slog.Any("err", err),
+			slog.String("search", filter.Search),
+		)
+		// Fallback на обычный поиск
+		return uc.repo.SearchStoresWithItems(ctx, filter)
+	}
+
+	log.DebugContext(ctx, "using hybrid search",
+		slog.String("search", filter.Search),
+		slog.Int("embedding_dim", len(embedding)),
+	)
+
+	return uc.repo.SearchStoresHybrid(ctx, filter, embedding)
 }
 
 func (uc *StoreUsecase) GetCities(ctx context.Context) ([]*domain.City, error) {

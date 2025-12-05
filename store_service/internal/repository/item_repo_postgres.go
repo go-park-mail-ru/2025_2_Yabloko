@@ -9,13 +9,18 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/pgvector/pgvector-go"
 )
 
 //go:embed sql/item/get_types.sql
-var getItemTypes string
+var getItemTypesQuery string
 
 //go:embed sql/item/get_items.sql
-var baseGetItems string
+var getItemsQuery string
+
+//go:embed sql/item/update_embedding.sql
+var updateItemEmbeddingQuery string
 
 type ItemRepoPostgres struct {
 	db PgxIface
@@ -29,11 +34,16 @@ func NewItemRepoPostgres(db PgxIface) *ItemRepoPostgres {
 
 func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, storeID string) ([]*domain.ItemType, error) {
 	log := logger.FromContext(ctx)
-	log.DebugContext(ctx, "GetItemTypes начало обработки", slog.String("store_id", storeID))
+	log.DebugContext(ctx, "GetItemTypes",
+		slog.String("store_id", storeID),
+	)
 
-	rows, err := r.db.Query(ctx, getItemTypes, storeID)
+	rows, err := r.db.Query(ctx, getItemTypesQuery, storeID)
 	if err != nil {
-		log.ErrorContext(ctx, "GetItemTypes ошибка бд", slog.Any("err", err), slog.String("store_id", storeID))
+		log.ErrorContext(ctx, "GetItemTypes query failed",
+			slog.Any("err", err),
+			slog.String("store_id", storeID),
+		)
 		return nil, err
 	}
 	defer rows.Close()
@@ -43,30 +53,90 @@ func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, storeID string) ([]
 		var itemType domain.ItemType
 		err = rows.Scan(&itemType.ID, &itemType.Name)
 		if err != nil {
-			log.ErrorContext(ctx, "GetItemTypes ошибка при декодировании данных", slog.Any("err", err))
+			log.ErrorContext(ctx, "GetItemTypes scan error", slog.Any("err", err))
 			return nil, err
 		}
 		itemTypes = append(itemTypes, &itemType)
 	}
 
 	if err = rows.Err(); err != nil {
-		log.ErrorContext(ctx, "GetItemTypes ошибка после чтения строк", slog.Any("err", err), slog.String("store_id", storeID))
+		log.ErrorContext(ctx, "GetItemTypes rows error", slog.Any("err", err))
 		return nil, err
 	}
 
-	if len(itemTypes) == 0 {
-		log.DebugContext(ctx, "GetItemTypes пустой ответ", slog.String("store_id", storeID))
-		return []*domain.ItemType{}, nil
-	}
-
-	log.DebugContext(ctx, "GetItemTypes завершено успешно",
+	log.DebugContext(ctx, "GetItemTypes completed",
 		slog.String("store_id", storeID),
-		slog.Int("types_count", len(itemTypes)))
+		slog.Int("types_count", len(itemTypes)),
+	)
 	return itemTypes, nil
 }
 
-func generateGetItemsQuery(filter *domain.ItemFilter) (string, []any) {
-	query := baseGetItems
+// Для построения фильтров
+type ItemQueryBuilder struct {
+	whereConditions []string
+	args            []any
+	paramCount      int
+}
+
+func NewItemQueryBuilder() *ItemQueryBuilder {
+	return &ItemQueryBuilder{
+		whereConditions: []string{},
+		args:            []any{},
+		paramCount:      0,
+	}
+}
+
+func (qb *ItemQueryBuilder) AddCondition(condition string, args ...any) {
+	for _, arg := range args {
+		qb.paramCount++
+		qb.args = append(qb.args, arg)
+	}
+	placeholderCondition := condition
+	for i := 1; i <= len(args); i++ {
+		placeholderCondition = strings.Replace(
+			placeholderCondition,
+			fmt.Sprintf("$%d", i),
+			fmt.Sprintf("$%d", qb.paramCount-len(args)+i),
+			1,
+		)
+	}
+	qb.whereConditions = append(qb.whereConditions, placeholderCondition)
+}
+
+func (qb *ItemQueryBuilder) BuildWhere() (string, []any) {
+	if len(qb.whereConditions) == 0 {
+		return "", qb.args
+	}
+	return " WHERE " + strings.Join(qb.whereConditions, " AND "), qb.args
+}
+
+func (r *ItemRepoPostgres) GetItems(ctx context.Context, filter *domain.ItemFilter) ([]*domain.ItemAgg, error) {
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "GetItems",
+		slog.String("store_id", filter.StoreID),
+		slog.Any("item_types", filter.ItemTypes),
+		slog.String("sorted", filter.Sorted),
+		slog.Bool("desc", filter.Desc),
+	)
+
+	qb := NewItemQueryBuilder()
+
+	qb.AddCondition(`si.store_id = $1`, filter.StoreID)
+
+	if len(filter.ItemTypes) > 0 {
+		placeholders := make([]string, len(filter.ItemTypes))
+		for i := range placeholders {
+			placeholders[i] = fmt.Sprintf("$%d", qb.paramCount+i+1)
+		}
+		qb.whereConditions = append(qb.whereConditions, fmt.Sprintf(`EXISTS (SELECT 1 FROM item_type it2 WHERE it2.item_id = i.id AND it2.type_id = ANY(ARRAY[%s]::uuid[]))`, strings.Join(placeholders, ",")))
+		for _, typeID := range filter.ItemTypes {
+			qb.args = append(qb.args, typeID)
+		}
+		qb.paramCount += len(filter.ItemTypes)
+	}
+
+	where, args := qb.BuildWhere()
+	query := getItemsQuery + where
 
 	orderClauses := []string{}
 	if filter.Sorted != "" {
@@ -86,38 +156,19 @@ func generateGetItemsQuery(filter *domain.ItemFilter) (string, []any) {
 	}
 	orderClauses = append(orderClauses, "si.id")
 
-	query = query + "\nORDER BY " + strings.Join(orderClauses, ", ")
+	query += "\nORDER BY " + strings.Join(orderClauses, ", ")
 
-	args := []any{filter.StoreID}
-
-	if len(filter.ItemTypes) == 0 {
-		args = append(args, []string{})
-	} else {
-		args = append(args, filter.ItemTypes)
-	}
-
-	return query, args
-}
-
-func (r *ItemRepoPostgres) GetItems(ctx context.Context, filter *domain.ItemFilter) ([]*domain.ItemAgg, error) {
-	log := logger.FromContext(ctx)
-	log.DebugContext(ctx, "GetItems начало обработки",
-		slog.String("store_id", filter.StoreID),
-		slog.Any("item_types", filter.ItemTypes),
-		slog.String("sorted", filter.Sorted),
-		slog.Bool("desc", filter.Desc),
-	)
-
-	query, args := generateGetItemsQuery(filter)
-
-	log.DebugContext(ctx, "GetItems SQL",
-		slog.String("query", query),
-		slog.Any("args", args),
+	log.DebugContext(ctx, "GetItems query",
+		slog.String("query", query[:100]),
+		slog.Int("args_count", len(args)),
 	)
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
-		log.ErrorContext(ctx, "GetItems ошибка бд", slog.Any("err", err), slog.String("store_id", filter.StoreID))
+		log.ErrorContext(ctx, "GetItems query failed",
+			slog.Any("err", err),
+			slog.String("store_id", filter.StoreID),
+		)
 		return nil, err
 	}
 	defer rows.Close()
@@ -136,29 +187,79 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, filter *domain.ItemFilt
 			&typeIDsJSON,
 		)
 		if err != nil {
-			log.ErrorContext(ctx, "GetItems ошибка при декодировании данных", slog.Any("err", err))
+			log.ErrorContext(ctx, "GetItems scan error", slog.Any("err", err))
 			return nil, err
 		}
 
 		var typeIDs []string
-		_ = json.Unmarshal([]byte(typeIDsJSON), &typeIDs)
+		json.Unmarshal([]byte(typeIDsJSON), &typeIDs)
 
 		item.TypesID = typeIDs
 		items = append(items, &item)
 	}
 
 	if err = rows.Err(); err != nil {
-		log.ErrorContext(ctx, "GetItems ошибка после чтения строк", slog.Any("err", err), slog.String("store_id", filter.StoreID))
+		log.ErrorContext(ctx, "GetItems rows error", slog.Any("err", err))
 		return nil, err
 	}
 
 	if len(items) == 0 {
-		log.DebugContext(ctx, "GetItems пустой ответ", slog.String("store_id", filter.StoreID))
+		log.DebugContext(ctx, "GetItems empty result", slog.String("store_id", filter.StoreID))
 		return nil, domain.ErrRowsNotFound
 	}
 
-	log.DebugContext(ctx, "GetItems завершено успешно",
+	log.DebugContext(ctx, "GetItems completed",
 		slog.String("store_id", filter.StoreID),
-		slog.Int("items_count", len(items)))
+		slog.Int("items_count", len(items)),
+	)
+	return items, nil
+}
+
+func (r *ItemRepoPostgres) UpdateItemEmbedding(ctx context.Context, itemID string, embedding []float32) error {
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "UpdateItemEmbedding", slog.String("id", itemID))
+
+	vec := pgvector.NewVector(embedding)
+	_, err := r.db.Exec(ctx, updateItemEmbeddingQuery, itemID, vec)
+	if err != nil {
+		log.ErrorContext(ctx, "UpdateItemEmbedding query failed", slog.Any("err", err))
+		return err
+	}
+
+	log.DebugContext(ctx, "UpdateItemEmbedding completed", slog.String("id", itemID))
+	return nil
+}
+
+//go:embed sql/item/get_items_without_embedding.sql
+var getItemsWithoutEmbeddingQuery string
+
+func (r *ItemRepoPostgres) GetItemsWithoutEmbedding(ctx context.Context) ([]*domain.ItemForEmbedding, error) {
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "GetItemsWithoutEmbedding")
+
+	rows, err := r.db.Query(ctx, getItemsWithoutEmbeddingQuery)
+	if err != nil {
+		log.ErrorContext(ctx, "query failed", slog.Any("err", err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []*domain.ItemForEmbedding
+	for rows.Next() {
+		var item domain.ItemForEmbedding
+		err = rows.Scan(&item.ID, &item.Name, &item.Description)
+		if err != nil {
+			log.ErrorContext(ctx, "scan error", slog.Any("err", err))
+			return nil, err
+		}
+		items = append(items, &item)
+	}
+
+	if err = rows.Err(); err != nil {
+		log.ErrorContext(ctx, "rows error", slog.Any("err", err))
+		return nil, err
+	}
+
+	log.DebugContext(ctx, "GetItemsWithoutEmbedding completed", slog.Int("count", len(items)))
 	return items, nil
 }

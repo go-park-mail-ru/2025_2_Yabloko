@@ -19,25 +19,31 @@ type Config struct {
 	JWTSecret string `validate:"required"`
 
 	UploadStoreDir string `validate:"required"`
+	UploadItemDir  string `validate:"required"`
 
-	UploadItemDir string `validate:"required"`
+	EmbeddingServiceAddr string `validate:"required"`
 }
 
 func MustConfig() *Config {
 	conf := &Config{
-		DBUser:         os.Getenv("DB_USER"),
-		DBPassword:     os.Getenv("DB_PASSWORD"),
-		DBHost:         os.Getenv("DB_HOST"),
-		DBPort:         os.Getenv("API_DB_PORT"),
-		DBName:         os.Getenv("DB_NAME"),
-		AppPort:        os.Getenv("STORE_SERVICE_PORT"),
-		JWTSecret:      os.Getenv("SECRET_KEY"),
+		DBUser:     os.Getenv("DB_USER"),
+		DBPassword: os.Getenv("DB_PASSWORD"),
+		DBHost:     os.Getenv("DB_HOST"),
+		DBPort:     os.Getenv("DB_PORT"),
+		DBName:     os.Getenv("DB_NAME"),
+
+		AppPort: os.Getenv("STORE_SERVICE_PORT"),
+
+		JWTSecret: os.Getenv("SECRET_KEY"),
+
 		UploadStoreDir: os.Getenv("UPLOAD_STORE_DIR"),
 		UploadItemDir:  os.Getenv("UPLOAD_ITEM_DIR"),
+
+		EmbeddingServiceAddr: os.Getenv("EMBEDDING_SERVICE_ADDR"),
 	}
 
 	if err := validator.New().Struct(conf); err != nil {
-		panic(fmt.Sprintf("Некорректно заполнен файл .env %v", err))
+		panic(fmt.Sprintf("Некорректно заполнен файл .env: %v", err))
 	}
 
 	return conf
