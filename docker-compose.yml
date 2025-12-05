@@ -117,8 +117,8 @@ services:
         condition: service_completed_successfully
       auth_service:
         condition: service_started
-      embedding_service:
-        condition: service_started
+    #  embedding_service:
+    #    condition: service_started
     ports:
       - "${STORE_SERVICE_PORT}:${STORE_SERVICE_PORT}"
     env_file: [ .env ]
