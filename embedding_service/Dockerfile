@@ -1,6 +1,8 @@
-FROM golang:1.25.1-alpine AS build-stage
+FROM golang:1.25.1-bookworm AS build-stage
 
-RUN apk add --no-cache git build-base libwebp-dev musl-dev gcc
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential libwebp-dev pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
