@@ -39,5 +39,12 @@ func (uc *ItemUsecase) GetItems(ctx context.Context, storeID string, itemTypes [
 		Desc:      desc,
 	}
 
-	return uc.repo.GetItems(ctx, filter)
+	items, err := uc.repo.GetItems(ctx, filter)
+	if err != nil {
+		if err == domain.ErrRowsNotFound {
+			return []*domain.ItemAgg{}, nil
+		}
+		return nil, err
+	}
+	return items, nil
 }

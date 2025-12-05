@@ -90,7 +90,11 @@ func generateGetItemsQuery(filter *domain.ItemFilter) (string, []any) {
 
 	args := []any{filter.StoreID}
 
-	args = append(args, filter.ItemTypes)
+	if len(filter.ItemTypes) == 0 {
+		args = append(args, []string{})
+	} else {
+		args = append(args, filter.ItemTypes)
+	}
 
 	return query, args
 }
