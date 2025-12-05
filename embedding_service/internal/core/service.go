@@ -1,4 +1,3 @@
-// embedding_service/internal/core/service.go
 package core
 
 import (

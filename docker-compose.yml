@@ -181,12 +181,11 @@ services:
       context: .
       dockerfile: ./embedding_service/Dockerfile
     container_name: embedding_service
-    ports:
-      - "50051:50051"
+    env_file: [ .env ]
     environment:
-      - GRPC_PORT=50051
-      - MODEL_PATH=/models/ggml-model-q8_0.gguf
-      - LOG_LEVEL=info
+      - GRPC_PORT=${GRPC_PORT}
+      - MODEL_PATH=${MODEL_PATH}
+      - LOG_LEVEL=${LOG_LEVEL}
     volumes:
       - ./models:/models
     restart: unless-stopped

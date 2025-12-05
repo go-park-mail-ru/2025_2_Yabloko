@@ -24,6 +24,10 @@ WORKDIR /
 COPY --from=build-stage /embedding_service_bin /embedding_service_bin
 RUN chmod +x /embedding_service_bin
 
+RUN mkdir -p /models
+
+VOLUME ["/models"]
+
 EXPOSE 50051
 
 ENTRYPOINT ["/embedding_service_bin"]
