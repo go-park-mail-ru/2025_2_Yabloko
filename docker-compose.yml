@@ -135,6 +135,7 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       COOKIE_SECURE: ${COOKIE_SECURE}
       COOKIE_SAMESITE: ${COOKIE_SAMESITE}
+      EMBEDDING_SERVICE_ADDR: ${EMBEDDING_SERVICE_ADDR}
     volumes:
       - ./uploads/stores:/app/stores
       - ./uploads/items:/app/items
@@ -186,13 +187,13 @@ services:
         condition: service_healthy
       migrator:
         condition: service_completed_successfully
+      llama_server:
+        condition: service_healthy
     env_file: [ .env ]
     environment:
       - GRPC_PORT=${GRPC_PORT}
-      - MODEL_PATH=${MODEL_PATH}
+      - LLAMA_SERVER_URL=${LLAMA_SERVER_URL}
       - LOG_LEVEL=${LOG_LEVEL}
-    volumes:
-      - ./models:/models
     restart: unless-stopped
     labels:
       - "service.type=embedding"
@@ -201,6 +202,26 @@ services:
       test: [ "CMD", "grpcurl", "-plaintext", "localhost:50051", "embedding.v1.EmbeddingService/Health" ]
       interval: 5s
       timeout: 3s
+      retries: 5
+
+  llama_server:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: llama_server
+    volumes:
+      - ./models:/models
+    ports:
+      - "9999:8080"
+    command:
+      - -m
+      - /models/all-MiniLM-L6-v2-Q5_K_M.gguf
+      - --embeddings
+      - -c
+      - "512"
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 5s
       retries: 5
 
   dozzle:

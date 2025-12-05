@@ -15,13 +15,13 @@ func Run() {
 	log := logger.Global()
 
 	log.Info("embedding service starting",
+		"llama_server", conf.LlamaServerURL,
 		"port", conf.GRPCPort,
-		"model", conf.ModelPath,
 	)
 
-	embeddingService, err := core.NewEmbeddingService(conf.ModelPath, log)
+	embeddingService, err := core.NewEmbeddingService(conf.LlamaServerURL, log)
 	if err != nil {
-		log.Error("failed to load model", "err", err)
+		log.Error("failed to connect to llama server", "err", err)
 		os.Exit(1)
 	}
 	defer embeddingService.Close()
