@@ -33,7 +33,7 @@ WORKDIR /
 COPY --from=build-stage /embedding_service_bin /embedding_service_bin
 RUN chmod +x /embedding_service_bin
 
-COPY --from=build-stage /tmp/llama-build/build/libllama_go.so /usr/local/lib/libllama_go.so
+COPY ./lib/libllama_go.so /usr/local/lib/libllama_go.so
 RUN chmod +x /usr/local/lib/libllama_go.so
 
 RUN mkdir -p /models
