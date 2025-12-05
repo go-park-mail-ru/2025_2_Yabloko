@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"apple_backend/pkg/logger"
+	"apple_backend/store_service/internal/client"
 	"apple_backend/store_service/internal/config"
 	shttp "apple_backend/store_service/internal/delivery/http"
 	"apple_backend/store_service/internal/delivery/middlewares"
@@ -9,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -24,26 +26,26 @@ func Run() {
 	}
 	defer dbPool.Close()
 
-	//embeddingClient, err := client.NewGRPCEmbeddingClient(conf.EmbeddingServiceAddr, logger.Global())
-	//if err != nil {
-	//	logger.Global().Warn("embedding service unavailable, using noop",
-	//		"addr", conf.EmbeddingServiceAddr,
-	//		"err", err,
-	//	)
-	//	os.Exit(1)
-	//}
+	embeddingClient, err := client.NewGRPCEmbeddingClient(conf.EmbeddingServiceAddr, logger.Global())
+	if err != nil {
+		logger.Global().Warn("embedding service unavailable, using noop",
+			"addr", conf.EmbeddingServiceAddr,
+			"err", err,
+		)
+		os.Exit(1)
+	}
 
-	//logger.Global().Info("starting embedding synchronization")
-	//if err := SyncAllEmbeddings(context.Background(), dbPool, embeddingClient, logger.Global()); err != nil {
-	//	logger.Global().Error("embedding synchronization failed", "err", err)
-	//	os.Exit(1)
-	//}
+	logger.Global().Info("starting embedding synchronization")
+	if err := SyncAllEmbeddings(context.Background(), dbPool, embeddingClient, logger.Global()); err != nil {
+		logger.Global().Error("embedding synchronization failed", "err", err)
+		os.Exit(1)
+	}
 	logger.Global().Info("embedding synchronization completed")
 
 	openMux := http.NewServeMux()
 	protectedMux := http.NewServeMux()
 
-	shttp.NewStoreRouter(openMux, dbPool, nil, apiV0Prefix)
+	shttp.NewStoreRouter(openMux, dbPool, embeddingClient, apiV0Prefix)
 	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix)
 	shttp.NewCartRouter(protectedMux, dbPool, apiV0Prefix)
 
