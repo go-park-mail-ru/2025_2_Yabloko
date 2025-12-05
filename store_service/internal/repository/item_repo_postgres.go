@@ -5,16 +5,17 @@ import (
 	"apple_backend/store_service/internal/domain"
 	"context"
 	_ "embed"
+	"encoding/json"
+	"fmt"
 	"log/slog"
-
-	"github.com/lib/pq"
+	"strings"
 )
 
 //go:embed sql/item/get_types.sql
 var getItemTypes string
 
 //go:embed sql/item/get_items.sql
-var getItems string
+var baseGetItems string
 
 type ItemRepoPostgres struct {
 	db PgxIface
@@ -64,13 +65,64 @@ func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, storeID string) ([]
 	return itemTypes, nil
 }
 
-func (r *ItemRepoPostgres) GetItems(ctx context.Context, storeID string) ([]*domain.ItemAgg, error) {
-	log := logger.FromContext(ctx)
-	log.DebugContext(ctx, "GetItems начало обработки", slog.String("store_id", storeID))
+// generateGetItemsQuery динамически добавляет ORDER BY
+func generateGetItemsQuery(filter *domain.ItemFilter) (string, []any) {
+	query := baseGetItems
 
-	rows, err := r.db.Query(ctx, getItems, storeID)
+	// ORDER BY
+	orderClauses := []string{}
+	if filter.Sorted != "" {
+		dir := "ASC"
+		if filter.Desc {
+			dir = "DESC"
+		}
+		switch filter.Sorted {
+		case "name":
+			orderClauses = append(orderClauses, fmt.Sprintf("i.name %s", dir))
+		case "price":
+			orderClauses = append(orderClauses, fmt.Sprintf("si.price %s", dir))
+		}
+	}
+	// fallback по имени для стабильности
+	if len(orderClauses) == 0 {
+		orderClauses = append(orderClauses, "i.name ASC")
+	}
+	// всегда добавляем si.id для детерминированности
+	orderClauses = append(orderClauses, "si.id")
+
+	query = query + "\nORDER BY " + strings.Join(orderClauses, ", ")
+
+	args := []any{filter.StoreID}
+
+	// $2 - массив типов, либо NULL
+	if len(filter.ItemTypes) > 0 {
+		args = append(args, filter.ItemTypes)
+	} else {
+		args = append(args, nil)
+	}
+
+	return query, args
+}
+
+func (r *ItemRepoPostgres) GetItems(ctx context.Context, filter *domain.ItemFilter) ([]*domain.ItemAgg, error) {
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "GetItems начало обработки",
+		slog.String("store_id", filter.StoreID),
+		slog.Any("item_types", filter.ItemTypes),
+		slog.String("sorted", filter.Sorted),
+		slog.Bool("desc", filter.Desc),
+	)
+
+	query, args := generateGetItemsQuery(filter)
+
+	log.DebugContext(ctx, "GetItems SQL",
+		slog.String("query", query),
+		slog.Any("args", args),
+	)
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
-		log.ErrorContext(ctx, "GetItems ошибка бд", slog.Any("err", err), slog.String("store_id", storeID))
+		log.ErrorContext(ctx, "GetItems ошибка бд", slog.Any("err", err), slog.String("store_id", filter.StoreID))
 		return nil, err
 	}
 	defer rows.Close()
@@ -78,7 +130,7 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, storeID string) ([]*dom
 	var items []*domain.ItemAgg
 	for rows.Next() {
 		var item domain.ItemAgg
-		var typeIDs pq.StringArray
+		var typeIDsJSON string
 
 		err = rows.Scan(
 			&item.ID,
@@ -86,28 +138,32 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, storeID string) ([]*dom
 			&item.Price,
 			&item.Description,
 			&item.CardImg,
-			&typeIDs,
+			&typeIDsJSON,
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "GetItems ошибка при декодировании данных", slog.Any("err", err))
 			return nil, err
 		}
+
+		var typeIDs []string
+		_ = json.Unmarshal([]byte(typeIDsJSON), &typeIDs)
+
 		item.TypesID = typeIDs
 		items = append(items, &item)
 	}
 
 	if err = rows.Err(); err != nil {
-		log.ErrorContext(ctx, "GetItems ошибка после чтения строк", slog.Any("err", err), slog.String("store_id", storeID))
+		log.ErrorContext(ctx, "GetItems ошибка после чтения строк", slog.Any("err", err), slog.String("store_id", filter.StoreID))
 		return nil, err
 	}
 
 	if len(items) == 0 {
-		log.DebugContext(ctx, "GetItems пустой ответ", slog.String("store_id", storeID))
+		log.DebugContext(ctx, "GetItems пустой ответ", slog.String("store_id", filter.StoreID))
 		return nil, domain.ErrRowsNotFound
 	}
 
 	log.DebugContext(ctx, "GetItems завершено успешно",
-		slog.String("store_id", storeID),
+		slog.String("store_id", filter.StoreID),
 		slog.Int("items_count", len(items)))
 	return items, nil
 }

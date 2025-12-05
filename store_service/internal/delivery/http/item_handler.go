@@ -11,13 +11,14 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 )
 
 type ItemUsecaseInterface interface {
 	GetItemTypes(ctx context.Context, storeID string) ([]*domain.ItemType, error)
-	GetItems(ctx context.Context, storeID string) ([]*domain.ItemAgg, error)
+	GetItems(ctx context.Context, storeID string, itemTypes []string, sorted string, desc bool) ([]*domain.ItemAgg, error)
 }
 
 type ItemHandler struct {
@@ -95,9 +96,28 @@ func (h *ItemHandler) GetItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := h.uc.GetItems(ctx, storeID)
+	q := r.URL.Query()
+
+	// item_type как массив: ?item_type=...&item_type=...
+	itemTypes := q["item_type"]
+
+	sorted := q.Get("sorted")
+	desc := false
+	if q.Has("desc") {
+		// ?desc=true
+		b, err := strconv.ParseBool(q.Get("desc"))
+		if err == nil {
+			desc = b
+		}
+	}
+
+	items, err := h.uc.GetItems(ctx, storeID, itemTypes, sorted, desc)
 	if err != nil {
 		log.ErrorContext(ctx, "handler GetItems usecase failed", slog.Any("err", err), slog.String("store_id", storeID))
+		if errors.Is(err, domain.ErrRequestParams) {
+			h.rs.Error(ctx, w, http.StatusBadRequest, "GetItems", domain.ErrRequestParams, nil)
+			return
+		}
 		if errors.Is(err, domain.ErrRowsNotFound) {
 			h.rs.Error(ctx, w, http.StatusNotFound, "GetItems", domain.ErrRowsNotFound, nil)
 			return

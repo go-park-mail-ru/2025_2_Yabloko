@@ -7,7 +7,7 @@ import (
 
 type ItemRepository interface {
 	GetItemTypes(ctx context.Context, storeID string) ([]*domain.ItemType, error)
-	GetItems(ctx context.Context, storeID string) ([]*domain.ItemAgg, error)
+	GetItems(ctx context.Context, filter *domain.ItemFilter) ([]*domain.ItemAgg, error)
 }
 
 type ItemUsecase struct {
@@ -22,6 +22,22 @@ func (uc *ItemUsecase) GetItemTypes(ctx context.Context, storeID string) ([]*dom
 	return uc.repo.GetItemTypes(ctx, storeID)
 }
 
-func (uc *ItemUsecase) GetItems(ctx context.Context, storeID string) ([]*domain.ItemAgg, error) {
-	return uc.repo.GetItems(ctx, storeID)
+func (uc *ItemUsecase) GetItems(ctx context.Context, storeID string, itemTypes []string, sorted string, desc bool) ([]*domain.ItemAgg, error) {
+	// валидация сортировки
+	sortable := map[string]bool{
+		"name":  true,
+		"price": true,
+	}
+	if sorted != "" && !sortable[sorted] {
+		return nil, domain.ErrRequestParams
+	}
+
+	filter := &domain.ItemFilter{
+		StoreID:   storeID,
+		ItemTypes: itemTypes,
+		Sorted:    sorted,
+		Desc:      desc,
+	}
+
+	return uc.repo.GetItems(ctx, filter)
 }

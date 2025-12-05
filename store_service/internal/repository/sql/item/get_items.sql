@@ -5,11 +5,8 @@ SELECT
     i.description,
     i.card_img,
     COALESCE(
-        array_agg(DISTINCT it.type_id) FILTER (
-            WHERE
-                it.type_id IS NOT NULL
-        ),
-        '{}'
+        json_agg(DISTINCT it.type_id) FILTER (WHERE it.type_id IS NOT NULL),
+        '[]'::json
     ) AS type_ids
 FROM
     store_item si
@@ -17,11 +14,18 @@ FROM
     LEFT JOIN item_type it ON it.item_id = i.id
 WHERE
     si.store_id = $1
+    AND (
+        $2 IS NULL
+        OR EXISTS (
+            SELECT 1
+            FROM item_type it2
+            WHERE it2.item_id = i.id
+              AND it2.type_id = ANY($2)
+        )
+    )
 GROUP BY
     si.id,
     i.name,
     si.price,
     i.description,
     i.card_img
-ORDER BY
-    i.name ASC
