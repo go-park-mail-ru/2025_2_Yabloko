@@ -6,30 +6,36 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/kelindar/search"
+	llama "github.com/go-skynet/go-llama.cpp"
 )
 
 type EmbeddingService struct {
-	vectorizer *search.Vectorizer
-	cache      map[string][]float32
-	mu         sync.RWMutex
-	logger     *slog.Logger
+	model  *llama.LLama
+	cache  map[string][]float32
+	mu     sync.RWMutex
+	logger *slog.Logger
 }
 
 func NewEmbeddingService(modelPath string, logger *slog.Logger) (*EmbeddingService, error) {
-	logger.Info("loading vectorizer...", slog.String("model", modelPath))
+	logger.Info("loading model...", slog.String("model", modelPath))
 
-	vectorizer, err := search.NewVectorizer(modelPath, 0)
+	// Загружаем модель с поддержкой embeddings
+	model, err := llama.New(
+		modelPath,
+		llama.SetContext(512),  // Размер контекста
+		llama.SetThreads(1),    // 1 CPU
+		llama.EnableEmbeddings, // Включаем embeddings mode
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load model: %w", err)
 	}
 
-	logger.Info("vectorizer loaded successfully")
+	logger.Info("model loaded successfully")
 
 	return &EmbeddingService{
-		vectorizer: vectorizer,
-		cache:      make(map[string][]float32),
-		logger:     logger,
+		model:  model,
+		cache:  make(map[string][]float32),
+		logger: logger,
 	}, nil
 }
 
@@ -50,7 +56,7 @@ func (e *EmbeddingService) GetEmbedding(ctx context.Context, text string) ([]flo
 	e.mu.RUnlock()
 
 	// Generate embedding
-	embedding, err := e.vectorizer.EmbedText(text)
+	embedding, err := e.model.Embeddings(text)
 	if err != nil {
 		e.logger.ErrorContext(ctx, "vectorization failed",
 			slog.Any("err", err),
@@ -59,7 +65,7 @@ func (e *EmbeddingService) GetEmbedding(ctx context.Context, text string) ([]flo
 		return nil, fmt.Errorf("vectorization failed: %w", err)
 	}
 
-	if embedding == nil || len(embedding) == 0 {
+	if len(embedding) == 0 {
 		e.logger.ErrorContext(ctx, "vectorization returned empty result",
 			slog.String("text", truncate(text, 50)),
 		)
@@ -104,12 +110,12 @@ func (e *EmbeddingService) GetEmbeddingBatch(ctx context.Context, texts []string
 }
 
 func (e *EmbeddingService) IsHealthy() bool {
-	return e.vectorizer != nil
+	return e.model != nil
 }
 
 func (e *EmbeddingService) Close() error {
-	if e.vectorizer != nil {
-		e.vectorizer.Close()
+	if e.model != nil {
+		e.model.Free()
 	}
 	return nil
 }
