@@ -28,4 +28,4 @@ GROUP BY
     i.name,
     si.price,
     i.description,
-    i.card_img;
+    i.card_img
