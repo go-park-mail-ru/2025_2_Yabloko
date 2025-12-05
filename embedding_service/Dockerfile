@@ -15,7 +15,7 @@ RUN go mod tidy
 RUN go build -o /embedding_service_bin ./cmd/embedding_service
 
 
-FROM ghcr.io/ggml-org/llama.cpp:full-cuda
+FROM ghcr.io/ggml-org/llama.cpp:server
 
 WORKDIR /
 
