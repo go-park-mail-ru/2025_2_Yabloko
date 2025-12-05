@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -32,13 +31,13 @@ func Run() {
 			"addr", conf.EmbeddingServiceAddr,
 			"err", err,
 		)
-		os.Exit(1)
+		// os.Exit(1)
 	}
 
 	logger.Global().Info("starting embedding synchronization")
 	if err := SyncAllEmbeddings(context.Background(), dbPool, embeddingClient, logger.Global()); err != nil {
 		logger.Global().Error("embedding synchronization failed", "err", err)
-		os.Exit(1)
+		// os.Exit(1)
 	}
 	logger.Global().Info("embedding synchronization completed")
 

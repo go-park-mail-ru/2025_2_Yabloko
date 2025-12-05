@@ -31,6 +31,7 @@ func SyncAllEmbeddings(
 	go func() {
 		defer wg.Done()
 		if err := syncStoresEmbeddings(ctx, storeRepo, embeddingClient, log); err != nil {
+			log.Error("store sync failed", "err", err)
 			errCh <- fmt.Errorf("store sync failed: %w", err)
 		}
 	}()
@@ -39,6 +40,7 @@ func SyncAllEmbeddings(
 	go func() {
 		defer wg.Done()
 		if err := syncItemsEmbeddings(ctx, itemRepo, embeddingClient, log); err != nil {
+			log.Error("item sync failed", "err", err)
 			errCh <- fmt.Errorf("item sync failed: %w", err)
 		}
 	}()
@@ -48,6 +50,7 @@ func SyncAllEmbeddings(
 
 	for err := range errCh {
 		if err != nil {
+			log.Error("embedding sync error in channel", "err", err) // ← И ТУТ!
 			return err
 		}
 	}
