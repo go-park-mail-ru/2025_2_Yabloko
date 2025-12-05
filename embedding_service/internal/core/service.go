@@ -17,15 +17,17 @@ type EmbeddingService struct {
 }
 
 func NewEmbeddingService(modelPath string, logger *slog.Logger) (*EmbeddingService, error) {
+	fmt.Println("STARTING NEW VECTORIZER...")
 	vectorizer, err := search.NewVectorizer(modelPath, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load model: %w", err)
 	}
-
+	fmt.Println("START TEST EMBEDDING")
 	testEmbedding, err := vectorizer.EmbedText("test")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get dimensions: %w", err)
 	}
+	fmt.Println("TEST OK")
 	dims := len(testEmbedding)
 
 	logger.Info("embedding model loaded",
