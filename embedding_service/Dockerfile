@@ -4,7 +4,7 @@ RUN apk add --no-cache git build-base libwebp-dev musl-dev gcc
 
 WORKDIR /app
 
-ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+ENV CGO_ENABLED=1 GOOS=linux GOARCH=amd64 CC=gcc
 
 COPY go.mod go.sum ./
 RUN go mod download
@@ -12,10 +12,8 @@ RUN go mod download
 COPY . .
 
 RUN go mod tidy
-RUN CGO_ENABLED=1 GOOS=linux go build -o /embedding_service_bin ./cmd/embedding_service
+RUN go build -o /embedding_service_bin ./cmd/embedding_service
 
-#FROM build-stage AS run-test-stage
-#RUN go test -v ./...
 
 FROM alpine:latest AS build-release-stage
 
@@ -28,7 +26,6 @@ RUN mkdir -p /models
 
 VOLUME ["/models"]
 
-# Установить libgomp из apk
 RUN apk add --no-cache libgomp
 
 COPY ./lib/libllama_go.so /usr/local/lib/libllama_go.so
