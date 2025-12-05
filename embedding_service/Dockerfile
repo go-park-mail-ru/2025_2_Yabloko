@@ -26,9 +26,11 @@ RUN mkdir -p /models
 
 VOLUME ["/models"]
 
-RUN apk add --no-cache libgomp
+RUN apk add --no-cache libgomp libstdc++
 
 COPY ./lib/libllama_go.so /usr/local/lib/libllama_go.so
+
+ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
 EXPOSE 50051
 
