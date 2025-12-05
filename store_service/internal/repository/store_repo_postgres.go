@@ -42,23 +42,34 @@ func generateQuery(filter *domain.StoreFilter) (string, []any) {
 	args := []any{}
 	where := []string{}
 
+	if filter.Sorted != "" {
+		allowedSorts := map[string]bool{
+			"rating":    true,
+			"open_at":   true,
+			"closed_at": true,
+		}
+		if !allowedSorts[filter.Sorted] {
+			filter.Sorted = ""
+		}
+	}
+
 	if filter.Search != "" {
 		where = append(where, fmt.Sprintf("to_tsvector('russian', s.name || ' ' || s.description) @@ to_tsquery('russian', $%d)", len(args)+1))
 		args = append(args, filter.Search)
 	}
 
-	// TagIDs как ANY (ИЛИ) - если передано, то найди магазины с ЛЮБЫМ из этих тегов
+	// TagIDs как AND (И)
 	if len(filter.TagIDs) > 0 {
-		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_tag st2 WHERE st2.store_id = s.id AND st2.tag_id = ANY($%d))", len(args)+1))
-		args = append(args, filter.TagIDs)
+		for _, tagID := range filter.TagIDs {
+			where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_tag st2 WHERE st2.store_id = s.id AND st2.tag_id = $%d)", len(args)+1))
+			args = append(args, tagID)
+		}
 	}
 
-	// CategoryIDs как AND (И) - должны быть ВСЕ категории
+	// CategoryIDs как ANY (ИЛИ)
 	if len(filter.CategoryIDs) > 0 {
-		for _, catID := range filter.CategoryIDs {
-			where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_category sc2 WHERE sc2.store_id = s.id AND sc2.category_id = $%d)", len(args)+1))
-			args = append(args, catID)
-		}
+		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_category sc2 WHERE sc2.store_id = s.id AND sc2.category_id = ANY($%d))", len(args)+1))
+		args = append(args, filter.CategoryIDs)
 	}
 
 	if filter.CityID != "" {
@@ -127,16 +138,16 @@ func generateSearchWithItemsQuery(filter *domain.StoreSearchFilter) (string, []a
 		args = append(args, filter.Search)
 	}
 
-	// TagIDs как ANY (ИЛИ)
+	// TagIDs как AND (И)
 	if len(filter.TagIDs) > 0 {
-		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_tag st2 WHERE st2.store_id = s.id AND st2.tag_id = ANY($%d))", len(args)+1))
+		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_tag st2 WHERE st2.store_id = s.id AND st2.tag_id = $%d)", len(args)+1))
 		args = append(args, filter.TagIDs)
 	}
 
-	// CategoryIDs как AND (И)
+	// CategoryIDs как ANY (ИЛИ)
 	if len(filter.CategoryIDs) > 0 {
 		for _, catID := range filter.CategoryIDs {
-			where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_category sc2 WHERE sc2.store_id = s.id AND sc2.category_id = $%d)", len(args)+1))
+			where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM store_category sc2 WHERE sc2.store_id = s.id AND sc2.category_id = ANY($%d))", len(args)+1))
 			args = append(args, catID)
 		}
 	}
