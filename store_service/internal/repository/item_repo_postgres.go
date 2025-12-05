@@ -65,11 +65,9 @@ func (r *ItemRepoPostgres) GetItemTypes(ctx context.Context, storeID string) ([]
 	return itemTypes, nil
 }
 
-// generateGetItemsQuery динамически добавляет ORDER BY
 func generateGetItemsQuery(filter *domain.ItemFilter) (string, []any) {
 	query := baseGetItems
 
-	// ORDER BY
 	orderClauses := []string{}
 	if filter.Sorted != "" {
 		dir := "ASC"
@@ -83,23 +81,16 @@ func generateGetItemsQuery(filter *domain.ItemFilter) (string, []any) {
 			orderClauses = append(orderClauses, fmt.Sprintf("si.price %s", dir))
 		}
 	}
-	// fallback по имени для стабильности
 	if len(orderClauses) == 0 {
 		orderClauses = append(orderClauses, "i.name ASC")
 	}
-	// всегда добавляем si.id для детерминированности
 	orderClauses = append(orderClauses, "si.id")
 
 	query = query + "\nORDER BY " + strings.Join(orderClauses, ", ")
 
 	args := []any{filter.StoreID}
 
-	// $2 - массив типов, либо NULL
-	if len(filter.ItemTypes) > 0 {
-		args = append(args, filter.ItemTypes)
-	} else {
-		args = append(args, nil)
-	}
+	args = append(args, filter.ItemTypes)
 
 	return query, args
 }

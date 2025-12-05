@@ -15,12 +15,12 @@ FROM
 WHERE
     si.store_id = $1
     AND (
-        $2 IS NULL
+        cardinality($2::uuid[]) = 0
         OR EXISTS (
             SELECT 1
             FROM item_type it2
             WHERE it2.item_id = i.id
-              AND it2.type_id = ANY($2)
+              AND it2.type_id = ANY($2::uuid[])
         )
     )
 GROUP BY
@@ -28,4 +28,4 @@ GROUP BY
     i.name,
     si.price,
     i.description,
-    i.card_img
+    i.card_img;
