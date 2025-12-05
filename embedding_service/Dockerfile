@@ -17,7 +17,7 @@ RUN CGO_ENABLED=1 GOOS=linux go build -o /embedding_service_bin ./cmd/embedding_
 #FROM build-stage AS run-test-stage
 #RUN go test -v ./...
 
-FROM alpine:latest AS build-release-stage
+FROM debian:bookworm-slim AS build-release-stage
 
 WORKDIR /
 
@@ -29,6 +29,8 @@ RUN mkdir -p /models
 VOLUME ["/models"]
 
 COPY ./lib/libllama_go.so /usr/local/lib/libllama_go.so
+
+RUN apt-get update && apt-get install -y libgomp1 && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 50051
 
