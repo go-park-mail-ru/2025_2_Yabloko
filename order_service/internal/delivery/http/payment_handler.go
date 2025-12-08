@@ -2,7 +2,6 @@ package http
 
 import (
 	"apple_backend/order_service/internal/config"
-	"apple_backend/order_service/internal/delivery/middlewares"
 	"apple_backend/order_service/internal/delivery/transport"
 	"apple_backend/order_service/internal/domain"
 	"apple_backend/order_service/internal/infrastructure/yookassa"
@@ -10,6 +9,7 @@ import (
 	"apple_backend/order_service/internal/usecase"
 	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
+	"apple_backend/pkg/middlewares"
 	"context"
 	"encoding/json"
 	"errors"

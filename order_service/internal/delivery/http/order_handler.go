@@ -1,10 +1,10 @@
 package http
 
 import (
-	"apple_backend/order_service/internal/delivery/middlewares"
 	"apple_backend/order_service/internal/repository"
 	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
+	"apple_backend/pkg/middlewares"
 	"context"
 	"encoding/json"
 	"errors"
