@@ -128,7 +128,11 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, filter *domain.ItemFilt
 		for i := range placeholders {
 			placeholders[i] = fmt.Sprintf("$%d", qb.paramCount+i+1)
 		}
-		qb.whereConditions = append(qb.whereConditions, fmt.Sprintf(`EXISTS (SELECT 1 FROM item_type it2 WHERE it2.item_id = i.id AND it2.type_id = ANY(ARRAY[%s]::uuid[]))`, strings.Join(placeholders, ",")))
+		qb.whereConditions = append(
+			qb.whereConditions,
+			fmt.Sprintf(`EXISTS (SELECT 1 FROM item_type it2 WHERE it2.item_id = i.id AND it2.type_id = ANY(ARRAY[%s]::uuid[]))`,
+				strings.Join(placeholders, ",")),
+		)
 		for _, typeID := range filter.ItemTypes {
 			qb.args = append(qb.args, typeID)
 		}
@@ -136,6 +140,7 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, filter *domain.ItemFilt
 	}
 
 	where, args := qb.BuildWhere()
+
 	query := getItemsQuery + where
 
 	orderClauses := []string{}
@@ -158,9 +163,9 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, filter *domain.ItemFilt
 
 	query += "\nORDER BY " + strings.Join(orderClauses, ", ")
 
-	log.DebugContext(ctx, "GetItems query",
-		slog.String("query", query[:100]),
-		slog.Int("args_count", len(args)),
+	log.DebugContext(ctx, "GetItems final query",
+		slog.String("query", query),
+		slog.Any("args", args),
 	)
 
 	rows, err := r.db.Query(ctx, query, args...)
@@ -192,8 +197,20 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, filter *domain.ItemFilt
 		}
 
 		var typeIDs []string
-		json.Unmarshal([]byte(typeIDsJSON), &typeIDs)
+		if typeIDsJSON == "" || typeIDsJSON == "null" || typeIDsJSON == "[]" {
+			typeIDs = []string{}
+		} else {
+			if err := json.Unmarshal([]byte(typeIDsJSON), &typeIDs); err != nil {
+				log.ErrorContext(ctx, "GetItems json unmarshal error",
+					slog.Any("err", err),
+					slog.String("json", typeIDsJSON))
+				return nil, err
+			}
+		}
 
+		if typeIDs == nil {
+			typeIDs = []string{}
+		}
 		item.TypesID = typeIDs
 		items = append(items, &item)
 	}
@@ -203,15 +220,15 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, filter *domain.ItemFilt
 		return nil, err
 	}
 
-	if len(items) == 0 {
-		log.DebugContext(ctx, "GetItems empty result", slog.String("store_id", filter.StoreID))
-		return nil, domain.ErrRowsNotFound
-	}
-
 	log.DebugContext(ctx, "GetItems completed",
 		slog.String("store_id", filter.StoreID),
 		slog.Int("items_count", len(items)),
 	)
+
+	if len(items) == 0 {
+		return []*domain.ItemAgg{}, nil
+	}
+
 	return items, nil
 }
 
