@@ -437,13 +437,8 @@ func (r *StoreRepoPostgres) SearchStoresHybrid(
 		where = " WHERE " + strings.Join(qb.whereConditions, " AND ")
 	}
 
-	query := searchHybridQuery + where + `
-	GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at,
-	         si.id, i.name, si.price, i.embedding
-	ORDER BY cr.combined_score DESC
-	`
+	query := searchHybridQuery + where + fmt.Sprintf(` LIMIT $%d`, len(qb.args)+1)
 
-	query += fmt.Sprintf(" LIMIT $%d", len(qb.args)+1)
 	queryArgs := append(qb.args, filter.Limit)
 
 	log.DebugContext(ctx, "SearchStoresHybrid",
