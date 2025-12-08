@@ -25,7 +25,6 @@ COPY . .
 RUN go mod tidy
 RUN go build -o /embedding_service_bin ./cmd/embedding_service
 
-RUN go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
 FROM debian:bookworm-slim AS build-release-stage
 
@@ -39,8 +38,7 @@ COPY --from=build-stage /usr/local/lib/libonnxruntime.so* /usr/local/lib/
 RUN ldconfig
 
 COPY --from=build-stage /embedding_service_bin /embedding_service_bin
-COPY --from=build-stage /root/go/bin/grpcurl /usr/local/bin/grpcurl
-RUN chmod +x /embedding_service_bin /usr/local/bin/grpcurl
+RUN chmod +x /embedding_service_bin
 
 RUN mkdir -p /models
 

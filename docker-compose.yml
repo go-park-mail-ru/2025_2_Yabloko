@@ -209,10 +209,11 @@ services:
       - "service.type=embedding"
       - "log.format=json"
     healthcheck:
-      test: [ "CMD", "grpcurl", "-plaintext", "localhost:50051", "embedding.v1.EmbeddingService/Health" ]
+      test: [ "CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/50051' && echo 'OK' || exit 1" ]
       interval: 5s
       timeout: 3s
       retries: 5
+      start_period: 10s
 
   dozzle:
     image: amir20/dozzle:latest
