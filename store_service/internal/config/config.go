@@ -29,7 +29,7 @@ func MustConfig() *Config {
 		DBUser:     os.Getenv("DB_USER"),
 		DBPassword: os.Getenv("DB_PASSWORD"),
 		DBHost:     os.Getenv("DB_HOST"),
-		DBPort:     os.Getenv("DB_PORT"),
+		DBPort:     os.Getenv("API_DB_PORT"),
 		DBName:     os.Getenv("DB_NAME"),
 
 		AppPort: os.Getenv("STORE_SERVICE_PORT"),
