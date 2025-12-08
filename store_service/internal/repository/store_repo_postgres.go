@@ -48,6 +48,9 @@ var getCategoriesQuery string
 //go:embed sql/store/get_city.sql
 var getCitiesQuery string
 
+//go:embed sql/store/get_stores_without_embedding.sql
+var getStoresWithoutEmbeddingQuery string
+
 type StoreRepoPostgres struct {
 	db PgxIface
 }
@@ -56,7 +59,6 @@ func NewStoreRepoPostgres(db PgxIface) *StoreRepoPostgres {
 	return &StoreRepoPostgres{db: db}
 }
 
-// Для динамического построения WHERE условий
 type QueryBuilder struct {
 	whereConditions []string
 	args            []any
@@ -204,15 +206,16 @@ func (r *StoreRepoPostgres) GetStores(ctx context.Context, filter *domain.StoreF
 	return stores, nil
 }
 
-// полнотекстовый поиск с товарами
 func (r *StoreRepoPostgres) SearchStoresWithItems(ctx context.Context, filter *domain.StoreSearchFilter) ([]*domain.StoreWithItems, error) {
 	log := logger.FromContext(ctx)
 
 	qb := NewQueryBuilder()
 
 	if filter.Search != "" {
-		qb.AddCondition(`(to_tsvector('russian', s.name || ' ' || s.description) @@ to_tsquery('russian', $1) OR to_tsvector('russian', i.name) @@ to_tsquery('russian', $2))`,
-			filter.Search, filter.Search)
+		qb.AddCondition(
+			`(to_tsvector('russian', s.name || ' ' || s.description) @@ to_tsquery('russian', $1) OR to_tsvector('russian', i.name) @@ to_tsquery('russian', $2))`,
+			filter.Search, filter.Search,
+		)
 	}
 
 	if len(filter.TagIDs) > 0 {
@@ -240,7 +243,7 @@ func (r *StoreRepoPostgres) SearchStoresWithItems(ctx context.Context, filter *d
 	}
 
 	if filter.CityID != "" {
-		qb.AddCondition(`s.city_id = $1`, filter.CityID)
+		qb.AddCondition(fmt.Sprintf(`s.city_id = $%d`, qb.GetNextParam()), filter.CityID)
 	}
 
 	if len(filter.ItemTypes) > 0 {
@@ -256,24 +259,33 @@ func (r *StoreRepoPostgres) SearchStoresWithItems(ctx context.Context, filter *d
 	}
 
 	if filter.MinPrice > 0 {
-		qb.AddCondition(`si.price >= $1`, filter.MinPrice)
+		qb.whereConditions = append(qb.whereConditions, fmt.Sprintf(`si.price >= $%d`, qb.paramCount+1))
+		qb.args = append(qb.args, filter.MinPrice)
+		qb.paramCount++
 	}
+
 	if filter.MaxPrice < 999999 {
-		qb.AddCondition(`si.price <= $1`, filter.MaxPrice)
+		qb.whereConditions = append(qb.whereConditions, fmt.Sprintf(`si.price <= $%d`, qb.paramCount+1))
+		qb.args = append(qb.args, filter.MaxPrice)
+		qb.paramCount++
 	}
 
-	where, args := qb.BuildWhere()
-	query := searchWithItemsQuery + where + `
-    GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at,
-             si.id, i.name, si.price, i.embedding
-    `
+	where := ""
+	if len(qb.whereConditions) > 0 {
+		where = " WHERE " + strings.Join(qb.whereConditions, " AND ")
+	}
 
-	query += fmt.Sprintf("LIMIT $%d", len(args)+1)
-	args = append(args, filter.Limit)
+	query := searchWithItemsQuery + where + `
+	GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at,
+	         si.id, i.name, si.price, i.embedding
+	`
+
+	query += fmt.Sprintf(" LIMIT $%d", len(qb.args)+1)
+	queryArgs := append(qb.args, filter.Limit)
 
 	log.DebugContext(ctx, "SearchStoresWithItems", slog.String("search", filter.Search))
 
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.db.Query(ctx, query, queryArgs...)
 	if err != nil {
 		log.ErrorContext(ctx, "SearchStoresWithItems query failed", slog.Any("err", err))
 		return nil, err
@@ -348,7 +360,6 @@ func (r *StoreRepoPostgres) SearchStoresWithItems(ctx context.Context, filter *d
 	return storeOrder, nil
 }
 
-// BM25 + семантический
 func (r *StoreRepoPostgres) SearchStoresHybrid(
 	ctx context.Context,
 	filter *domain.StoreSearchFilter,
@@ -356,18 +367,16 @@ func (r *StoreRepoPostgres) SearchStoresHybrid(
 ) ([]*domain.StoreWithItems, error) {
 	log := logger.FromContext(ctx)
 
-	bm25Weight := 0.6
-	semanticWeight := 0.4
+	qb := NewQueryBuilder()
 
 	args := []any{
-		filter.Search,                 // $1
-		pgvector.NewVector(embedding), // $2
-		bm25Weight,                    // $3
-		semanticWeight,                // $4
+		filter.Search,
+		pgvector.NewVector(embedding),
+		0.6,
+		0.4,
 	}
-
-	qb := NewQueryBuilder()
 	qb.paramCount = 4
+	qb.args = args
 
 	if len(filter.TagIDs) > 0 {
 		placeholders := make([]string, len(filter.TagIDs))
@@ -428,23 +437,21 @@ func (r *StoreRepoPostgres) SearchStoresHybrid(
 		where = " WHERE " + strings.Join(qb.whereConditions, " AND ")
 	}
 
-	args = append(args, qb.args...)
-
 	query := searchHybridQuery + where + `
-    GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at,
-             si.id, i.name, si.price, i.embedding
-    ORDER BY cr.combined_score DESC
-    `
+	GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at,
+	         si.id, i.name, si.price, i.embedding
+	ORDER BY cr.combined_score DESC
+	`
 
-	query += fmt.Sprintf("LIMIT $%d", len(args)+1)
-	args = append(args, filter.Limit)
+	query += fmt.Sprintf(" LIMIT $%d", len(qb.args)+1)
+	queryArgs := append(qb.args, filter.Limit)
 
 	log.DebugContext(ctx, "SearchStoresHybrid",
 		slog.String("search", filter.Search),
 		slog.Int("embedding_dim", len(embedding)),
 	)
 
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.db.Query(ctx, query, queryArgs...)
 	if err != nil {
 		log.ErrorContext(ctx, "SearchStoresHybrid query failed", slog.Any("err", err))
 		return nil, err
@@ -741,9 +748,6 @@ func (r *StoreRepoPostgres) GetCities(ctx context.Context) ([]*domain.City, erro
 	log.DebugContext(ctx, "GetCities completed", slog.Int("count", len(cities)))
 	return cities, nil
 }
-
-//go:embed sql/store/get_stores_without_embedding.sql
-var getStoresWithoutEmbeddingQuery string
 
 func (r *StoreRepoPostgres) GetStoresWithoutEmbedding(ctx context.Context) ([]*domain.Store, error) {
 	log := logger.FromContext(ctx)
