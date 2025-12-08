@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
 	"apple_backend/embedding_service/internal/config"
@@ -15,13 +16,15 @@ func Run() {
 	log := logger.Global()
 
 	log.Info("embedding service starting",
-		"llama_server", conf.LlamaServerURL,
 		"port", conf.GRPCPort,
+		"model", conf.ModelPath,
 	)
 
-	embeddingService, err := core.NewEmbeddingService(conf.LlamaServerURL, log)
+	embeddingService, err := core.NewEmbeddingService(conf.ModelPath, conf.VocabPath, log)
 	if err != nil {
-		log.Error("failed to connect to llama server", "err", err)
+		log.Error("failed to load model",
+			slog.String("error", err.Error()),
+		)
 		os.Exit(1)
 	}
 	defer embeddingService.Close()

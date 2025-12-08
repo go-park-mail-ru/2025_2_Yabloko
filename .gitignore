@@ -30,7 +30,8 @@ go.work.sum
 .idea
 
 *.log
-*.txt
+# *.txt
+db/migrations/*.txt
 
 .data
 
