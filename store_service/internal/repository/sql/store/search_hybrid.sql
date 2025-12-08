@@ -73,3 +73,6 @@ FROM
     LEFT JOIN store_item si ON s.id = si.store_id
     LEFT JOIN item i ON si.item_id = i.id
     LEFT JOIN item_type it ON i.id = it.item_id
+GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at,
+         si.id, i.name, si.price, i.embedding, cr.combined_score
+ORDER BY cr.combined_score DESC
