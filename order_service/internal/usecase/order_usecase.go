@@ -111,8 +111,3 @@ func (uc *OrderUsecase) GetOrdersUser(ctx context.Context, filter *domain.OrderF
 	}
 	return orders, nil
 }
-
-// TODO: Пофиксить валидацию UUID
-// Сейчас если отправить кривой UUID типа "invalid-uuid", то будет 500 ошибка
-// Надо сделать чтобы возвращалась 400 ошибка
-// Просто добавить проверку uuid.Parse() в каждом хендлере перед вызовом usecase

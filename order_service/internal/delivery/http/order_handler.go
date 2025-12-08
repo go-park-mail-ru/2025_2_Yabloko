@@ -17,6 +17,7 @@ import (
 	"apple_backend/order_service/internal/usecase"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 )
 
 type OrderUsecaseInterface interface {
@@ -125,10 +126,19 @@ func (h *OrderHandler) GetOrdersUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lastID := q.Get("last_id")
+	if lastID != "" {
+		if err := uuid.Validate(lastID); err != nil {
+			log.WarnContext(ctx, "handler GetOrdersUser invalid last_id UUID", slog.String("last_id", lastID), slog.Any("err", err))
+			h.rs.Error(ctx, w, http.StatusBadRequest, "GetOrdersUser", domain.ErrRequestParams, errors.New("invalid last_id UUID format"))
+			return
+		}
+	}
+
 	filter := &domain.OrderFilter{
 		UserID: userID,
 		Limit:  limit,
-		LastID: q.Get("last_id"),
+		LastID: lastID,
 		Status: q.Get("status"),
 		Desc:   q.Has("desc") && q.Get("desc") == "true",
 	}
@@ -161,6 +171,13 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 	log.InfoContext(ctx, "handler GetOrder start")
 
 	id := r.PathValue("id")
+
+	if err := uuid.Validate(id); err != nil {
+		log.WarnContext(ctx, "handler GetOrder invalid order_id UUID", slog.String("order_id", id), slog.Any("err", err))
+		h.rs.Error(ctx, w, http.StatusBadRequest, "GetOrder", domain.ErrRequestParams, errors.New("invalid order_id UUID format"))
+		return
+	}
+
 	userID, ok := r.Context().Value(middlewares.UserIDKey).(string)
 	if !ok || userID == "" {
 		log.WarnContext(ctx, "handler GetOrder unauthorized")
@@ -196,6 +213,13 @@ func (h *OrderHandler) UpdateOrderStatus(w http.ResponseWriter, r *http.Request)
 	log.InfoContext(ctx, "handler UpdateOrderStatus start")
 
 	id := r.PathValue("id")
+
+	if err := uuid.Validate(id); err != nil {
+		log.WarnContext(ctx, "handler UpdateOrderStatus invalid order_id UUID", slog.String("order_id", id), slog.Any("err", err))
+		h.rs.Error(ctx, w, http.StatusBadRequest, "UpdateOrderStatus", domain.ErrRequestParams, errors.New("invalid order_id UUID format"))
+		return
+	}
+
 	userID, ok := r.Context().Value(middlewares.UserIDKey).(string)
 	if !ok || userID == "" {
 		log.WarnContext(ctx, "handler UpdateOrderStatus unauthorized")
