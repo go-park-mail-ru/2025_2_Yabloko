@@ -12,9 +12,3 @@ FROM
     store_item si
     INNER JOIN item i ON i.id = si.item_id
     LEFT JOIN item_type it ON it.item_id = i.id
-GROUP BY
-    si.id,
-    i.name,
-    si.price,
-    i.description,
-    i.card_img

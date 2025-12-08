@@ -141,7 +141,13 @@ func (r *ItemRepoPostgres) GetItems(ctx context.Context, filter *domain.ItemFilt
 
 	where, args := qb.BuildWhere()
 
-	query := getItemsQuery + where
+	query := getItemsQuery + where + `
+	GROUP BY
+    si.id,
+    i.name,
+    si.price,
+    i.description,
+    i.card_img`
 
 	orderClauses := []string{}
 	if filter.Sorted != "" {
