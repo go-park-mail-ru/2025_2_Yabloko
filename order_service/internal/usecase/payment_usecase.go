@@ -4,6 +4,7 @@ import (
 	"apple_backend/order_service/internal/domain"
 	"apple_backend/order_service/internal/infrastructure/yookassa"
 	"apple_backend/pkg/logger"
+	"apple_backend/pkg/metrics"
 	"apple_backend/pkg/money"
 	"context"
 	"errors"
@@ -34,6 +35,7 @@ func NewPaymentUsecase(paymentRepo PaymentRepository, orderRepo OrderRepository,
 		yookassa:    yookassa,
 	}
 }
+
 func (uc *PaymentUsecase) CreatePayment(ctx context.Context, req *domain.PaymentCreateRequest, userID string) (*domain.YookassaPaymentResponse, error) {
 	log := logger.FromContext(ctx)
 
@@ -95,11 +97,12 @@ func (uc *PaymentUsecase) CreatePayment(ctx context.Context, req *domain.Payment
 		Metadata:    yookassaReq.Metadata,
 	}
 	if err := uc.paymentRepo.Create(ctx, payment); err != nil {
-		// Если БД упала — платёж в ЮKassa остался.
-		// В идеале: логировать алерт + retry в фоне.
-		// Для MVP — возвращаем клиенту confirmation_url (он сможет оплатить).
 		log.ErrorContext(ctx, "payment saved in Yookassa but not in DB", slog.Any("err", err))
+		// метрику всё равно считаем, т.к. платёж реально создан во внешней системе
 	}
+
+	// 5. Бизнес-метрика: платёж создан (по начальному статусу ЮKassa "pending")
+	metrics.PaymentsCreatedTotal.WithLabelValues(paymentResp.Status).Inc()
 
 	return paymentResp, nil
 }
@@ -110,8 +113,6 @@ func (uc *PaymentUsecase) HandleWebhook(ctx context.Context, webhook *domain.Pay
 	payment, err := uc.paymentRepo.GetByYookassaID(ctx, webhook.Object.ID)
 	if err != nil {
 		if errors.Is(err, domain.ErrRowsNotFound) {
-			// Платёж ещё не сохранён в БД (гонка: webhook пришёл раньше Create)
-			// Логируем и выходим — вебхук пришлётся повторно через 5-10 мин.
 			log.WarnContext(ctx, "payment not found in DB, webhook will retry",
 				slog.String("yookassa_id", webhook.Object.ID))
 			return nil
@@ -124,7 +125,16 @@ func (uc *PaymentUsecase) HandleWebhook(ctx context.Context, webhook *domain.Pay
 		return err
 	}
 
-	if newStatus == domain.PaymentSucceeded {
+	// Метрики по итоговому статусу платежа
+	statusStr := string(newStatus)
+	switch statusStr {
+	case "succeeded":
+		metrics.PaymentsSucceededTotal.Inc()
+	case "canceled", "expired", "refunded":
+		metrics.PaymentsFailedTotal.WithLabelValues(statusStr).Inc()
+	}
+
+	if statusStr == "succeeded" {
 		if err := uc.orderRepo.UpdateOrderStatus(ctx, payment.OrderID, "paid"); err != nil {
 			log.ErrorContext(ctx, "failed to update order status", slog.Any("err", err))
 		}

@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"apple_backend/pkg/httpx"
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/trace"
 	"log/slog"
@@ -14,25 +15,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-	bytes  int
-}
-
-func (w *statusWriter) WriteHeader(code int) {
-	w.status = code
-	w.ResponseWriter.WriteHeader(code)
-}
-func (w *statusWriter) Write(b []byte) (int, error) {
-	if w.status == 0 {
-		w.status = http.StatusOK
-	}
-	n, err := w.ResponseWriter.Write(b)
-	w.bytes += n
-	return n, err
-}
-
 func AccessLog(baseLogger logger.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqID := r.Header.Get("X-Request-Id")
@@ -40,12 +22,10 @@ func AccessLog(baseLogger logger.Logger, next http.Handler) http.Handler {
 			reqID = uuid.NewString()
 		}
 
-		// set request id in trace and response header
 		ctx := trace.SetRequestID(r.Context(), reqID)
 		ctx = logger.ContextWithRequestID(ctx, reqID)
 		w.Header().Set("X-Request-Id", reqID)
 
-		// create per-request logger and put into context
 		reqLogger := baseLogger.With(
 			slog.String("request_id", reqID),
 			slog.String("method", r.Method),
@@ -57,16 +37,21 @@ func AccessLog(baseLogger logger.Logger, next http.Handler) http.Handler {
 		ctx = logger.ContextWithLogger(ctx, reqLogger)
 		r = r.WithContext(ctx)
 
-		sw := &statusWriter{ResponseWriter: w}
+		sw := httpx.NewStatusWriter(w)
 		start := time.Now()
 
 		reqLogger.InfoContext(ctx, "request started")
 		next.ServeHTTP(sw, r)
 
 		duration := time.Since(start)
+		statusCode := sw.Status
+		if statusCode == 0 {
+			statusCode = http.StatusOK
+		}
+
 		reqLogger.InfoContext(ctx, "request completed",
-			slog.Int("status", sw.status),
-			slog.Int("bytes", sw.bytes),
+			slog.Int("status", statusCode),
+			slog.Int("bytes", sw.Bytes),
 			slog.Int64("duration_ms", duration.Milliseconds()),
 			slog.Float64("duration_seconds", duration.Seconds()))
 	})

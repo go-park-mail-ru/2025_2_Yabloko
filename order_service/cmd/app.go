@@ -3,14 +3,16 @@ package cmd
 import (
 	"apple_backend/order_service/internal/config"
 	shttp "apple_backend/order_service/internal/delivery/http"
-	"apple_backend/order_service/internal/delivery/middlewares"
 	"apple_backend/pkg/logger"
+	"apple_backend/pkg/metrics"
+	"apple_backend/pkg/middlewares"
 	"context"
 	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func Run() {
@@ -45,6 +47,12 @@ func Run() {
 		logger.Global(),
 		middlewares.CorsMiddleware(mux),
 	)
+
+	metricsHandler := metrics.HTTPMetricsMiddleware("order_service", handler)
+
+	rootMux := http.NewServeMux()
+	rootMux.Handle("/metrics", promhttp.Handler())
+	rootMux.Handle("/", metricsHandler)
 
 	addr := fmt.Sprintf("0.0.0.0:%s", conf.AppPort)
 	log.Printf("Order service running on http://localhost:%s", conf.AppPort)

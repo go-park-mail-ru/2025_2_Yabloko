@@ -158,6 +158,8 @@ func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*doma
 
 	var order domain.OrderInfo
 	var items []*domain.OrderItemInfo
+	var storeID, storeName string
+
 	for rows.Next() {
 		var item domain.OrderItemInfo
 		err = rows.Scan(
@@ -165,8 +167,8 @@ func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*doma
 			&order.Total,
 			&order.Status,
 			&order.CreatedAt,
-			&order.StoreID,
-			&order.StoreName,
+			&storeID,
+			&storeName,
 			&item.ID,
 			&item.Name,
 			&item.CardImg,
@@ -191,6 +193,9 @@ func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*doma
 	}
 
 	order.Items = items
+	order.StoreID = storeID
+	order.StoreName = storeName
+
 	log.DebugContext(ctx, "repo GetOrder success", slog.String("order_id", orderID), slog.Int("items_count", len(items)))
 	return &order, nil
 }
@@ -220,7 +225,14 @@ func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, filter *domain.Or
 	var orders []*domain.Order
 	for rows.Next() {
 		var order domain.Order
-		err = rows.Scan(&order.ID, &order.Status, &order.Total, &order.CreatedAt, &order.StoreID, &order.StoreName)
+		err = rows.Scan(
+			&order.ID,
+			&order.Status,
+			&order.Total,
+			&order.CreatedAt,
+			&order.StoreID,
+			&order.StoreName,
+		)
 		if err != nil {
 			log.ErrorContext(ctx, "repo GetOrdersUser scan failed",
 				slog.String("user_id", filter.UserID), slog.Any("err", err))
@@ -237,7 +249,7 @@ func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, filter *domain.Or
 
 	if len(orders) == 0 {
 		log.DebugContext(ctx, "repo GetOrdersUser no orders found", slog.String("user_id", filter.UserID))
-		return nil, domain.ErrRowsNotFound
+		return []*domain.Order{}, nil
 	}
 
 	log.DebugContext(ctx, "repo GetOrdersUser success",

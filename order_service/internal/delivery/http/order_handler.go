@@ -148,8 +148,6 @@ func (h *OrderHandler) GetOrdersUser(w http.ResponseWriter, r *http.Request) {
 		log.ErrorContext(ctx, "handler GetOrdersUser failed", slog.Any("err", err))
 
 		switch {
-		case errors.Is(err, domain.ErrRowsNotFound):
-			h.rs.Error(ctx, w, http.StatusNotFound, "GetOrdersUser", domain.ErrRowsNotFound, err)
 		case errors.Is(err, domain.ErrRequestParams):
 			h.rs.Error(ctx, w, http.StatusBadRequest, "GetOrdersUser", domain.ErrRequestParams, err)
 		case errors.Is(err, domain.ErrInternalServer):

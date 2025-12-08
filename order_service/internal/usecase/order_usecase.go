@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"apple_backend/order_service/internal/domain"
+	"apple_backend/pkg/metrics"
 	"context"
 	"errors"
 	"fmt"
@@ -26,14 +27,28 @@ func NewOrderUsecase(repo OrderRepository) *OrderUsecase {
 func (uc *OrderUsecase) CreateOrder(ctx context.Context, userID string) (*domain.OrderInfo, error) {
 	orderID, err := uc.repo.CreateOrder(ctx, userID)
 	if err != nil {
-		// сохраняем доменные ошибки из repository
 		if errors.Is(err, domain.ErrCartEmpty) || errors.Is(err, domain.ErrRowsNotFound) {
 			return nil, err
 		}
-		// Остальные ошибки - внутренние
 		return nil, domain.ErrInternalServer
 	}
-	return uc.repo.GetOrder(ctx, orderID)
+
+	orderInfo, err := uc.repo.GetOrder(ctx, orderID)
+	if err != nil {
+		if errors.Is(err, domain.ErrRowsNotFound) {
+			return nil, err
+		}
+		return nil, domain.ErrInternalServer
+	}
+
+	// бизнес-метрика: успешное создание заказа
+	storeID := orderInfo.StoreID
+	if storeID == "" {
+		storeID = "unknown"
+	}
+	metrics.OrdersCreatedTotal.WithLabelValues(storeID).Inc()
+
+	return orderInfo, nil
 }
 
 func (uc *OrderUsecase) UpdateOrderStatus(ctx context.Context, orderID, userID, status string) error {
@@ -69,7 +84,16 @@ func (uc *OrderUsecase) UpdateOrderStatus(ctx context.Context, orderID, userID, 
 
 	if status == "cancelled" {
 		if currentOrder.Status == "pending" {
-			return uc.repo.UpdateOrderStatus(ctx, orderID, "cancelled")
+			if err := uc.repo.UpdateOrderStatus(ctx, orderID, "cancelled"); err != nil {
+				if errors.Is(err, domain.ErrRowsNotFound) {
+					return err
+				}
+				return domain.ErrInternalServer
+			}
+
+			// бизнес-метрика: успешная отмена заказа
+			metrics.OrdersCanceledTotal.Inc()
+			return nil
 		}
 		return fmt.Errorf("cannot cancel order in status '%s'", currentOrder.Status)
 	}
