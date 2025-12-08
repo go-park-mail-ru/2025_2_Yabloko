@@ -39,7 +39,7 @@ func Run() {
 	logger.Global().Info("starting embedding synchronization")
 	if err := SyncAllEmbeddings(context.Background(), dbPool, embeddingClient, logger.Global()); err != nil {
 		logger.Global().Error("embedding synchronization failed", "err", err)
-		// os.Exit(1)
+		os.Exit(1)
 	}
 	logger.Global().Info("embedding synchronization completed")
 
