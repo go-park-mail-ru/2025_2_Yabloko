@@ -19,6 +19,8 @@ type OrderInfo struct {
 	Status    string           `json:"status"`
 	Total     float64          `json:"total"`
 	CreatedAt time.Time        `json:"created_at"`
+	StoreID   string           `json:"store_id"`
+	StoreName string           `json:"store_name"`
 } // @name OrderInfo
 
 type Order struct {
@@ -26,6 +28,8 @@ type Order struct {
 	Status    string    `json:"status"`
 	Total     float64   `json:"total"`
 	CreatedAt time.Time `json:"created_at"`
+	StoreID   string    `json:"store_id"`
+	StoreName string    `json:"store_name"`
 } // @name Order
 
 type Orders struct {
@@ -34,7 +38,7 @@ type Orders struct {
 
 type OrderStatus struct {
 	Status string `json:"status" validate:"required"`
-} // @name Orders
+} // @name OrderStatus
 
 func toOrderResponse(order *domain.Order) *Order {
 	return &Order{
@@ -42,6 +46,8 @@ func toOrderResponse(order *domain.Order) *Order {
 		Status:    order.Status,
 		Total:     order.Total,
 		CreatedAt: order.CreatedAt,
+		StoreID:   order.StoreID,
+		StoreName: order.StoreName,
 	}
 }
 
@@ -75,6 +81,8 @@ func ToOrderInfoResponse(orderInfo *domain.OrderInfo) *OrderInfo {
 		Status:    orderInfo.Status,
 		Total:     orderInfo.Total,
 		CreatedAt: orderInfo.CreatedAt,
+		StoreID:   orderInfo.StoreID,
+		StoreName: orderInfo.StoreName,
 	}
 	return order
 }

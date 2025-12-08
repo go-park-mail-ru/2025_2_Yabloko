@@ -3,7 +3,6 @@ package domain
 import "time"
 
 type OrderItemInfo struct {
-	// id - store_item_id
 	ID       string
 	Name     string
 	CardImg  string
@@ -17,6 +16,8 @@ type OrderInfo struct {
 	Status    string
 	Total     float64
 	CreatedAt time.Time
+	StoreID   string
+	StoreName string
 }
 
 type Order struct {
@@ -24,6 +25,8 @@ type Order struct {
 	Status    string
 	Total     float64
 	CreatedAt time.Time
+	StoreID   string
+	StoreName string
 }
 
 type OrderFilter struct {
@@ -31,5 +34,5 @@ type OrderFilter struct {
 	Limit  int
 	LastID string
 	Status string
-	Desc   bool // сортировка по убыванию (новые сначала)
+	Desc   bool
 }

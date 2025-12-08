@@ -165,6 +165,8 @@ func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*doma
 			&order.Total,
 			&order.Status,
 			&order.CreatedAt,
+			&order.StoreID,
+			&order.StoreName,
 			&item.ID,
 			&item.Name,
 			&item.CardImg,
@@ -218,7 +220,7 @@ func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, filter *domain.Or
 	var orders []*domain.Order
 	for rows.Next() {
 		var order domain.Order
-		err = rows.Scan(&order.ID, &order.Status, &order.Total, &order.CreatedAt)
+		err = rows.Scan(&order.ID, &order.Status, &order.Total, &order.CreatedAt, &order.StoreID, &order.StoreName)
 		if err != nil {
 			log.ErrorContext(ctx, "repo GetOrdersUser scan failed",
 				slog.String("user_id", filter.UserID), slog.Any("err", err))

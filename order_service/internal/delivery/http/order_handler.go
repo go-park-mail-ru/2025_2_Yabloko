@@ -92,7 +92,8 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 
 	log.InfoContext(ctx, "handler CreateOrder success",
 		slog.String("order_id", orderInfo.ID),
-		slog.Int("items_count", len(orderInfo.Items)))
+		slog.Int("items_count", len(orderInfo.Items)),
+		slog.String("store_id", orderInfo.StoreID))
 
 	order := transport.ToOrderInfoResponse(orderInfo)
 	h.rs.Send(ctx, w, http.StatusOK, order)
@@ -184,7 +185,7 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.InfoContext(ctx, "handler GetOrder success", slog.String("order_id", id))
+	log.InfoContext(ctx, "handler GetOrder success", slog.String("order_id", id), slog.String("store_id", order.StoreID))
 	orderInfo := transport.ToOrderInfoResponse(order)
 	h.rs.Send(ctx, w, http.StatusOK, orderInfo)
 }
