@@ -31,6 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libstdc++6 \
     libgomp1 \
+    grpcurl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build-stage /usr/local/lib/libonnxruntime.so* /usr/local/lib/

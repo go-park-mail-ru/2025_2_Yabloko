@@ -12,6 +12,8 @@ services:
       - "${DB_PORT}:5432"
     volumes:
       - db_data:/var/lib/postgresql
+    networks:
+      - backend
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}" ]
       interval: 2s
@@ -36,6 +38,8 @@ services:
     volumes:
       - ./db/migrations:/migrations
     env_file: [ .env ]
+    networks:
+      - backend
     command: [ "migrate", "-m", "/migrations", "-c", "/migrations/tern.conf", "up" ]
     restart: "no"
     environment:
@@ -54,6 +58,8 @@ services:
     ports:
       - "${AUTH_PORT}:${AUTH_PORT}"
     env_file: [ .env ]
+    networks:
+      - backend
     environment:
       DB_HOST: ${DB_HOST}
       DB_PORT: ${DB_PORT}
@@ -84,6 +90,8 @@ services:
     ports:
       - "${PROFILE_SERVICE_PORT}:${PROFILE_SERVICE_PORT}"
     env_file: [ .env ]
+    networks:
+      - backend
     environment:
       POSTGRES_HOST: ${DB_HOST}
       POSTGRES_PORT: ${DB_PORT}
@@ -118,7 +126,7 @@ services:
       auth_service:
         condition: service_started
       embedding_service:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "${STORE_SERVICE_PORT}:${STORE_SERVICE_PORT}"
     env_file: [ .env ]
@@ -132,6 +140,7 @@ services:
       DB_NAME: ${DB_NAME}
       APP_PORT: "${STORE_SERVICE_PORT}"
       AUTH_URL: http://auth_service:${AUTH_PORT}
+      EMBEDDING_SERVICE_ADDR: ${EMBEDDING_SERVICE_ADDR}
       SECRET_KEY: ${SECRET_KEY}
       CSRF_SECRET: ${CSRF_SECRET}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
@@ -160,6 +169,8 @@ services:
     ports:
       - "${ORDER_SERVICE_PORT}:${ORDER_SERVICE_PORT}"
     env_file: [ .env ]
+    networks:
+      - backend
     environment:
       POSTGRES_HOST: ${DB_HOST}
       POSTGRES_PORT: ${DB_PORT}
@@ -184,6 +195,8 @@ services:
       dockerfile: ./embedding_service/Dockerfile
     container_name: embedding_service
     env_file: [ .env ]
+    networks:
+      - backend
     environment:
       - GRPC_PORT=${GRPC_PORT}
       - MODEL_PATH=${MODEL_PATH}
@@ -195,8 +208,6 @@ services:
     labels:
       - "service.type=embedding"
       - "log.format=json"
-    networks:
-      - backend
     healthcheck:
       test: [ "CMD", "grpcurl", "-plaintext", "localhost:50051", "embedding.v1.EmbeddingService/Health" ]
       interval: 5s
@@ -208,6 +219,8 @@ services:
     container_name: doozle
     ports:
       - "${DOZZLE_PORT}:8080"
+    networks:
+      - backend
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
