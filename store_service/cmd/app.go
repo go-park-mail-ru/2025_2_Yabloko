@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -27,11 +28,12 @@ func Run() {
 
 	embeddingClient, err := client.NewGRPCEmbeddingClient(conf.EmbeddingServiceAddr, logger.Global())
 	if err != nil {
-		logger.Global().Warn("embedding service unavailable, using noop",
+		logger.Global().Error("CRITICAL: embedding client creation failed - sync will fail",
 			"addr", conf.EmbeddingServiceAddr,
 			"err", err,
+			"err_type", fmt.Sprintf("%T", err),
 		)
-		// os.Exit(1)
+		os.Exit(1)
 	}
 
 	logger.Global().Info("starting embedding synchronization")

@@ -45,14 +45,24 @@ func SyncAllEmbeddings(
 		}
 	}()
 
-	wg.Wait()
-	close(errCh)
+	go func() {
+		wg.Wait()
+		close(errCh)
+	}()
 
+	var errs []error
 	for err := range errCh {
 		if err != nil {
-			log.Error("embedding sync error in channel", "err", err) // ← И ТУТ!
-			return err
+			errs = append(errs, err)
 		}
+	}
+
+	if len(errs) > 0 {
+		log.Error("embedding synchronization had errors",
+			"total_errors", len(errs),
+			"errors", fmt.Sprintf("%v", errs),
+		)
+		return fmt.Errorf("embedding sync completed with %d errors: %v", len(errs), errs)
 	}
 
 	return nil
@@ -85,7 +95,12 @@ func syncStoresEmbeddings(
 	for i, store := range stores {
 		select {
 		case <-ctx.Done():
-			log.Warn("sync interrupted", "processed", i, "total", len(stores))
+			log.Warn("sync interrupted",
+				"processed", i,
+				"total", len(stores),
+				"success", successCount,
+				"failed", failCount,
+			)
 			return ctx.Err()
 		default:
 		}
@@ -96,6 +111,15 @@ func syncStoresEmbeddings(
 				"id", store.ID,
 				"name", store.Name,
 				"err", err,
+			)
+			failCount++
+			continue
+		}
+
+		if len(embedding) == 0 {
+			log.Warn("received empty embedding for store",
+				"id", store.ID,
+				"name", store.Name,
 			)
 			failCount++
 			continue
@@ -128,6 +152,10 @@ func syncStoresEmbeddings(
 		"failed", failCount,
 	)
 
+	if successCount == 0 && len(stores) > 0 {
+		return fmt.Errorf("failed to sync any stores: %d/%d", failCount, len(stores))
+	}
+
 	return nil
 }
 
@@ -158,7 +186,12 @@ func syncItemsEmbeddings(
 	for i, item := range items {
 		select {
 		case <-ctx.Done():
-			log.Warn("sync interrupted", "processed", i, "total", len(items))
+			log.Warn("sync interrupted",
+				"processed", i,
+				"total", len(items),
+				"success", successCount,
+				"failed", failCount,
+			)
 			return ctx.Err()
 		default:
 		}
@@ -170,6 +203,15 @@ func syncItemsEmbeddings(
 				"id", item.ID,
 				"name", item.Name,
 				"err", err,
+			)
+			failCount++
+			continue
+		}
+
+		if len(embedding) == 0 {
+			log.Warn("received empty embedding for item",
+				"id", item.ID,
+				"name", item.Name,
 			)
 			failCount++
 			continue
@@ -201,6 +243,10 @@ func syncItemsEmbeddings(
 		"success", successCount,
 		"failed", failCount,
 	)
+
+	if successCount == 0 && len(items) > 0 {
+		return fmt.Errorf("failed to sync any items: %d/%d", failCount, len(items))
+	}
 
 	return nil
 }

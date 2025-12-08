@@ -122,6 +122,8 @@ services:
     ports:
       - "${STORE_SERVICE_PORT}:${STORE_SERVICE_PORT}"
     env_file: [ .env ]
+    networks:
+      - backend
     environment:
       POSTGRES_HOST: ${DB_HOST}
       POSTGRES_PORT: ${DB_PORT}
@@ -193,6 +195,8 @@ services:
     labels:
       - "service.type=embedding"
       - "log.format=json"
+    networks:
+      - backend
     healthcheck:
       test: [ "CMD", "grpcurl", "-plaintext", "localhost:50051", "embedding.v1.EmbeddingService/Health" ]
       interval: 5s
@@ -211,3 +215,7 @@ services:
 
 volumes:
   db_data: {}
+
+networks:
+  backend:
+    driver: bridge
