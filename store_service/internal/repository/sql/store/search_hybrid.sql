@@ -1,4 +1,4 @@
-bm25_search AS (
+WITH bm25_search AS (
     SELECT
         s.id,
         ts_rank(s.search_vector, to_tsquery('russian', $1)) as bm25_score
@@ -19,13 +19,14 @@ semantic_search AS (
         s.embedding <=> $2::vector
     LIMIT
         100
-), combined_results AS (
+),
+combined_results AS (
     SELECT
         COALESCE(b.id, s.id) as store_id,
         COALESCE(b.bm25_score, 0) * $3::float8 + COALESCE(s.semantic_score, 0) * $4::float8 as combined_score
     FROM
-        bm25_search b FULL
-        OUTER JOIN semantic_search s ON b.id = s.id
+        bm25_search b 
+    FULL OUTER JOIN semantic_search s ON b.id = s.id
 )
 SELECT
     s.id,
