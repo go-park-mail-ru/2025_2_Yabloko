@@ -17,6 +17,6 @@ FROM
     JOIN item i ON i.id = si.item_id
     JOIN store s ON s.id = si.store_id
 WHERE
-    o.id = $ 1::uuid
+    o.id = $1::uuid
 ORDER BY
     oi.created_at;
