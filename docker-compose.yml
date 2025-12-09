@@ -1,4 +1,21 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - backend
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
   db:
     image: pgvector/pgvector:pg18
     container_name: db
@@ -55,6 +72,8 @@ services:
         condition: service_healthy
       migrator:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     ports:
       - "${AUTH_PORT}:${AUTH_PORT}"
     env_file: [ .env ]
@@ -166,6 +185,8 @@ services:
         condition: service_completed_successfully
       auth_service:
         condition: service_started
+      redis:
+        condition: service_healthy
     ports:
       - "${ORDER_SERVICE_PORT}:${ORDER_SERVICE_PORT}"
     env_file: [ .env ]
@@ -287,6 +308,7 @@ services:
 
 volumes:
   db_data: {}
+  redis_data: {}
 
 networks:
   backend:

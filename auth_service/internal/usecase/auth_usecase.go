@@ -3,7 +3,9 @@ package usecase
 import (
 	"apple_backend/auth_service/internal/delivery/transport"
 	"apple_backend/auth_service/internal/domain"
+	"apple_backend/pkg/blacklist"
 	"context"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -22,11 +24,23 @@ type AuthRepository interface {
 
 type authUseCase struct {
 	repo      AuthRepository
+	blacklist blacklist.TokenBlacklist
 	jwtSecret []byte
+	logger    *slog.Logger
 }
 
-func NewAuthUseCase(repo AuthRepository, secretKey string) *authUseCase {
-	return &authUseCase{repo: repo, jwtSecret: []byte(secretKey)}
+func NewAuthUseCase(
+	repo AuthRepository,
+	tb blacklist.TokenBlacklist,
+	secretKey string,
+	logger *slog.Logger,
+) *authUseCase {
+	return &authUseCase{
+		repo:      repo,
+		blacklist: tb,
+		jwtSecret: []byte(secretKey),
+		logger:    logger,
+	}
 }
 
 func (uc *authUseCase) Register(ctx context.Context, email, password string) (*transport.AuthResult, error) {
@@ -84,6 +98,16 @@ func (uc *authUseCase) Login(ctx context.Context, email, password string) (*tran
 }
 
 func (uc *authUseCase) RefreshToken(ctx context.Context, tokenString string) (*transport.AuthResult, error) {
+	isBlacklisted, err := uc.blacklist.IsBlacklisted(ctx, tokenString)
+	if err != nil {
+		uc.logger.ErrorContext(ctx, "blacklist check failed", slog.Any("err", err))
+		return nil, err
+	}
+	if isBlacklisted {
+		uc.logger.WarnContext(ctx, "attempt to refresh blacklisted token")
+		return nil, domain.ErrTokenBlacklisted
+	}
+
 	claims, err := uc.VerifyToken(ctx, tokenString)
 	if err != nil {
 		return nil, err
@@ -97,8 +121,10 @@ func (uc *authUseCase) RefreshToken(ctx context.Context, tokenString string) (*t
 		return nil, err
 	}
 	return &transport.AuthResult{
-		UserID: user.ID, Email: user.Email,
-		Token: newTok, Expires: time.Now().Add(24 * time.Hour),
+		UserID:  user.ID,
+		Email:   user.Email,
+		Token:   newTok,
+		Expires: time.Now().Add(24 * time.Hour),
 	}, nil
 }
 
@@ -118,7 +144,23 @@ func (uc *authUseCase) VerifyToken(ctx context.Context, tokenString string) (*tr
 	return nil, domain.ErrInvalidToken
 }
 
-/* validation + helpers */
+func (uc *authUseCase) LogoutToken(ctx context.Context, tokenString string) error {
+	claims, err := uc.VerifyToken(ctx, tokenString)
+	if err != nil {
+		uc.logger.WarnContext(ctx, "logout with invalid token", slog.Any("err", err))
+		return nil
+	}
+
+	expiresAt := time.Unix(claims.ExpiresAt.Unix(), 0)
+	err = uc.blacklist.InsertToBlacklist(ctx, tokenString, expiresAt)
+	if err != nil {
+		uc.logger.ErrorContext(ctx, "failed to blacklist token", slog.Any("err", err))
+		return err
+	}
+
+	uc.logger.InfoContext(ctx, "token blacklisted on logout", slog.String("user_id", claims.UserID))
+	return nil
+}
 
 func (uc *authUseCase) ValidateEmail(ctx context.Context, email string) error {
 	return uc.validateEmailFormat(email)

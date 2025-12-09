@@ -13,4 +13,5 @@ var (
 	ErrRequestParams     = errors.New("переданы некорректные параметры запроса")
 	ErrInternalServer    = errors.New("произошла внутренняя ошибка сервера")
 	ErrUnauthorized      = errors.New("требуется авторизация для доступа к ресурсу")
+	ErrTokenBlacklisted  = errors.New("токен находится в чёрном списке")
 )

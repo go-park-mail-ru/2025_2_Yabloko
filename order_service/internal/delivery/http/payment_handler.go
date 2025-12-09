@@ -7,6 +7,7 @@ import (
 	"apple_backend/order_service/internal/infrastructure/yookassa"
 	"apple_backend/order_service/internal/repository"
 	"apple_backend/order_service/internal/usecase"
+	"apple_backend/pkg/blacklist"
 	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/middlewares"
@@ -45,7 +46,7 @@ func NewPaymentHandler(uc PaymentUsecaseInterface, secret string) *PaymentHandle
 	}
 }
 
-func NewPaymentRouter(mux *http.ServeMux, db *pgxpool.Pool, config *config.Config, apiPrefix string) {
+func NewPaymentRouter(mux *http.ServeMux, tb blacklist.TokenBlacklist, db *pgxpool.Pool, config *config.Config, apiPrefix string) {
 	paymentRepo := repository.NewPaymentRepoPostgres(db)
 	orderRepo := repository.NewOrderRepoPostgres(db)
 	yookassaClient := yookassa.NewClient(config.YookassaBaseURL, config.YookassaShopID, config.YookassaSecret)
@@ -68,7 +69,9 @@ func NewPaymentRouter(mux *http.ServeMux, db *pgxpool.Pool, config *config.Confi
 	})
 	protectedMux.HandleFunc(apiPrefix+"payments/order/{id}", paymentHandler.GetPaymentByOrderID)
 
-	protectedHandler := middlewares.AuthMiddleware(protectedMux, config.JWTSecret)
+	authMiddleware := middlewares.AuthMiddleware(tb, config.JWTSecret, logger.Global())
+	protectedHandler := authMiddleware(protectedMux)
+
 	mux.Handle(apiPrefix+"payments", protectedHandler)
 	mux.Handle(apiPrefix+"payments/", protectedHandler)
 }

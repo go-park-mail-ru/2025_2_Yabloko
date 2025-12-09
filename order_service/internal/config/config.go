@@ -14,6 +14,8 @@ type Config struct {
 	DBPort     string `validate:"required"`
 	DBName     string `validate:"required"`
 
+	RedisURL string `validate:"required"`
+
 	AppPort string `validate:"required"`
 
 	JWTSecret string `validate:"required"`
@@ -32,6 +34,7 @@ func MustConfig() *Config {
 		DBName:     os.Getenv("DB_NAME"),
 		AppPort:    os.Getenv("ORDER_SERVICE_PORT"),
 		JWTSecret:  os.Getenv("SECRET_KEY"),
+		RedisURL:   getEnv("REDIS_URL", "localhost:6379"),
 
 		YookassaShopID:  os.Getenv("YOOKASSA_SHOP_ID"),
 		YookassaSecret:  os.Getenv("YOOKASSA_SECRET_KEY"),

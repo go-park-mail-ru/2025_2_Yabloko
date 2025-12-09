@@ -1,11 +1,11 @@
 package http
 
 import (
-	"apple_backend/auth_service/internal/delivery/middlewares"
 	"apple_backend/auth_service/internal/delivery/transport"
 	"apple_backend/auth_service/internal/domain"
 	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
+	"apple_backend/pkg/middlewares"
 	"context"
 	"encoding/json"
 	"log/slog"
@@ -22,6 +22,7 @@ type AuthUseCaseInterface interface {
 	VerifyToken(ctx context.Context, tokenString string) (*transport.Claims, error)
 	ValidateEmail(ctx context.Context, email string) error
 	GetUserByID(ctx context.Context, userID string) (*domain.User, error)
+	LogoutToken(ctx context.Context, tokenString string) error
 }
 
 type AuthHandler struct {
@@ -215,6 +216,13 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		log.WarnContext(ctx, "handler Logout wrong method")
 		h.rs.Error(ctx, w, http.StatusMethodNotAllowed, "Logout", domain.ErrHTTPMethod, nil)
 		return
+	}
+
+	c, err := r.Cookie("jwt_token")
+	if err == nil && c.Value != "" {
+		if err := h.uc.LogoutToken(ctx, c.Value); err != nil {
+			log.ErrorContext(ctx, "failed to blacklist token", slog.Any("err", err))
+		}
 	}
 
 	clearAuthCookie(w)

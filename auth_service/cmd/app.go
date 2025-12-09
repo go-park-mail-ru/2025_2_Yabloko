@@ -3,16 +3,18 @@ package cmd
 import (
 	"apple_backend/auth_service/internal/config"
 	authhttp "apple_backend/auth_service/internal/delivery/http"
-	authmw "apple_backend/auth_service/internal/delivery/middlewares"
 	"apple_backend/auth_service/internal/repository"
 	"apple_backend/auth_service/internal/usecase"
+	"apple_backend/pkg/blacklist"
 	"apple_backend/pkg/logger"
+	authmw "apple_backend/pkg/middlewares"
 	"context"
 	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 func csrfHandler(w http.ResponseWriter, r *http.Request) {
@@ -32,8 +34,19 @@ func Run() {
 	}
 	defer dbPool.Close()
 
-	repo := repository.NewAuthRepoPostgres(dbPool)
-	uc := usecase.NewAuthUseCase(repo, conf.SecretKeyStr())
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: conf.RedisURL,
+	})
+	defer redisClient.Close()
+
+	if err := redisClient.Ping(context.Background()).Err(); err != nil {
+		log.Fatal("Redis connection failed:", err)
+	}
+
+	authRepo := repository.NewAuthRepoPostgres(dbPool)
+	tokenBlacklist := blacklist.NewRedisTokenBlacklist(redisClient)
+
+	uc := usecase.NewAuthUseCase(authRepo, tokenBlacklist, conf.SecretKeyStr(), logger.Global())
 
 	authMux := http.NewServeMux()
 	authMux.Handle("/csrf", http.HandlerFunc(csrfHandler))

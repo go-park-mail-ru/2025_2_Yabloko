@@ -3,6 +3,7 @@ package cmd
 import (
 	"apple_backend/order_service/internal/config"
 	shttp "apple_backend/order_service/internal/delivery/http"
+	"apple_backend/pkg/blacklist"
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/metrics"
 	"apple_backend/pkg/middlewares"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
 )
 
 func Run() {
@@ -25,6 +27,17 @@ func Run() {
 	}
 	defer dbPool.Close()
 
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: conf.RedisURL,
+	})
+	defer redisClient.Close()
+
+	if err := redisClient.Ping(context.Background()).Err(); err != nil {
+		log.Fatal("Redis connection failed:", err)
+	}
+
+	tokenBlacklist := blacklist.NewRedisTokenBlacklist(redisClient)
+
 	openMux := http.NewServeMux()
 	// TODO Cut fake handler
 	fakeHandler := shttp.NewFakePaymentHandler()
@@ -32,15 +45,15 @@ func Run() {
 
 	protectedMux := http.NewServeMux()
 	shttp.NewOrderRouter(protectedMux, dbPool, apiV0Prefix)
-	shttp.NewPaymentRouter(protectedMux, dbPool, conf, apiV0Prefix)
+	shttp.NewPaymentRouter(protectedMux, tokenBlacklist, dbPool, conf, apiV0Prefix)
 
-	protectedHandler := middlewares.AuthMiddleware(protectedMux, conf.JWTSecret)
+	protectedHandler := middlewares.AuthMiddleware(tokenBlacklist, conf.JWTSecret, logger.Global())
 
 	mux := http.NewServeMux()
-	mux.Handle(apiV0Prefix+"orders", protectedHandler)
-	mux.Handle(apiV0Prefix+"orders/", protectedHandler)
-	mux.Handle(apiV0Prefix+"payments", protectedHandler)
-	mux.Handle(apiV0Prefix+"payments/", protectedHandler)
+	mux.Handle(apiV0Prefix+"orders", protectedHandler(protectedMux))
+	mux.Handle(apiV0Prefix+"orders/", protectedHandler(protectedMux))
+	mux.Handle(apiV0Prefix+"payments", protectedHandler(protectedMux))
+	mux.Handle(apiV0Prefix+"payments/", protectedHandler(protectedMux))
 	mux.Handle(apiV0Prefix, openMux)
 
 	handler := middlewares.AccessLog(
