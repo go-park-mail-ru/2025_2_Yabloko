@@ -1,14 +1,11 @@
-WITH bm25_search AS (
+bm25_search AS (
     SELECT
         s.id,
-        ts_rank(
-            to_tsvector('russian', s.name || ' ' || s.description),
-            to_tsquery('russian', $1)
-        ) as bm25_score
+        ts_rank(s.search_vector, to_tsquery('russian', $1)) as bm25_score
     FROM
         store s
     WHERE
-        to_tsvector('russian', s.name || ' ' || s.description) @@ to_tsquery('russian', $1)
+        s.search_vector @@ to_tsquery('russian', $1)
 ),
 semantic_search AS (
     SELECT
