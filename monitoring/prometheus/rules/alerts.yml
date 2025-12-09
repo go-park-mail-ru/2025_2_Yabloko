@@ -1,0 +1,22 @@
+groups:
+  - name: order_service_alerts
+    rules:
+      - alert: OrderServiceHighErrorRate
+        expr: sum(rate(http_requests_total{service="order_service",status=~"Internal Server Error|Bad Gateway|Service Unavailable"}[5m]))
+              /
+              sum(rate(http_requests_total{service="order_service"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 5xx rate on order_service"
+          description: "More than 5% of requests to order_service are 5xx for 5 minutes."
+
+      - alert: OrderServiceDown
+        expr: up{job="order_service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "order_service is down"
+          description: "No metrics scraped from order_service for 1 minute."

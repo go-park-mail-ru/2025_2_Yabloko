@@ -1,0 +1,165 @@
+{
+    "id": null,
+    "uid": "vps-metrics",
+    "title": "VPS Metrics",
+    "tags": [
+        "node_exporter",
+        "prometheus"
+    ],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+        {
+            "type": "row",
+            "title": "CPU",
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 0
+            },
+            "collapsed": false,
+            "panels": []
+        },
+        {
+            "id": 1,
+            "type": "timeseries",
+            "title": "CPU usage",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 24,
+                "x": 0,
+                "y": 1
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percentunit",
+                    "min": 0,
+                    "max": 1
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[$__rate_interval])) by (instance)",
+                    "legendFormat": "{{instance}}",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "type": "row",
+            "title": "Memory",
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 9
+            },
+            "collapsed": false,
+            "panels": []
+        },
+        {
+            "id": 2,
+            "type": "timeseries",
+            "title": "Memory usage",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 24,
+                "x": 0,
+                "y": 10
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percentunit",
+                    "min": 0,
+                    "max": 1
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+                    "legendFormat": "memory usage",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "type": "row",
+            "title": "Disk",
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 18
+            },
+            "collapsed": false,
+            "panels": []
+        },
+        {
+            "id": 3,
+            "type": "timeseries",
+            "title": "Disk usage (root)",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 24,
+                "x": 0,
+                "y": 19
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percentunit",
+                    "min": 0,
+                    "max": 1
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "1 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})",
+                    "legendFormat": "disk /",
+                    "refId": "A"
+                }
+            ]
+        }
+    ],
+    "templating": {
+        "list": [
+            {
+                "name": "instance",
+                "type": "query",
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "Prometheus"
+                },
+                "query": "label_values(node_cpu_seconds_total, instance)",
+                "includeAll": true,
+                "multi": true,
+                "current": {
+                    "selected": false,
+                    "text": "All",
+                    "value": "$__all"
+                }
+            }
+        ]
+    },
+    "time": {
+        "from": "now-1h",
+        "to": "now"
+    }
+}

@@ -56,5 +56,5 @@ func Run() {
 
 	addr := fmt.Sprintf("0.0.0.0:%s", conf.AppPort)
 	log.Printf("Order service running on http://localhost:%s", conf.AppPort)
-	log.Fatal(http.ListenAndServe(addr, handler))
+	log.Fatal(http.ListenAndServe(addr, rootMux))
 }

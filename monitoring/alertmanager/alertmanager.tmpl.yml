@@ -1,0 +1,32 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: "telegram-main"
+  group_by: ["alertname", "service"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 3h
+
+receivers:
+  - name: "telegram-main"
+    telegram_configs:
+      - bot_token: "${ALERT_TELEGRAM_BOT_TOKEN}"
+        chat_id: ${ALERT_TELEGRAM_CHAT_ID}
+        parse_mode: "Markdown"
+        message: |-
+          🚨 STATUS: {{ .Status | toUpper }}
+          ALERT: {{ .CommonLabels.alertname }}
+          SEVERITY: {{ .CommonLabels.severity }}
+
+          {{- range .Alerts }}
+          SERVICE: {{ .Labels.service }}
+          INSTANCE: {{ .Labels.instance }}
+          {{- if .Annotations.summary }}
+          SUMMARY: {{ .Annotations.summary }}
+          {{- end }}
+          {{- if .Annotations.description }}
+          DESCRIPTION: {{ .Annotations.description }}
+          {{- end }}
+
+          {{- end }}

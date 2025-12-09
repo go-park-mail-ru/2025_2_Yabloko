@@ -36,3 +36,5 @@ db/migrations/*.txt
 .data
 
 .DS_Store
+
+monitoring/alertmanager/alertmanager.yml

@@ -1,0 +1,358 @@
+{
+    "id": null,
+    "uid": "order-service-metrics",
+    "title": "Order Service Metrics",
+    "tags": [
+        "order_service",
+        "prometheus"
+    ],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+        {
+            "type": "row",
+            "title": "HTTP",
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 0
+            },
+            "collapsed": false,
+            "panels": []
+        },
+        {
+            "id": 1,
+            "type": "timeseries",
+            "title": "RPS by method & path",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 1
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(http_requests_total{service=\"order_service\"}[$__rate_interval])) by (method, path)",
+                    "legendFormat": "{{method}} {{path}}",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "id": 2,
+            "type": "timeseries",
+            "title": "Error rate 5xx (%)",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 1
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percentunit",
+                    "min": 0,
+                    "max": 1
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(http_requests_total{service=\"order_service\",status=~\"Internal Server Error|Bad Gateway|Service Unavailable\"}[$__rate_interval]))\n/\nsum(rate(http_requests_total{service=\"order_service\"}[$__rate_interval]))",
+                    "legendFormat": "5xx error rate",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "id": 3,
+            "type": "timeseries",
+            "title": "P95 latency by path",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 24,
+                "x": 0,
+                "y": 9
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s",
+                    "min": 0
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=\"order_service\"}[$__rate_interval])) by (le, path))",
+                    "legendFormat": "{{path}}",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "type": "row",
+            "title": "Orders",
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 17
+            },
+            "collapsed": false,
+            "panels": []
+        },
+        {
+            "id": 4,
+            "type": "timeseries",
+            "title": "Orders created by store",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 12,
+                "x": 0,
+                "y": 18
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(orders_created_total[$__rate_interval])) by (store_id)",
+                    "legendFormat": "{{store_id}}",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "id": 5,
+            "type": "timeseries",
+            "title": "Order cancels",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 12,
+                "x": 12,
+                "y": 18
+            },
+            "targets": [
+                {
+                    "expr": "rate(orders_canceled_total[$__rate_interval])",
+                    "legendFormat": "cancels",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "id": 6,
+            "type": "timeseries",
+            "title": "Cancel ratio (orders)",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 24,
+                "x": 0,
+                "y": 25
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percentunit",
+                    "min": 0,
+                    "max": 1
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "rate(orders_canceled_total[1h]) / sum(rate(orders_created_total[1h]))",
+                    "legendFormat": "cancel_ratio",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "type": "row",
+            "title": "Payments",
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 32
+            },
+            "collapsed": false,
+            "panels": []
+        },
+        {
+            "id": 7,
+            "type": "timeseries",
+            "title": "Payments created by status",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 12,
+                "x": 0,
+                "y": 33
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(payments_created_total[$__rate_interval])) by (status)",
+                    "legendFormat": "{{status}}",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "id": 8,
+            "type": "timeseries",
+            "title": "Payments succeeded",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 12,
+                "x": 12,
+                "y": 33
+            },
+            "targets": [
+                {
+                    "expr": "rate(payments_succeeded_total[$__rate_interval])",
+                    "legendFormat": "succeeded",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "id": 9,
+            "type": "timeseries",
+            "title": "Payments failed by status",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 12,
+                "x": 0,
+                "y": 40
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(payments_failed_total[1h])) by (status)",
+                    "legendFormat": "{{status}}",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "id": 10,
+            "type": "timeseries",
+            "title": "Conversion: order → successful payment",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 12,
+                "x": 12,
+                "y": 40
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percentunit",
+                    "min": 0,
+                    "max": 1
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "rate(payments_succeeded_total[1h]) / sum(rate(orders_created_total[1h]))",
+                    "legendFormat": "conversion",
+                    "refId": "A"
+                }
+            ]
+        }
+    ],
+    "templating": {
+        "list": [
+            {
+                "name": "path",
+                "type": "query",
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "Prometheus"
+                },
+                "query": "label_values(http_requests_total{service=\"order_service\"}, path)",
+                "includeAll": true,
+                "multi": true,
+                "current": {
+                    "selected": false,
+                    "text": "All",
+                    "value": "$__all"
+                }
+            },
+            {
+                "name": "store_id",
+                "type": "query",
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "Prometheus"
+                },
+                "query": "label_values(orders_created_total, store_id)",
+                "includeAll": true,
+                "multi": true,
+                "current": {
+                    "selected": false,
+                    "text": "All",
+                    "value": "$__all"
+                }
+            },
+            {
+                "name": "payment_status",
+                "type": "query",
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "Prometheus"
+                },
+                "query": "label_values(payments_created_total, status)",
+                "includeAll": true,
+                "multi": true,
+                "current": {
+                    "selected": false,
+                    "text": "All",
+                    "value": "$__all"
+                }
+            }
+        ]
+    },
+    "time": {
+        "from": "now-1h",
+        "to": "now"
+    }
+}
