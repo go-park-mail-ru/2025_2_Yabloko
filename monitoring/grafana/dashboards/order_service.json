@@ -39,7 +39,7 @@
             },
             "targets": [
                 {
-                    "expr": "sum(rate(http_requests_total{service=\"order_service\"}[$__rate_interval])) by (method, path)",
+                    "expr": "sum(rate(http_requests_total{service=\"order_service\",path=~\"/api/v0/orders(/[^/]+/status|/[^/]+)?\"}[$__rate_interval])) by (method, path)",
                     "legendFormat": "{{method}} {{path}}",
                     "refId": "A"
                 }
@@ -69,7 +69,7 @@
             },
             "targets": [
                 {
-                    "expr": "sum(rate(http_requests_total{service=\"order_service\",status=~\"Internal Server Error|Bad Gateway|Service Unavailable\"}[$__rate_interval]))\n/\nsum(rate(http_requests_total{service=\"order_service\"}[$__rate_interval]))",
+                    "expr": "sum(rate(http_requests_total{service=\"order_service\",status=~\"5..\",path=~\"/api/v0/orders(/[^/]+/status|/[^/]+)?\"}[$__rate_interval]))\n/\nsum(rate(http_requests_total{service=\"order_service\",path=~\"/api/v0/orders(/[^/]+/status|/[^/]+)?\"}[$__rate_interval]))",
                     "legendFormat": "5xx error rate",
                     "refId": "A"
                 }
@@ -98,7 +98,7 @@
             },
             "targets": [
                 {
-                    "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=\"order_service\"}[$__rate_interval])) by (le, path))",
+                    "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=\"order_service\",path=~\"/api/v0/orders(/[^/]+/status|/[^/]+|/[^/]+/status)?\"}[$__rate_interval])) by (le, path))",
                     "legendFormat": "{{path}}",
                     "refId": "A"
                 }
@@ -132,7 +132,7 @@
             },
             "targets": [
                 {
-                    "expr": "sum(rate(orders_created_total[$__rate_interval])) by (store_id)",
+                    "expr": "sum(rate(order_service_orders_created_total[$__rate_interval])) by (store_id)",
                     "legendFormat": "{{store_id}}",
                     "refId": "A"
                 }
@@ -141,7 +141,7 @@
         {
             "id": 5,
             "type": "timeseries",
-            "title": "Order cancels",
+            "title": "Order cancels by store",
             "datasource": {
                 "type": "prometheus",
                 "uid": "Prometheus"
@@ -154,8 +154,8 @@
             },
             "targets": [
                 {
-                    "expr": "rate(orders_canceled_total[$__rate_interval])",
-                    "legendFormat": "cancels",
+                    "expr": "sum(rate(order_service_orders_canceled_total[$__rate_interval])) by (store_id)",
+                    "legendFormat": "{{store_id}}",
                     "refId": "A"
                 }
             ]
@@ -163,7 +163,7 @@
         {
             "id": 6,
             "type": "timeseries",
-            "title": "Cancel ratio (orders)",
+            "title": "Cancel ratio by store",
             "datasource": {
                 "type": "prometheus",
                 "uid": "Prometheus"
@@ -184,8 +184,71 @@
             },
             "targets": [
                 {
-                    "expr": "rate(orders_canceled_total[1h]) / sum(rate(orders_created_total[1h]))",
-                    "legendFormat": "cancel_ratio",
+                    "expr": "sum(rate(order_service_orders_canceled_total[1h])) by (store_id) / sum(rate(order_service_orders_created_total[1h])) by (store_id)",
+                    "legendFormat": "{{store_id}}",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "type": "row",
+            "title": "GetOrder Performance",
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 32
+            },
+            "collapsed": false,
+            "panels": []
+        },
+        {
+            "id": 11,
+            "type": "timeseries",
+            "title": "GetOrder RPS by stores count",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 12,
+                "x": 0,
+                "y": 33
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(order_service_orders_get_total[$__rate_interval])) by (stores_count)",
+                    "legendFormat": "{{stores_count}} stores",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "id": 12,
+            "type": "timeseries",
+            "title": "GetOrder P95 by stores count",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 12,
+                "x": 12,
+                "y": 33
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s",
+                    "min": 0
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.95, sum(rate(order_get_duration_seconds_bucket[$__rate_interval])) by (le, stores_count))",
+                    "legendFormat": "{{stores_count}} stores",
                     "refId": "A"
                 }
             ]
@@ -197,7 +260,7 @@
                 "h": 1,
                 "w": 24,
                 "x": 0,
-                "y": 32
+                "y": 40
             },
             "collapsed": false,
             "panels": []
@@ -214,7 +277,7 @@
                 "h": 7,
                 "w": 12,
                 "x": 0,
-                "y": 33
+                "y": 41
             },
             "targets": [
                 {
@@ -236,7 +299,7 @@
                 "h": 7,
                 "w": 12,
                 "x": 12,
-                "y": 33
+                "y": 41
             },
             "targets": [
                 {
@@ -258,7 +321,7 @@
                 "h": 7,
                 "w": 12,
                 "x": 0,
-                "y": 40
+                "y": 48
             },
             "targets": [
                 {
@@ -271,7 +334,7 @@
         {
             "id": 10,
             "type": "timeseries",
-            "title": "Conversion: order → successful payment",
+            "title": "Conversion: order → payment",
             "datasource": {
                 "type": "prometheus",
                 "uid": "Prometheus"
@@ -280,7 +343,7 @@
                 "h": 7,
                 "w": 12,
                 "x": 12,
-                "y": 40
+                "y": 48
             },
             "fieldConfig": {
                 "defaults": {
@@ -292,7 +355,7 @@
             },
             "targets": [
                 {
-                    "expr": "rate(payments_succeeded_total[1h]) / sum(rate(orders_created_total[1h]))",
+                    "expr": "rate(payments_succeeded_total[1h]) / sum(rate(order_service_orders_created_total[1h]))",
                     "legendFormat": "conversion",
                     "refId": "A"
                 }
@@ -324,7 +387,23 @@
                     "type": "prometheus",
                     "uid": "Prometheus"
                 },
-                "query": "label_values(orders_created_total, store_id)",
+                "query": "label_values(order_service_orders_created_total, store_id)",
+                "includeAll": true,
+                "multi": true,
+                "current": {
+                    "selected": false,
+                    "text": "All",
+                    "value": "$__all"
+                }
+            },
+            {
+                "name": "stores_count",
+                "type": "query",
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "Prometheus"
+                },
+                "query": "label_values(order_service_orders_get_total, stores_count)",
                 "includeAll": true,
                 "multi": true,
                 "current": {
