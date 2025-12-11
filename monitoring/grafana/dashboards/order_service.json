@@ -8,7 +8,7 @@
     ],
     "timezone": "browser",
     "schemaVersion": 39,
-    "version": 4,
+    "version": 5,
     "refresh": "10s",
     "panels": [
         {
@@ -42,12 +42,12 @@
                     "refId": "A"
                 },
                 {
-                    "expr": "sum(rate(http_requests_total{service=\"order_service\", path=~\"/api/v0/orders/[^/]+(?!\\/status)\"}[$__rate_interval])) by (method)",
+                    "expr": "sum(rate(http_requests_total{service=\"order_service\", path=~\"/api/v0/orders/[0-9a-f-]{36}$\"}[$__rate_interval])) by (method)",
                     "legendFormat": "GetOrder {{method}}",
                     "refId": "B"
                 },
                 {
-                    "expr": "sum(rate(http_requests_total{service=\"order_service\", path=~\"/api/v0/orders/[^/]+\\/status\"}[$__rate_interval])) by (method)",
+                    "expr": "sum(rate(http_requests_total{service=\"order_service\", path=~\"/api/v0/orders/[0-9a-f-]+/status\"}[$__rate_interval])) by (method)",
                     "legendFormat": "Cancel {{method}}",
                     "refId": "C"
                 },
@@ -57,7 +57,7 @@
                     "refId": "D"
                 },
                 {
-                    "expr": "sum(rate(http_requests_total{service=\"order_service\", path=~\"/api/v0/payments/order/[^/]+\"}[$__rate_interval])) by (method)",
+                    "expr": "sum(rate(http_requests_total{service=\"order_service\", path=~\"/api/v0/payments/order/[0-9a-f-]+\"}[$__rate_interval])) by (method)",
                     "legendFormat": "GetPayment {{method}}",
                     "refId": "E"
                 },
