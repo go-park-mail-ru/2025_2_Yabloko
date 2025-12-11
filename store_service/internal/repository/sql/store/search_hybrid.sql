@@ -1,11 +1,32 @@
 WITH bm25_search AS (
-    SELECT
-        s.id,
-        ts_rank(s.search_vector, to_tsquery('russian', $1)) as bm25_score
-    FROM
-        store s
-    WHERE
-        s.search_vector @@ to_tsquery('russian', $1)
+    SELECT *
+    FROM (
+        SELECT
+            s.id,
+            ts_rank(
+                setweight(
+                    to_tsvector(
+                        'russian',
+                        coalesce(s.name, '') || ' ' || coalesce(s.description, '')
+                    ),
+                    'B'
+                )
+                ||
+                setweight(
+                    to_tsvector(
+                        'russian',
+                        coalesce(string_agg(i.name, ' '), '')
+                    ),
+                    'A'
+                ),
+                to_tsquery('russian', $1)
+            ) AS bm25_score
+        FROM store s
+        LEFT JOIN store_item si ON s.id = si.store_id
+        LEFT JOIN item i ON si.item_id = i.id
+        GROUP BY s.id
+    ) t
+    WHERE t.bm25_score > 0
 ),
 semantic_search AS (
     SELECT *
@@ -22,11 +43,14 @@ semantic_search AS (
 ),
 combined_results AS (
     SELECT
-        COALESCE(b.id, s.id) as store_id,
-        COALESCE(b.bm25_score, 0) * $3::float8 + COALESCE(s.semantic_score, 0) * $4::float8 as combined_score
-    FROM
-        bm25_search b 
+        COALESCE(b.id, s.id) AS store_id,
+        (
+            COALESCE(b.bm25_score, 0) * $3::float8 +
+            COALESCE(s.semantic_score, 0) * $4::float8
+        ) * (1.0 + GREATEST(s2.rating, 0) * 0.02) AS combined_score
+    FROM bm25_search b
     FULL OUTER JOIN semantic_search s ON b.id = s.id
+    JOIN store s2 ON s2.id = COALESCE(b.id, s.id)
 )
 SELECT
     s.id,
@@ -39,17 +63,11 @@ SELECT
     s.open_at,
     s.closed_at,
     COALESCE(
-        json_agg(DISTINCT st.tag_id) FILTER (
-            WHERE
-                st.tag_id IS NOT NULL
-        ),
+        json_agg(DISTINCT st.tag_id) FILTER (WHERE st.tag_id IS NOT NULL),
         '[]'::json
     ) AS tag_ids,
     COALESCE(
-        json_agg(DISTINCT sc.category_id) FILTER (
-            WHERE
-                sc.category_id IS NOT NULL
-        ),
+        json_agg(DISTINCT sc.category_id) FILTER (WHERE sc.category_id IS NOT NULL),
         '[]'::json
     ) AS category_ids,
     si.id AS item_id,
@@ -58,20 +76,30 @@ SELECT
     i.card_img AS item_card_img,
     i.embedding AS item_embedding,
     COALESCE(
-        json_agg(DISTINCT it.type_id) FILTER (
-            WHERE
-                it.type_id IS NOT NULL
-        ),
+        json_agg(DISTINCT it.type_id) FILTER (WHERE it.type_id IS NOT NULL),
         '[]'::json
     ) AS item_types
-FROM
-    combined_results cr
-    JOIN store s ON s.id = cr.store_id
-    LEFT JOIN store_tag st ON s.id = st.store_id
-    LEFT JOIN store_category sc ON s.id = sc.store_id
-    LEFT JOIN store_item si ON s.id = si.store_id
-    LEFT JOIN item i ON si.item_id = i.id
-    LEFT JOIN item_type it ON i.id = it.item_id
-GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at,
-         si.id, i.name, si.price, i.card_img, i.embedding, cr.combined_score
+FROM combined_results cr
+JOIN store s ON s.id = cr.store_id
+LEFT JOIN store_tag st ON s.id = st.store_id
+LEFT JOIN store_category sc ON s.id = sc.store_id
+LEFT JOIN store_item si ON s.id = si.store_id
+LEFT JOIN item i ON si.item_id = i.id
+LEFT JOIN item_type it ON i.id = it.item_id
+GROUP BY
+    s.id,
+    s.name,
+    s.description,
+    s.city_id,
+    s.address,
+    s.card_img,
+    s.rating,
+    s.open_at,
+    s.closed_at,
+    si.id,
+    i.name,
+    si.price,
+    i.card_img,
+    i.embedding,
+    cr.combined_score
 ORDER BY cr.combined_score DESC
