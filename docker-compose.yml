@@ -1,4 +1,18 @@
 services:
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    depends_on:
+      - fron
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./data/selfsigned/selfsigned.crt:/etc/nginx/selfsigned.crt:ro
+      - ./data/selfsigned/selfsigned.key:/etc/nginx/selfsigned.key:ro
+    networks:
+      - backend
   redis:
     image: redis:7-alpine
     container_name: redis
