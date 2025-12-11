@@ -54,8 +54,6 @@ func NewPaymentRouter(mux *http.ServeMux, tb blacklist.TokenBlacklist, db *pgxpo
 	paymentUC := usecase.NewPaymentUsecase(paymentRepo, orderRepo, yookassaClient)
 	paymentHandler := NewPaymentHandler(paymentUC, config.YookassaSecret)
 
-	mux.HandleFunc(apiPrefix+"payments/webhook", paymentHandler.HandleWebhook)
-
 	protectedMux := http.NewServeMux()
 	protectedMux.HandleFunc(apiPrefix+"payments", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {

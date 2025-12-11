@@ -3,6 +3,9 @@ package cmd
 import (
 	"apple_backend/order_service/internal/config"
 	shttp "apple_backend/order_service/internal/delivery/http"
+	"apple_backend/order_service/internal/infrastructure/yookassa"
+	"apple_backend/order_service/internal/repository"
+	"apple_backend/order_service/internal/usecase"
 	"apple_backend/pkg/blacklist"
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/metrics"
@@ -39,9 +42,17 @@ func Run() {
 	tokenBlacklist := blacklist.NewRedisTokenBlacklist(redisClient)
 
 	openMux := http.NewServeMux()
+
 	// TODO Cut fake handler
 	fakeHandler := shttp.NewFakePaymentHandler()
 	openMux.HandleFunc(apiV0Prefix+"fake-payment", fakeHandler.FakePayment)
+
+	paymentRepo := repository.NewPaymentRepoPostgres(dbPool)
+	orderRepo := repository.NewOrderRepoPostgres(dbPool)
+	yookassaClient := yookassa.NewClient(conf.YookassaBaseURL, conf.YookassaShopID, conf.YookassaSecret)
+	paymentUC := usecase.NewPaymentUsecase(paymentRepo, orderRepo, yookassaClient)
+	paymentHandler := shttp.NewPaymentHandler(paymentUC, conf.YookassaSecret)
+	openMux.HandleFunc(apiV0Prefix+"payments/webhook", paymentHandler.HandleWebhook)
 
 	protectedMux := http.NewServeMux()
 	shttp.NewOrderRouter(protectedMux, dbPool, apiV0Prefix)
@@ -54,6 +65,7 @@ func Run() {
 	mux.Handle(apiV0Prefix+"orders/", protectedHandler(protectedMux))
 	mux.Handle(apiV0Prefix+"payments", protectedHandler(protectedMux))
 	mux.Handle(apiV0Prefix+"payments/", protectedHandler(protectedMux))
+
 	mux.Handle(apiV0Prefix, openMux)
 
 	handler := middlewares.AccessLog(
