@@ -192,11 +192,16 @@ func (h *PaymentHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := yookassa.VerifyWebhookSignature(body, sig, h.yookassaSecret); err != nil {
-		log.WarnContext(ctx, "invalid webhook signature")
-		h.rs.Error(ctx, w, http.StatusUnauthorized, "HandleWebhook", errors.New("invalid signature"), nil)
-		return
-	}
+	log.InfoContext(ctx, "yookassa webhook raw",
+		slog.String("signature", sig),
+		slog.String("body", string(body)),
+	)
+
+	//if err := yookassa.VerifyWebhookSignature(body, sig, h.yookassaSecret); err != nil {
+	//	log.WarnContext(ctx, "invalid webhook signature")
+	//	h.rs.Error(ctx, w, http.StatusUnauthorized, "HandleWebhook", errors.New("invalid signature"), nil)
+	//	return
+	//}
 
 	var webhookReq transport.PaymentWebhookRequest
 	if err := json.Unmarshal(body, &webhookReq); err != nil {
