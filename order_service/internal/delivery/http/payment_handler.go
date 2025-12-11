@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -187,13 +188,19 @@ func (h *PaymentHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	sig := r.Header.Get("X-Yoo-Signature")
-	if sig == "" {
-		h.rs.Error(ctx, w, http.StatusUnauthorized, "HandleWebhook", errors.New("missing signature"), nil)
-		return
-	}
+	//if sig == "" {
+	//	h.rs.Error(ctx, w, http.StatusUnauthorized, "HandleWebhook", errors.New("missing signature"), nil)
+	//	return
+	//}
+
+	fmt.Println(r.Header.Get("Webhook-Signature"))
 
 	log.InfoContext(ctx, "yookassa webhook raw",
 		slog.String("signature", sig),
+		slog.String("webhook_signature", r.Header.Get("Webhook-Signature")),
+		slog.String("x_yoo_signature", r.Header.Get("X-Yoo-Signature")),
+		slog.String("content_type", r.Header.Get("Content-Type")),
+		slog.String("user_agent", r.Header.Get("User-Agent")),
 		slog.String("body", string(body)),
 	)
 
