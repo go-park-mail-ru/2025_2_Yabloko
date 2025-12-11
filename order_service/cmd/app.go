@@ -42,7 +42,6 @@ func Run() {
 	tokenBlacklist := blacklist.NewRedisTokenBlacklist(redisClient)
 
 	openMux := http.NewServeMux()
-
 	// TODO Cut fake handler
 	fakeHandler := shttp.NewFakePaymentHandler()
 	openMux.HandleFunc(apiV0Prefix+"fake-payment", fakeHandler.FakePayment)
@@ -52,15 +51,17 @@ func Run() {
 	yookassaClient := yookassa.NewClient(conf.YookassaBaseURL, conf.YookassaShopID, conf.YookassaSecret)
 	paymentUC := usecase.NewPaymentUsecase(paymentRepo, orderRepo, yookassaClient)
 	paymentHandler := shttp.NewPaymentHandler(paymentUC, conf.YookassaSecret)
-	openMux.HandleFunc(apiV0Prefix+"payments/webhook", paymentHandler.HandleWebhook)
 
 	protectedMux := http.NewServeMux()
 	shttp.NewOrderRouter(protectedMux, dbPool, apiV0Prefix)
-	shttp.NewPaymentRouter(protectedMux, tokenBlacklist, dbPool, conf, apiV0Prefix)
+	shttp.NewPaymentRouter(protectedMux, tokenBlacklist, paymentHandler, conf.JWTSecret, apiV0Prefix)
 
 	protectedHandler := middlewares.AuthMiddleware(tokenBlacklist, conf.JWTSecret, logger.Global())
 
 	mux := http.NewServeMux()
+
+	mux.HandleFunc(apiV0Prefix+"payments/webhook", paymentHandler.HandleWebhook)
+
 	mux.Handle(apiV0Prefix+"orders", protectedHandler(protectedMux))
 	mux.Handle(apiV0Prefix+"orders/", protectedHandler(protectedMux))
 	mux.Handle(apiV0Prefix+"payments", protectedHandler(protectedMux))

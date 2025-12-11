@@ -1,12 +1,8 @@
 package http
 
 import (
-	"apple_backend/order_service/internal/config"
 	"apple_backend/order_service/internal/delivery/transport"
 	"apple_backend/order_service/internal/domain"
-	"apple_backend/order_service/internal/infrastructure/yookassa"
-	"apple_backend/order_service/internal/repository"
-	"apple_backend/order_service/internal/usecase"
 	"apple_backend/pkg/blacklist"
 	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
@@ -21,7 +17,6 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PaymentUsecaseInterface interface {
@@ -47,14 +42,9 @@ func NewPaymentHandler(uc PaymentUsecaseInterface, secret string) *PaymentHandle
 	}
 }
 
-func NewPaymentRouter(mux *http.ServeMux, tb blacklist.TokenBlacklist, db *pgxpool.Pool, config *config.Config, apiPrefix string) {
-	paymentRepo := repository.NewPaymentRepoPostgres(db)
-	orderRepo := repository.NewOrderRepoPostgres(db)
-	yookassaClient := yookassa.NewClient(config.YookassaBaseURL, config.YookassaShopID, config.YookassaSecret)
-	paymentUC := usecase.NewPaymentUsecase(paymentRepo, orderRepo, yookassaClient)
-	paymentHandler := NewPaymentHandler(paymentUC, config.YookassaSecret)
-
+func NewPaymentRouter(mux *http.ServeMux, tb blacklist.TokenBlacklist, paymentHandler *PaymentHandler, jwtSecret string, apiPrefix string) {
 	protectedMux := http.NewServeMux()
+
 	protectedMux.HandleFunc(apiPrefix+"payments", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
@@ -66,9 +56,10 @@ func NewPaymentRouter(mux *http.ServeMux, tb blacklist.TokenBlacklist, db *pgxpo
 			paymentHandler.rs.Error(ctx, w, http.StatusMethodNotAllowed, "payments", domain.ErrHTTPMethod, nil)
 		}
 	})
+
 	protectedMux.HandleFunc(apiPrefix+"payments/order/{id}", paymentHandler.GetPaymentByOrderID)
 
-	authMiddleware := middlewares.AuthMiddleware(tb, config.JWTSecret, logger.Global())
+	authMiddleware := middlewares.AuthMiddleware(tb, jwtSecret, logger.Global())
 	protectedHandler := authMiddleware(protectedMux)
 
 	mux.Handle(apiPrefix+"payments", protectedHandler)
