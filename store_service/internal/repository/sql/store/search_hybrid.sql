@@ -15,6 +15,7 @@ semantic_search AS (
         store s
     WHERE
         s.embedding IS NOT NULL
+        AND semantic_score > 0.7
     ORDER BY
         s.embedding <=> $2::vector
     LIMIT
