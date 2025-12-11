@@ -25,6 +25,7 @@ SELECT
     si.id AS item_id,
     i.name AS item_name,
     si.price,
+    i.card_img AS item_card_img,
     i.embedding AS item_embedding,
     COALESCE(
         json_agg(DISTINCT it.type_id) FILTER (

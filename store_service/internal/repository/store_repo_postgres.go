@@ -276,9 +276,9 @@ func (r *StoreRepoPostgres) SearchStoresWithItems(ctx context.Context, filter *d
 	}
 
 	query := searchWithItemsQuery + where + `
-	GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at,
-	         si.id, i.name, si.price, i.embedding
-	`
+    GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at,
+             si.id, i.name, si.price, i.card_img, i.embedding
+    `
 
 	query += fmt.Sprintf(" LIMIT $%d", len(qb.args)+1)
 	queryArgs := append(qb.args, filter.Limit)
@@ -302,6 +302,7 @@ func (r *StoreRepoPostgres) SearchStoresWithItems(ctx context.Context, filter *d
 		var itemID sql.NullString
 		var itemName sql.NullString
 		var price sql.NullFloat64
+		var itemCardImg sql.NullString
 		var itemEmbedding sql.NullString
 		var itemTypesJSON string
 
@@ -309,7 +310,7 @@ func (r *StoreRepoPostgres) SearchStoresWithItems(ctx context.Context, filter *d
 			&storeID, &storeName, &description, &cityID, &address, &cardImg,
 			&rating, &openAt, &closedAt,
 			&tagIDsJSON, &categoryIDsJSON,
-			&itemID, &itemName, &price, &itemEmbedding, &itemTypesJSON,
+			&itemID, &itemName, &price, &itemCardImg, &itemEmbedding, &itemTypesJSON,
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "SearchStoresWithItems scan error", slog.Any("err", err))
@@ -346,6 +347,9 @@ func (r *StoreRepoPostgres) SearchStoresWithItems(ctx context.Context, filter *d
 				Name:    itemName.String,
 				Price:   price.Float64,
 				TypesID: itemTypes,
+			}
+			if itemCardImg.Valid {
+				item.CardImg = itemCardImg.String
 			}
 			storesMap[storeID].Items = append(storesMap[storeID].Items, item)
 		}
@@ -463,6 +467,7 @@ func (r *StoreRepoPostgres) SearchStoresHybrid(
 		var itemID sql.NullString
 		var itemName sql.NullString
 		var price sql.NullFloat64
+		var itemCardImg sql.NullString
 		var itemEmbedding sql.NullString
 		var itemTypesJSON string
 
@@ -470,7 +475,7 @@ func (r *StoreRepoPostgres) SearchStoresHybrid(
 			&storeID, &storeName, &description, &cityID, &address, &cardImg,
 			&rating, &openAt, &closedAt,
 			&tagIDsJSON, &categoryIDsJSON,
-			&itemID, &itemName, &price, &itemEmbedding, &itemTypesJSON,
+			&itemID, &itemName, &price, &itemCardImg, &itemEmbedding, &itemTypesJSON,
 		)
 		if err != nil {
 			log.ErrorContext(ctx, "SearchStoresHybrid scan error", slog.Any("err", err))
@@ -507,6 +512,9 @@ func (r *StoreRepoPostgres) SearchStoresHybrid(
 				Name:    itemName.String,
 				Price:   price.Float64,
 				TypesID: itemTypes,
+			}
+			if itemCardImg.Valid {
+				item.CardImg = itemCardImg.String
 			}
 			storesMap[storeID].Items = append(storesMap[storeID].Items, item)
 		}

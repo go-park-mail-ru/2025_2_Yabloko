@@ -55,6 +55,7 @@ SELECT
     si.id AS item_id,
     i.name AS item_name,
     si.price,
+    i.card_img AS item_card_img,
     i.embedding AS item_embedding,
     COALESCE(
         json_agg(DISTINCT it.type_id) FILTER (
@@ -72,5 +73,5 @@ FROM
     LEFT JOIN item i ON si.item_id = i.id
     LEFT JOIN item_type it ON i.id = it.item_id
 GROUP BY s.id, s.name, s.description, s.city_id, s.address, s.card_img, s.rating, s.open_at, s.closed_at,
-         si.id, i.name, si.price, i.embedding, cr.combined_score
+         si.id, i.name, si.price, i.card_img, i.embedding, cr.combined_score
 ORDER BY cr.combined_score DESC
