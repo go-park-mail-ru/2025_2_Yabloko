@@ -131,8 +131,8 @@
             },
             "targets": [
                 {
-                    "expr": "1 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})",
-                    "legendFormat": "disk /",
+                    "expr": "1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay\"})",
+                    "legendFormat": "{{mountpoint}} {{instance}}",
                     "refId": "A"
                 }
             ]
