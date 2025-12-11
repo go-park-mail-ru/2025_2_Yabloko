@@ -8,18 +8,17 @@ WITH bm25_search AS (
         s.search_vector @@ to_tsquery('russian', $1)
 ),
 semantic_search AS (
-    SELECT
-        s.id,
-        1.0 - ((s.embedding <=> $2::vector) / 2.0) as semantic_score
-    FROM
-        store s
-    WHERE
-        s.embedding IS NOT NULL
-        AND semantic_score > 0.7
-    ORDER BY
-        s.embedding <=> $2::vector
-    LIMIT
-        100
+    SELECT *
+    FROM (
+        SELECT
+            s.id,
+            1.0 - ((s.embedding <=> $2::vector) / 2.0) AS semantic_score
+        FROM store s
+        WHERE s.embedding IS NOT NULL
+    ) t
+    WHERE t.semantic_score > 0.7
+    ORDER BY t.semantic_score DESC
+    LIMIT 100
 ),
 combined_results AS (
     SELECT
