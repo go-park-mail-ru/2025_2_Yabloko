@@ -2,8 +2,6 @@ services:
   nginx:
     image: nginx:alpine
     container_name: nginx
-    depends_on:
-      - fron
     ports:
       - "80:80"
       - "443:443"
