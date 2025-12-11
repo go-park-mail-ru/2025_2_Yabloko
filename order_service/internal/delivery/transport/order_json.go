@@ -13,14 +13,19 @@ type OrderItemInfo struct {
 	Quantity int     `json:"quantity"`
 } // @name OrderItemInfo
 
+type StoreInfo struct {
+	ID      string           `json:"id"`
+	Name    string           `json:"name"`
+	CardImg string           `json:"card_img"`
+	Items   []*OrderItemInfo `json:"items"`
+} // @name StoreInfo
+
 type OrderInfo struct {
-	ID        string           `json:"id"`
-	Items     []*OrderItemInfo `json:"items"`
-	Status    string           `json:"status"`
-	Total     float64          `json:"total"`
-	CreatedAt time.Time        `json:"created_at"`
-	StoreID   string           `json:"store_id"`
-	StoreName string           `json:"store_name"`
+	ID        string       `json:"id"`
+	Stores    []*StoreInfo `json:"stores"`
+	Status    string       `json:"status"`
+	Total     float64      `json:"total"`
+	CreatedAt time.Time    `json:"created_at"`
 } // @name OrderInfo
 
 type Order struct {
@@ -70,19 +75,25 @@ func toOrderItemResponse(item *domain.OrderItemInfo) *OrderItemInfo {
 }
 
 func ToOrderInfoResponse(orderInfo *domain.OrderInfo) *OrderInfo {
-	items := make([]*OrderItemInfo, 0, len(orderInfo.Items))
-	for _, item := range orderInfo.Items {
-		items = append(items, toOrderItemResponse(item))
+	stores := make([]*StoreInfo, 0, len(orderInfo.Stores))
+	for _, store := range orderInfo.Stores {
+		items := make([]*OrderItemInfo, 0, len(store.Items))
+		for _, item := range store.Items {
+			items = append(items, toOrderItemResponse(item))
+		}
+		stores = append(stores, &StoreInfo{
+			ID:      store.ID,
+			Name:    store.Name,
+			CardImg: store.CardImg,
+			Items:   items,
+		})
 	}
 
-	order := &OrderInfo{
+	return &OrderInfo{
 		ID:        orderInfo.ID,
-		Items:     items,
+		Stores:    stores,
 		Status:    orderInfo.Status,
 		Total:     orderInfo.Total,
 		CreatedAt: orderInfo.CreatedAt,
-		StoreID:   orderInfo.StoreID,
-		StoreName: orderInfo.StoreName,
 	}
-	return order
 }

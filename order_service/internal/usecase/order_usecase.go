@@ -41,10 +41,10 @@ func (uc *OrderUsecase) CreateOrder(ctx context.Context, userID string) (*domain
 		return nil, domain.ErrInternalServer
 	}
 
-	// бизнес-метрика: успешное создание заказа
-	storeID := orderInfo.StoreID
-	if storeID == "" {
-		storeID = "unknown"
+	// Бизнес-метрика: успешное создание заказа
+	storeID := "unknown"
+	if len(orderInfo.Stores) > 0 {
+		storeID = orderInfo.Stores[0].ID
 	}
 	metrics.OrdersCreatedTotal.WithLabelValues(storeID).Inc()
 
@@ -91,8 +91,12 @@ func (uc *OrderUsecase) UpdateOrderStatus(ctx context.Context, orderID, userID, 
 				return domain.ErrInternalServer
 			}
 
-			// бизнес-метрика: успешная отмена заказа
-			metrics.OrdersCanceledTotal.Inc()
+			// Бизнес-метрика: успешная отмена заказа
+			storeID := "unknown"
+			if currentOrder.Stores != nil && len(currentOrder.Stores) > 0 {
+				storeID = currentOrder.Stores[0].ID
+			}
+			metrics.OrdersCanceledTotal.WithLabelValues(storeID).Inc()
 			return nil
 		}
 		return fmt.Errorf("cannot cancel order in status '%s'", currentOrder.Status)

@@ -157,11 +157,15 @@ func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*doma
 	defer rows.Close()
 
 	var order domain.OrderInfo
-	var items []*domain.OrderItemInfo
-	var storeID, storeName string
+	storeMap := make(map[string]*domain.StoreInfo)
 
 	for rows.Next() {
-		var item domain.OrderItemInfo
+		var (
+			storeID      string
+			storeName    string
+			storeCardImg string
+			item         domain.OrderItemInfo
+		)
 		err = rows.Scan(
 			&order.ID,
 			&order.Total,
@@ -169,6 +173,7 @@ func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*doma
 			&order.CreatedAt,
 			&storeID,
 			&storeName,
+			&storeCardImg,
 			&item.ID,
 			&item.Name,
 			&item.CardImg,
@@ -179,7 +184,16 @@ func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*doma
 			log.ErrorContext(ctx, "repo GetOrder scan failed", slog.String("order_id", orderID), slog.Any("err", err))
 			return nil, domain.ErrInternalServer
 		}
-		items = append(items, &item)
+
+		if _, exists := storeMap[storeID]; !exists {
+			storeMap[storeID] = &domain.StoreInfo{
+				ID:      storeID,
+				Name:    storeName,
+				CardImg: storeCardImg,
+				Items:   make([]*domain.OrderItemInfo, 0),
+			}
+		}
+		storeMap[storeID].Items = append(storeMap[storeID].Items, &item)
 	}
 
 	if err = rows.Err(); err != nil {
@@ -187,16 +201,17 @@ func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*doma
 		return nil, domain.ErrInternalServer
 	}
 
-	if len(items) == 0 {
+	if len(storeMap) == 0 {
 		log.WarnContext(ctx, "repo GetOrder no items found", slog.String("order_id", orderID))
 		return nil, domain.ErrRowsNotFound
 	}
 
-	order.Items = items
-	order.StoreID = storeID
-	order.StoreName = storeName
+	order.Stores = make([]*domain.StoreInfo, 0, len(storeMap))
+	for _, store := range storeMap {
+		order.Stores = append(order.Stores, store)
+	}
 
-	log.DebugContext(ctx, "repo GetOrder success", slog.String("order_id", orderID), slog.Int("items_count", len(items)))
+	log.DebugContext(ctx, "repo GetOrder success", slog.String("order_id", orderID), slog.Int("stores_count", len(order.Stores)))
 	return &order, nil
 }
 

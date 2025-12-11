@@ -10,23 +10,28 @@ type OrderItemInfo struct {
 	Quantity int
 }
 
+type StoreInfo struct {
+	ID      string
+	Name    string
+	CardImg string
+	Items   []*OrderItemInfo
+}
+
 type OrderInfo struct {
 	ID        string
-	Items     []*OrderItemInfo
+	Stores    []*StoreInfo
 	Status    string
 	Total     float64
 	CreatedAt time.Time
-	StoreID   string
-	StoreName string
 }
 
 type Order struct {
-	ID        string
-	Status    string
-	Total     float64
-	CreatedAt time.Time
-	StoreID   string
-	StoreName string
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	Total     float64   `json:"total"`
+	CreatedAt time.Time `json:"created_at"`
+	StoreID   string    `json:"store_id"`
+	StoreName string    `json:"store_name"`
 }
 
 type OrderFilter struct {

@@ -5,6 +5,7 @@ SELECT
     o.created_at as created_at,
     s.id as store_id,
     s.name as store_name,
+    s.card_img as store_card_img,
     si.id as store_item_id,
     i.name as name,
     i.card_img as card_img,
@@ -19,4 +20,4 @@ FROM
 WHERE
     o.id = $1::uuid
 ORDER BY
-    oi.created_at;
+    s.id, oi.created_at

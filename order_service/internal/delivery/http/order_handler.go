@@ -4,13 +4,16 @@ import (
 	"apple_backend/order_service/internal/repository"
 	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
+	"apple_backend/pkg/metrics"
 	"apple_backend/pkg/middlewares"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"apple_backend/order_service/internal/delivery/transport"
 	"apple_backend/order_service/internal/domain"
@@ -91,10 +94,14 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	totalItems := 0
+	for _, store := range orderInfo.Stores {
+		totalItems += len(store.Items)
+	}
 	log.InfoContext(ctx, "handler CreateOrder success",
 		slog.String("order_id", orderInfo.ID),
-		slog.Int("items_count", len(orderInfo.Items)),
-		slog.String("store_id", orderInfo.StoreID))
+		slog.Int("stores_count", len(orderInfo.Stores)),
+		slog.Int("total_items", totalItems))
 
 	order := transport.ToOrderInfoResponse(orderInfo)
 	h.rs.Send(ctx, w, http.StatusOK, order)
@@ -168,6 +175,19 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 	log := logger.FromContext(ctx)
 	log.InfoContext(ctx, "handler GetOrder start")
 
+	start := time.Now()
+	var order *domain.OrderInfo
+	var storesCountStr string
+
+	defer func() {
+		if order != nil {
+			storesCountStr = fmt.Sprintf("%d", len(order.Stores))
+		} else {
+			storesCountStr = "0"
+		}
+		metrics.OrdersGetDuration.WithLabelValues(storesCountStr).Observe(time.Since(start).Seconds())
+	}()
+
 	id := r.PathValue("id")
 
 	if err := uuid.Validate(id); err != nil {
@@ -183,7 +203,8 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order, err := h.uc.GetOrder(ctx, id, userID)
+	var err error
+	order, err = h.uc.GetOrder(ctx, id, userID)
 	if err != nil {
 		log.ErrorContext(ctx, "handler GetOrder failed", slog.Any("err", err))
 
@@ -200,7 +221,21 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.InfoContext(ctx, "handler GetOrder success", slog.String("order_id", id), slog.String("store_id", order.StoreID))
+	// Метрика количества запросов GetOrder
+	storesCountStr = fmt.Sprintf("%d", len(order.Stores))
+	metrics.OrdersGetTotal.WithLabelValues(storesCountStr).Inc()
+
+	log.InfoContext(ctx, "handler GetOrder success",
+		slog.String("order_id", id),
+		slog.Int("stores_count", len(order.Stores)),
+		slog.Int("total_items", func() int {
+			total := 0
+			for _, store := range order.Stores {
+				total += len(store.Items)
+			}
+			return total
+		}()))
+
 	orderInfo := transport.ToOrderInfoResponse(order)
 	h.rs.Send(ctx, w, http.StatusOK, orderInfo)
 }
