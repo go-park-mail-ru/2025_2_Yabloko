@@ -15,4 +15,4 @@ LEFT JOIN promocode_account pa
 WHERE p.code = $2
   AND p.start_at <= $3
   AND p.end_at   >= $3
-  AND pa.id IS NULL;
+  AND pa.id IS NULL
