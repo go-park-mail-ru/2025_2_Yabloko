@@ -15,6 +15,7 @@ receivers:
         chat_id: ${ALERT_TELEGRAM_CHAT_ID}
         parse_mode: "Markdown"
         message: |-
+          EMERGENCY ALERT FROM ADIK:
           🚨 STATUS: {{ .Status | toUpper }}
           ALERT: {{ .CommonLabels.alertname }}
           SEVERITY: {{ .CommonLabels.severity }}

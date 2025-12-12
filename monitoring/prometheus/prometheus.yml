@@ -40,6 +40,13 @@ scrape_configs:
         labels:
           service: "order_service"
 
+  - job_name: "recommendation_service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["recommendation_service:8085"]
+        labels:
+          service: "recommendation_service"
+
   # embedding_service — только если ты реально поднимешь там HTTP /metrics
   # - job_name: "embedding_service"
   #   metrics_path: /metrics

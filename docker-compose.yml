@@ -222,6 +222,37 @@ services:
       - "service.type=order"
       - "log.format=json"
 
+  recommendation_service:
+    build:
+      context: .
+      dockerfile: ./recommendation_service/Dockerfile
+    container_name: recommendation_service
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+      auth_service:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    ports:
+      - "${RECOMMENDATION_SERVICE_PORT}:${RECOMMENDATION_SERVICE_PORT}"
+    env_file: [ .env ]
+    networks:
+      - backend
+    environment:
+      DB_HOST: ${DB_HOST}
+      API_DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      RECOMMENDATION_SERVICE_PORT: "${RECOMMENDATION_SERVICE_PORT}"
+    restart: unless-stopped
+    labels:
+      - "service.type=recommendation"
+      - "log.format=json"
+
   embedding_service:
     build:
       context: .
