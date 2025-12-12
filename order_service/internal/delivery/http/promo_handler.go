@@ -82,6 +82,7 @@ func (h *PromoHandler) Check(w http.ResponseWriter, r *http.Request) {
 
 	resp := transport.PromoCheckResponse{
 		RelativeDiscount: res.RelativeDiscount,
+		AbsoluteDiscount: res.AbsoluteDiscount,
 	}
 	h.rs.Send(ctx, w, http.StatusOK, resp)
 }
