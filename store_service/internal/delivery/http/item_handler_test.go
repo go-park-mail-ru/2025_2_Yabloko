@@ -8,11 +8,12 @@ import (
 	"apple_backend/store_service/internal/domain"
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/goccy/go-json"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

@@ -7,12 +7,13 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/middlewares"
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/goccy/go-json"
 )
 
 type AuthUseCaseInterface interface {

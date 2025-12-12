@@ -9,13 +9,14 @@ import (
 	"apple_backend/profile_service/internal/repository"
 	"apple_backend/profile_service/internal/usecase"
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/goccy/go-json"
 )
 
 type ProfileUsecaseInterface interface {

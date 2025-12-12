@@ -2,9 +2,10 @@ package money
 
 import (
 	"database/sql/driver"
-	"encoding/json"
 	"fmt"
 	"strconv"
+
+	"github.com/goccy/go-json"
 
 	"github.com/shopspring/decimal"
 )

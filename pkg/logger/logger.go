@@ -2,11 +2,12 @@ package logger
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
 	"time"
+
+	"github.com/goccy/go-json"
 )
 
 type Logger = *slog.Logger

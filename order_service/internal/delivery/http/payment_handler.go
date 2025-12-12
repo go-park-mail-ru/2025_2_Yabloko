@@ -8,12 +8,13 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/middlewares"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+
+	"github.com/goccy/go-json"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"

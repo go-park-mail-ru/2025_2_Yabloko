@@ -4,9 +4,10 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/trace"
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net/http"
+
+	"github.com/goccy/go-json"
 )
 
 type ErrResponse struct {

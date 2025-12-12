@@ -5,10 +5,11 @@ import (
 	"apple_backend/store_service/internal/domain"
 	"context"
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/goccy/go-json"
 
 	"github.com/pgvector/pgvector-go"
 )

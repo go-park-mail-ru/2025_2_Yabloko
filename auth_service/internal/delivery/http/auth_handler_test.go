@@ -6,11 +6,12 @@ import (
 	"apple_backend/pkg/logger"
 	"bytes"
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	mock "apple_backend/auth_service/internal/delivery/http/mock"
 	"log/slog"

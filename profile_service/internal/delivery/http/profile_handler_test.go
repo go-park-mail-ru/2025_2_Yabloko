@@ -8,11 +8,12 @@ import (
 	"apple_backend/profile_service/internal/domain"
 	"bytes"
 	"context" // добавлено
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/goccy/go-json"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

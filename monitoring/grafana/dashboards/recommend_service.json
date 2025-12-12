@@ -3,8 +3,8 @@
     "uid": "recommendation-service",
     "title": "Recommendation Service",
     "tags": [
-        "recommendation",
-        "service"
+        "recommendation_service",
+        "prometheus"
     ],
     "timezone": "browser",
     "schemaVersion": 39,

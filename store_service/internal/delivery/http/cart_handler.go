@@ -9,10 +9,11 @@ import (
 	"apple_backend/store_service/internal/repository"
 	"apple_backend/store_service/internal/usecase"
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
+
+	"github.com/goccy/go-json"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"

@@ -7,10 +7,11 @@ import (
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/middlewares"
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
+
+	"github.com/goccy/go-json"
 
 	"github.com/go-playground/validator/v10"
 )

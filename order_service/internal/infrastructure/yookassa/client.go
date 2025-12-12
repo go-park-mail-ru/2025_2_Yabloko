@@ -6,12 +6,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/google/uuid"
 )

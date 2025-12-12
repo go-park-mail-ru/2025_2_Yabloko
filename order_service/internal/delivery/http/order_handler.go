@@ -10,13 +10,14 @@ import (
 	"apple_backend/pkg/metrics"
 	"apple_backend/pkg/middlewares"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
