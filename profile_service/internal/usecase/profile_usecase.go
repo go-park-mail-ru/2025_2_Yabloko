@@ -48,7 +48,6 @@ func (uc *ProfileUsecase) UpdateProfile(ctx context.Context, in *domain.Profile)
 		return domain.ErrInvalidProfileData
 	}
 
-	// обновление простых полей
 	if in.Name != nil {
 		existing.Name = in.Name
 	}
@@ -58,34 +57,14 @@ func (uc *ProfileUsecase) UpdateProfile(ctx context.Context, in *domain.Profile)
 	if in.CityID != nil {
 		existing.CityID = in.CityID
 	}
-
-	// логика по адресу и истории
 	if in.Address != nil {
-		newAddr := strings.TrimSpace(*in.Address)
-		existing.Address = &newAddr
-
-		// инициализируем history, если nil
-		if existing.AddressesHistory == nil {
-			existing.AddressesHistory = &[]string{}
-		}
-
-		hist := *existing.AddressesHistory
-		var last string
-		if len(hist) > 0 {
-			last = hist[len(hist)-1]
-		}
-
-		// если новый адрес не равен последнему — пушим в историю
-		if newAddr != "" && newAddr != last {
-			hist = append(hist, newAddr)
-			existing.AddressesHistory = &hist
-		} else {
-			// "форс пут" — фронт мог прислать тот же адрес, просто считаем,
-			// что он выбран, ничего больше не делаем
-		}
+		addr := strings.TrimSpace(*in.Address)
+		existing.Address = &addr
+	}
+	if in.AvatarURL != nil {
+		existing.AvatarURL = in.AvatarURL
 	}
 
-	// опционально: если фронт прислал AddressesHistory как форс-список
 	if in.AddressesHistory != nil {
 		existing.AddressesHistory = in.AddressesHistory
 	}

@@ -70,8 +70,6 @@ func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, p *domain.Profi
 	log := logger.FromContext(ctx)
 	log.InfoContext(ctx, "repo UpdateProfile start", slog.String("id", p.ID))
 
-	// histJSON: если AddressesHistory != nil, это форс-перезапись истории,
-	// иначе даём NULL и пусть SQL применяет свою "умную" логику.
 	var histJSON []byte
 	if p.AddressesHistory != nil {
 		b, err := json.Marshal(p.AddressesHistory)
@@ -85,13 +83,13 @@ func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, p *domain.Profi
 	}
 
 	res, err := r.db.Exec(ctx, updateProfileQuery,
-		p.Name,      // $1
-		p.Phone,     // $2
-		p.CityID,    // $3
-		p.Address,   // $4
-		histJSON,    // $5
-		p.AvatarURL, // $6
-		p.ID,        // $7
+		p.Name,
+		p.Phone,
+		p.CityID,
+		p.Address,
+		histJSON,
+		p.AvatarURL,
+		p.ID,
 	)
 
 	if err != nil {
