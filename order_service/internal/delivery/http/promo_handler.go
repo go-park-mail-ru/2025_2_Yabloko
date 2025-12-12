@@ -37,7 +37,7 @@ func NewPromoHandler(uc PromoUsecaseInterface) *PromoHandler {
 }
 
 func NewPromoRouter(mux *http.ServeMux, handler *PromoHandler, apiPrefix string) {
-	mux.HandleFunc(apiV0Prefix+"promo/check", handler.Check)
+	mux.HandleFunc(apiPrefix+"promo/check", handler.Check)
 }
 
 func (h *PromoHandler) Check(w http.ResponseWriter, r *http.Request) {

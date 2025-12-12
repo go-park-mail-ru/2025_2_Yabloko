@@ -48,13 +48,20 @@ func Run() {
 
 	paymentRepo := repository.NewPaymentRepoPostgres(dbPool)
 	orderRepo := repository.NewOrderRepoPostgres(dbPool)
+	promoRepo := repository.NewPromoRepoPostgres(dbPool)
+
 	yookassaClient := yookassa.NewClient(conf.YookassaBaseURL, conf.YookassaShopID, conf.YookassaSecret)
 	paymentUC := usecase.NewPaymentUsecase(paymentRepo, orderRepo, yookassaClient)
+	promoUC := usecase.NewPromoUsecase(promoRepo)
+
 	paymentHandler := shttp.NewPaymentHandler(paymentUC, conf.YookassaSecret)
 
 	protectedMux := http.NewServeMux()
 	shttp.NewOrderRouter(protectedMux, dbPool, apiV0Prefix)
 	shttp.NewPaymentRouter(protectedMux, tokenBlacklist, paymentHandler, conf.JWTSecret, apiV0Prefix)
+
+	promoHandler := shttp.NewPromoHandler(promoUC)
+	shttp.NewPromoRouter(protectedMux, promoHandler, apiV0Prefix)
 
 	protectedHandler := middlewares.AuthMiddleware(tokenBlacklist, conf.JWTSecret, logger.Global())
 
