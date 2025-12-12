@@ -22,6 +22,7 @@ func NewBot(cfg Config) (*Bot, error) {
 
 func (b *Bot) Run() {
 	log.Printf("Authorized on account %s", b.api.Self.UserName)
+	log.Printf("Allowed chat IDs: %v", b.cfg.ChatIDs)
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 30
@@ -35,7 +36,7 @@ func (b *Bot) Run() {
 
 		msg := update.Message
 
-		if msg.Chat.ID != b.cfg.ChatID && !msg.Chat.IsPrivate() {
+		if !msg.Chat.IsPrivate() && !isAllowedChat(msg.Chat.ID, b.cfg.ChatIDs) {
 			continue
 		}
 
@@ -57,6 +58,15 @@ func (b *Bot) Run() {
 			log.Printf("failed to send message: %v", err)
 		}
 	}
+}
+
+func isAllowedChat(chatID int64, allowed []int64) bool {
+	for _, id := range allowed {
+		if id == chatID {
+			return true
+		}
+	}
+	return false
 }
 
 func isMentioned(botUsername string, msg *tgbotapi.Message) bool {

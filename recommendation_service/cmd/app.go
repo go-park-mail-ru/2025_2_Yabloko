@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"apple_backend/pkg/blacklist"
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/metrics"
 	"apple_backend/pkg/middlewares"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
 )
 
 func Run() {
@@ -27,12 +29,29 @@ func Run() {
 	}
 	defer dbPool.Close()
 
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: conf.RedisURL,
+	})
+	defer redisClient.Close()
+
+	if err := redisClient.Ping(context.Background()).Err(); err != nil {
+		log.Fatal("Redis connection failed:", err)
+	}
+
+	tokenBlacklist := blacklist.NewRedisTokenBlacklist(redisClient)
+
 	recRepo := repository.NewRecommendationRepoPostgres(dbPool)
 	recUC := usecase.NewRecommendationUsecase(recRepo)
 	recHandler := shttp.NewRecommendationHandler(recUC)
 
+	protectedMux := http.NewServeMux()
+	shttp.NewRecommendationRouter(protectedMux, recHandler, apiV0Prefix)
+
+	protectedHandler := middlewares.AuthMiddleware(tokenBlacklist, conf.JWTSecret, logger.Global())
+
 	mux := http.NewServeMux()
-	shttp.NewRecommendationRouter(mux, recHandler, apiV0Prefix)
+
+	mux.Handle(apiV0Prefix, protectedHandler(protectedMux))
 
 	handler := middlewares.AccessLog(
 		logger.Global(),

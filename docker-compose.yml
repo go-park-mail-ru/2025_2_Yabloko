@@ -366,9 +366,8 @@ services:
       - backend
     environment:
       - ALERT_TELEGRAM_BOT_TOKEN=${ALERT_TELEGRAM_BOT_TOKEN}
-      - ALERT_TELEGRAM_CHAT_ID=${ALERT_TELEGRAM_CHAT_ID}
+      - ALLOW_CHAT_IDS=${ALLOW_CHAT_IDS}
       - HF_API_TOKEN=${HF_API_TOKEN}
-    #  - HF_MODEL=
     restart: unless-stopped
     labels:
       - "service.type=bot"
