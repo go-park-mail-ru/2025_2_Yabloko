@@ -10,15 +10,16 @@ type CreateProfileResponse struct {
 } // @name CreateProfileResponse
 
 type ProfileResponse struct {
-	ID        string  `json:"id"`
-	Email     string  `json:"email"`
-	Name      *string `json:"name,omitempty"`
-	Phone     *string `json:"phone,omitempty"`
-	CityID    *string `json:"city_id,omitempty"`
-	Address   *string `json:"address,omitempty"`
-	AvatarURL *string `json:"avatar_url,omitempty"`
-	CreatedAt string  `json:"created_at"`
-	UpdatedAt string  `json:"updated_at"`
+	ID               string    `json:"id"`
+	Email            string    `json:"email"`
+	Name             *string   `json:"name,omitempty"`
+	Phone            *string   `json:"phone,omitempty"`
+	CityID           *string   `json:"city_id,omitempty"`
+	Address          *string   `json:"address,omitempty"`
+	AddressesHistory *[]string `json:"addresses_history,omitempty"`
+	AvatarURL        *string   `json:"avatar_url,omitempty"`
+	CreatedAt        string    `json:"created_at"`
+	UpdatedAt        string    `json:"updated_at"`
 } // @name ProfileResponse
 
 type CreateProfileRequest struct {
@@ -27,11 +28,12 @@ type CreateProfileRequest struct {
 } // @name CreateProfileRequest
 
 type UpdateProfileRequest struct {
-	Name      *string `json:"name,omitempty"`
-	Phone     *string `json:"phone,omitempty"`
-	CityID    *string `json:"city_id,omitempty"`
-	Address   *string `json:"address,omitempty"`
-	AvatarURL *string `json:"avatar_url,omitempty"`
+	Name             *string   `json:"name,omitempty"`
+	Phone            *string   `json:"phone,omitempty"`
+	CityID           *string   `json:"city_id,omitempty"`
+	Address          *string   `json:"address,omitempty"`
+	AddressesHistory *[]string `json:"addresses_history,omitempty"`
+	AvatarURL        *string   `json:"avatar_url,omitempty"`
 } // @name UpdateProfileRequest
 
 func ToProfileResponse(p *domain.Profile) *ProfileResponse {
@@ -40,14 +42,15 @@ func ToProfileResponse(p *domain.Profile) *ProfileResponse {
 	}
 
 	return &ProfileResponse{
-		ID:        p.ID,
-		Email:     p.Email,
-		Name:      p.Name,
-		Phone:     p.Phone,
-		CityID:    p.CityID,
-		Address:   p.Address,
-		AvatarURL: p.AvatarURL,
-		CreatedAt: p.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: p.UpdatedAt.Format(time.RFC3339),
+		ID:               p.ID,
+		Email:            p.Email,
+		Name:             p.Name,
+		Phone:            p.Phone,
+		CityID:           p.CityID,
+		Address:          p.Address,
+		AddressesHistory: p.AddressesHistory,
+		AvatarURL:        p.AvatarURL,
+		CreatedAt:        p.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:        p.UpdatedAt.Format(time.RFC3339),
 	}
 }

@@ -29,6 +29,7 @@ func (uc *ProfileUsecase) UpdateProfile(ctx context.Context, in *domain.Profile)
 	if _, err := uuid.Parse(in.ID); err != nil {
 		return domain.ErrInvalidProfileData
 	}
+
 	existing, err := uc.repo.GetProfile(ctx, in.ID)
 	if err != nil {
 		return err
@@ -46,6 +47,8 @@ func (uc *ProfileUsecase) UpdateProfile(ctx context.Context, in *domain.Profile)
 	if in.Address != nil && len(*in.Address) > 200 {
 		return domain.ErrInvalidProfileData
 	}
+
+	// обновление простых полей
 	if in.Name != nil {
 		existing.Name = in.Name
 	}
@@ -55,8 +58,36 @@ func (uc *ProfileUsecase) UpdateProfile(ctx context.Context, in *domain.Profile)
 	if in.CityID != nil {
 		existing.CityID = in.CityID
 	}
+
+	// логика по адресу и истории
 	if in.Address != nil {
-		existing.Address = in.Address
+		newAddr := strings.TrimSpace(*in.Address)
+		existing.Address = &newAddr
+
+		// инициализируем history, если nil
+		if existing.AddressesHistory == nil {
+			existing.AddressesHistory = &[]string{}
+		}
+
+		hist := *existing.AddressesHistory
+		var last string
+		if len(hist) > 0 {
+			last = hist[len(hist)-1]
+		}
+
+		// если новый адрес не равен последнему — пушим в историю
+		if newAddr != "" && newAddr != last {
+			hist = append(hist, newAddr)
+			existing.AddressesHistory = &hist
+		} else {
+			// "форс пут" — фронт мог прислать тот же адрес, просто считаем,
+			// что он выбран, ничего больше не делаем
+		}
+	}
+
+	// опционально: если фронт прислал AddressesHistory как форс-список
+	if in.AddressesHistory != nil {
+		existing.AddressesHistory = in.AddressesHistory
 	}
 
 	return uc.repo.UpdateProfile(ctx, existing)

@@ -257,14 +257,18 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, i
 	log.InfoContext(ctx, "handler UpdateProfile processing",
 		slog.String("user_id", targetID),
 		slog.String("name", derefString(req.Name)),
-		slog.String("city_id", derefString(req.CityID)))
+		slog.String("city_id", derefString(req.CityID)),
+		slog.String("address", derefString(req.Address)),
+	)
 
 	profile := &domain.Profile{
-		ID:      targetID,
-		Name:    req.Name,
-		Phone:   req.Phone,
-		CityID:  req.CityID,
-		Address: req.Address,
+		ID:               targetID,
+		Name:             req.Name,
+		Phone:            req.Phone,
+		CityID:           req.CityID,
+		Address:          req.Address,
+		AddressesHistory: req.AddressesHistory,
+		AvatarURL:        req.AvatarURL,
 	}
 
 	err := h.uc.UpdateProfile(ctx, profile)

@@ -3,13 +3,14 @@ package domain
 import "time"
 
 type Profile struct {
-	ID        string
-	Email     string
-	Name      *string
-	Phone     *string
-	CityID    *string
-	Address   *string
-	AvatarURL *string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID               string    `json:"id"`
+	Email            string    `json:"email"`
+	Name             *string   `json:"name,omitempty"`
+	Phone            *string   `json:"phone,omitempty"`
+	CityID           *string   `json:"city_id,omitempty"`
+	Address          *string   `json:"address,omitempty"`
+	AddressesHistory *[]string `json:"addresses_history,omitempty"`
+	AvatarURL        *string   `json:"avatar_url,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }

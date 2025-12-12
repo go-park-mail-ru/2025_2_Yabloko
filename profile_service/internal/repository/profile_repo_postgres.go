@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/goccy/go-json"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -26,6 +27,8 @@ func (r *ProfileRepoPostgres) GetProfile(ctx context.Context, id string) (*domai
 	log := logger.FromContext(ctx)
 	log.InfoContext(ctx, "repo GetProfile start", slog.String("id", id))
 
+	var rawHistory []byte
+
 	p := &domain.Profile{}
 	err := r.db.QueryRow(ctx, getProfileQuery, id).Scan(
 		&p.ID,
@@ -34,6 +37,7 @@ func (r *ProfileRepoPostgres) GetProfile(ctx context.Context, id string) (*domai
 		&p.Phone,
 		&p.CityID,
 		&p.Address,
+		&rawHistory,
 		&p.AvatarURL,
 		&p.CreatedAt,
 		&p.UpdatedAt,
@@ -48,6 +52,13 @@ func (r *ProfileRepoPostgres) GetProfile(ctx context.Context, id string) (*domai
 		return nil, err
 	}
 
+	if len(rawHistory) > 0 {
+		var arr []string
+		if err := json.Unmarshal(rawHistory, &arr); err == nil {
+			p.AddressesHistory = &arr
+		}
+	}
+
 	log.InfoContext(ctx, "repo GetProfile success", slog.String("id", id))
 	return p, nil
 }
@@ -59,13 +70,28 @@ func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, p *domain.Profi
 	log := logger.FromContext(ctx)
 	log.InfoContext(ctx, "repo UpdateProfile start", slog.String("id", p.ID))
 
+	// histJSON: если AddressesHistory != nil, это форс-перезапись истории,
+	// иначе даём NULL и пусть SQL применяет свою "умную" логику.
+	var histJSON []byte
+	if p.AddressesHistory != nil {
+		b, err := json.Marshal(p.AddressesHistory)
+		if err != nil {
+			log.ErrorContext(ctx, "repo UpdateProfile marshal history error", slog.Any("err", err))
+			return err
+		}
+		histJSON = b
+	} else {
+		histJSON = nil
+	}
+
 	res, err := r.db.Exec(ctx, updateProfileQuery,
-		p.Name,
-		p.Phone,
-		p.CityID,
-		p.Address,
-		p.AvatarURL,
-		p.ID,
+		p.Name,      // $1
+		p.Phone,     // $2
+		p.CityID,    // $3
+		p.Address,   // $4
+		histJSON,    // $5
+		p.AvatarURL, // $6
+		p.ID,        // $7
 	)
 
 	if err != nil {
@@ -90,7 +116,6 @@ func (r *ProfileRepoPostgres) DeleteProfile(ctx context.Context, id string) erro
 	log.InfoContext(ctx, "repo DeleteProfile start", slog.String("id", id))
 
 	res, err := r.db.Exec(ctx, deleteProfileQuery, id)
-
 	if err != nil {
 		log.ErrorContext(ctx, "repo DeleteProfile db error", slog.String("id", id), slog.Any("err", err))
 		return err

@@ -1,2 +1,2 @@
-INSERT INTO account (id, email, hash)
-VALUES ($1, $2, $3);
+INSERT INTO account (id, email, hash, addresses_history)
+VALUES ($1, $2, $3, '[]'::jsonb);
