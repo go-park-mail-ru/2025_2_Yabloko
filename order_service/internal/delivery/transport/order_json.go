@@ -52,6 +52,7 @@ type OrderStatus struct {
 type OrderCreateRequest struct {
 	IsFast  bool   `json:"is_fast"`
 	Comment string `json:"comment"`
+	Promo   string `json:"promo"`
 }
 
 func toOrderResponse(order *domain.Order) *Order {

@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"time"
 )
 
 type OrderRepository interface {
@@ -14,17 +16,19 @@ type OrderRepository interface {
 	UpdateOrderStatus(ctx context.Context, orderID, status string) error
 	GetOrder(ctx context.Context, orderID string) (*domain.OrderInfo, error)
 	GetOrdersUser(ctx context.Context, filter *domain.OrderFilter) ([]*domain.Order, error)
+	UpdateOrderTotal(ctx context.Context, orderID string, total float64) error
 }
 
 type OrderUsecase struct {
-	repo OrderRepository
+	repo      OrderRepository
+	promoRepo PromoRepository
 }
 
-func NewOrderUsecase(repo OrderRepository) *OrderUsecase {
-	return &OrderUsecase{repo: repo}
+func NewOrderUsecase(repo OrderRepository, promoRepo PromoRepository) *OrderUsecase {
+	return &OrderUsecase{repo: repo, promoRepo: promoRepo}
 }
 
-func (uc *OrderUsecase) CreateOrder(ctx context.Context, userID string, isFast bool, comment string) (*domain.OrderInfo, error) {
+func (uc *OrderUsecase) CreateOrder(ctx context.Context, userID string, isFast bool, comment string, promo string) (*domain.OrderInfo, error) {
 	orderID, err := uc.repo.CreateOrder(ctx, userID, isFast, comment)
 	if err != nil {
 		if errors.Is(err, domain.ErrCartEmpty) || errors.Is(err, domain.ErrRowsNotFound) {
@@ -34,6 +38,52 @@ func (uc *OrderUsecase) CreateOrder(ctx context.Context, userID string, isFast b
 	}
 
 	orderInfo, err := uc.repo.GetOrder(ctx, orderID)
+	if err != nil {
+		if errors.Is(err, domain.ErrRowsNotFound) {
+			return nil, err
+		}
+		return nil, domain.ErrInternalServer
+	}
+
+	total := orderInfo.Total
+
+	if promo != "" {
+		p, err := uc.promoRepo.GetActiveForUserByCode(ctx, userID, promo, time.Now())
+		if err != nil {
+			if errors.Is(err, domain.ErrRowsNotFound) {
+				return nil, domain.ErrRequestParams
+			}
+			return nil, domain.ErrInternalServer
+		}
+
+		var discount float64
+		if p.RelativeDiscount > 0 {
+			discount = total * p.RelativeDiscount / 100.0
+		} else if p.AbsoluteDiscount > 0 {
+			discount = p.AbsoluteDiscount
+		}
+		if discount > total {
+			discount = total
+		}
+
+		total = total - discount
+
+		if err := uc.promoRepo.MarkUsed(ctx, userID, p.ID); err != nil {
+			return nil, domain.ErrInternalServer
+		}
+	}
+
+	if isFast {
+		total += 100
+	}
+
+	total = math.Round(total*100) / 100
+
+	if err := uc.repo.UpdateOrderTotal(ctx, orderID, total); err != nil {
+		return nil, domain.ErrInternalServer
+	}
+
+	orderInfo, err = uc.repo.GetOrder(ctx, orderID)
 	if err != nil {
 		if errors.Is(err, domain.ErrRowsNotFound) {
 			return nil, err

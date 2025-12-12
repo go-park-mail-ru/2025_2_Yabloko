@@ -24,6 +24,9 @@ var insertItemOrder string
 //go:embed sql/order/update_total.sql
 var updateOrderTotal string
 
+//go:embed sql/order/update_total_manual.sql
+var updateOrderTotalManual string
+
 //go:embed sql/order/update_status.sql
 var updateOrderStatus string
 
@@ -140,6 +143,25 @@ func (r *OrderRepoPostgres) CreateOrder(ctx context.Context, userID string, isFa
 		slog.String("user_id", userID),
 		slog.String("order_id", orderID))
 	return orderID, nil
+}
+
+func (r *OrderRepoPostgres) UpdateOrderTotal(ctx context.Context, orderID string, total float64) error {
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "repo UpdateOrderTotal manual start",
+		slog.String("order_id", orderID),
+		slog.Float64("total", total),
+	)
+
+	_, err := r.db.Exec(ctx, updateOrderTotalManual, orderID, total)
+	if err != nil {
+		log.ErrorContext(ctx, "repo UpdateOrderTotal manual failed",
+			slog.String("order_id", orderID),
+			slog.Any("err", err))
+		return domain.ErrInternalServer
+	}
+
+	log.DebugContext(ctx, "repo UpdateOrderTotal manual success", slog.String("order_id", orderID))
+	return nil
 }
 
 func (r *OrderRepoPostgres) UpdateOrderStatus(ctx context.Context, orderID, status string) error {

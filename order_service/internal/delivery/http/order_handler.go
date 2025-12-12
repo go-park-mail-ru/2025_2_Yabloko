@@ -23,7 +23,7 @@ import (
 )
 
 type OrderUsecaseInterface interface {
-	CreateOrder(ctx context.Context, userID string, isFast bool, comment string) (*domain.OrderInfo, error)
+	CreateOrder(ctx context.Context, userID string, isFast bool, comment string, promo string) (*domain.OrderInfo, error)
 	UpdateOrderStatus(ctx context.Context, orderID, userID, status string) error
 	GetOrdersUser(ctx context.Context, filter *domain.OrderFilter) ([]*domain.Order, error)
 	GetOrder(ctx context.Context, orderID, userID string) (*domain.OrderInfo, error)
@@ -45,7 +45,8 @@ func NewOrderHandler(uc OrderUsecaseInterface) *OrderHandler {
 
 func NewOrderRouter(mux *http.ServeMux, db repository.PgxIface, apiPrefix string) {
 	orderRepo := repository.NewOrderRepoPostgres(db)
-	orderUC := usecase.NewOrderUsecase(orderRepo)
+	promoRepo := repository.NewPromoRepoPostgres(db)
+	orderUC := usecase.NewOrderUsecase(orderRepo, promoRepo)
 	orderHandler := NewOrderHandler(orderUC)
 
 	mux.HandleFunc(apiPrefix+"orders", func(w http.ResponseWriter, r *http.Request) {
@@ -85,12 +86,14 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orderInfo, err := h.uc.CreateOrder(ctx, userID, req.IsFast, req.Comment)
+	orderInfo, err := h.uc.CreateOrder(ctx, userID, req.IsFast, req.Comment, req.Promo)
 	if err != nil {
 		log.ErrorContext(ctx, "handler CreateOrder failed", slog.Any("err", err))
 
 		switch {
 		case errors.Is(err, domain.ErrCartEmpty):
+			h.rs.Error(ctx, w, http.StatusBadRequest, "CreateOrder", domain.ErrRequestParams, err)
+		case errors.Is(err, domain.ErrRequestParams):
 			h.rs.Error(ctx, w, http.StatusBadRequest, "CreateOrder", domain.ErrRequestParams, err)
 		case errors.Is(err, domain.ErrInternalServer):
 			h.rs.Error(ctx, w, http.StatusInternalServerError, "CreateOrder", domain.ErrInternalServer, err)
