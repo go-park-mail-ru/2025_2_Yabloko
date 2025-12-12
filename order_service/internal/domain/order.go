@@ -22,6 +22,8 @@ type OrderInfo struct {
 	Stores    []*StoreInfo
 	Status    string
 	Total     float64
+	IsFast    bool
+	Comment   string
 	CreatedAt time.Time
 }
 
@@ -32,6 +34,8 @@ type Order struct {
 	CreatedAt time.Time `json:"created_at"`
 	StoreID   string    `json:"store_id"`
 	StoreName string    `json:"store_name"`
+	IsFast    bool      `json:"is_fast"`
+	Comment   string    `json:"comment"`
 }
 
 type OrderFilter struct {

@@ -1,4 +1,3 @@
--- Write your migrate up statements here
 create type order_status as enum ('pending', 'paid', 'delivered', 'cancelled', 'on_the_way');
 
 create table if not exists "orders"
@@ -7,6 +6,8 @@ create table if not exists "orders"
     user_id     uuid         not null references account (id) on delete cascade,
     total_price numeric(8, 2) check ( total_price >= 0 ),
     status      order_status not null default 'pending',
+    is_fast     boolean      not null default false,
+    comment     text,
     updated_at  timestamptz  not null default current_timestamp,
     created_at  timestamptz  not null default current_timestamp
 );

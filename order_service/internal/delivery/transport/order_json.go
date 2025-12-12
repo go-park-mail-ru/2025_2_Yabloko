@@ -25,6 +25,8 @@ type OrderInfo struct {
 	Stores    []*StoreInfo `json:"stores"`
 	Status    string       `json:"status"`
 	Total     float64      `json:"total"`
+	IsFast    bool         `json:"is_fast"`
+	Comment   string       `json:"comment"`
 	CreatedAt time.Time    `json:"created_at"`
 } // @name OrderInfo
 
@@ -35,6 +37,8 @@ type Order struct {
 	CreatedAt time.Time `json:"created_at"`
 	StoreID   string    `json:"store_id"`
 	StoreName string    `json:"store_name"`
+	IsFast    bool      `json:"is_fast"`
+	Comment   string    `json:"comment"`
 } // @name Order
 
 type Orders struct {
@@ -45,6 +49,11 @@ type OrderStatus struct {
 	Status string `json:"status" validate:"required"`
 } // @name OrderStatus
 
+type OrderCreateRequest struct {
+	IsFast  bool   `json:"is_fast"`
+	Comment string `json:"comment"`
+}
+
 func toOrderResponse(order *domain.Order) *Order {
 	return &Order{
 		ID:        order.ID,
@@ -53,6 +62,8 @@ func toOrderResponse(order *domain.Order) *Order {
 		CreatedAt: order.CreatedAt,
 		StoreID:   order.StoreID,
 		StoreName: order.StoreName,
+		IsFast:    order.IsFast,
+		Comment:   order.Comment,
 	}
 }
 
@@ -94,6 +105,8 @@ func ToOrderInfoResponse(orderInfo *domain.OrderInfo) *OrderInfo {
 		Stores:    stores,
 		Status:    orderInfo.Status,
 		Total:     orderInfo.Total,
+		IsFast:    orderInfo.IsFast,
+		Comment:   orderInfo.Comment,
 		CreatedAt: orderInfo.CreatedAt,
 	}
 }

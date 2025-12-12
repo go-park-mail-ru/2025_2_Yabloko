@@ -10,7 +10,7 @@ import (
 
 type OrderRepository interface {
 	GetOrderUserID(ctx context.Context, orderID string) (string, error)
-	CreateOrder(ctx context.Context, userID string) (string, error)
+	CreateOrder(ctx context.Context, userID string, isFast bool, comment string) (string, error)
 	UpdateOrderStatus(ctx context.Context, orderID, status string) error
 	GetOrder(ctx context.Context, orderID string) (*domain.OrderInfo, error)
 	GetOrdersUser(ctx context.Context, filter *domain.OrderFilter) ([]*domain.Order, error)
@@ -24,8 +24,8 @@ func NewOrderUsecase(repo OrderRepository) *OrderUsecase {
 	return &OrderUsecase{repo: repo}
 }
 
-func (uc *OrderUsecase) CreateOrder(ctx context.Context, userID string) (*domain.OrderInfo, error) {
-	orderID, err := uc.repo.CreateOrder(ctx, userID)
+func (uc *OrderUsecase) CreateOrder(ctx context.Context, userID string, isFast bool, comment string) (*domain.OrderInfo, error) {
+	orderID, err := uc.repo.CreateOrder(ctx, userID, isFast, comment)
 	if err != nil {
 		if errors.Is(err, domain.ErrCartEmpty) || errors.Is(err, domain.ErrRowsNotFound) {
 			return nil, err
@@ -41,7 +41,6 @@ func (uc *OrderUsecase) CreateOrder(ctx context.Context, userID string) (*domain
 		return nil, domain.ErrInternalServer
 	}
 
-	// Бизнес-метрика: успешное создание заказа
 	storeID := "unknown"
 	if len(orderInfo.Stores) > 0 {
 		storeID = orderInfo.Stores[0].ID
@@ -91,7 +90,6 @@ func (uc *OrderUsecase) UpdateOrderStatus(ctx context.Context, orderID, userID, 
 				return domain.ErrInternalServer
 			}
 
-			// Бизнес-метрика: успешная отмена заказа
 			storeID := "unknown"
 			if currentOrder.Stores != nil && len(currentOrder.Stores) > 0 {
 				storeID = currentOrder.Stores[0].ID

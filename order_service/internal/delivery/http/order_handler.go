@@ -1,7 +1,10 @@
 package http
 
 import (
+	"apple_backend/order_service/internal/delivery/transport"
+	"apple_backend/order_service/internal/domain"
 	"apple_backend/order_service/internal/repository"
+	"apple_backend/order_service/internal/usecase"
 	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
 	"apple_backend/pkg/metrics"
@@ -15,16 +18,12 @@ import (
 	"strconv"
 	"time"
 
-	"apple_backend/order_service/internal/delivery/transport"
-	"apple_backend/order_service/internal/domain"
-	"apple_backend/order_service/internal/usecase"
-
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
 
 type OrderUsecaseInterface interface {
-	CreateOrder(ctx context.Context, userID string) (*domain.OrderInfo, error)
+	CreateOrder(ctx context.Context, userID string, isFast bool, comment string) (*domain.OrderInfo, error)
 	UpdateOrderStatus(ctx context.Context, orderID, userID, status string) error
 	GetOrdersUser(ctx context.Context, filter *domain.OrderFilter) ([]*domain.Order, error)
 	GetOrder(ctx context.Context, orderID, userID string) (*domain.OrderInfo, error)
@@ -79,7 +78,14 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orderInfo, err := h.uc.CreateOrder(ctx, userID)
+	var req transport.OrderCreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.ErrorContext(ctx, "handler CreateOrder decode failed", slog.Any("err", err))
+		h.rs.Error(ctx, w, http.StatusBadRequest, "CreateOrder", domain.ErrRequestParams, err)
+		return
+	}
+
+	orderInfo, err := h.uc.CreateOrder(ctx, userID, req.IsFast, req.Comment)
 	if err != nil {
 		log.ErrorContext(ctx, "handler CreateOrder failed", slog.Any("err", err))
 
@@ -101,7 +107,10 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	log.InfoContext(ctx, "handler CreateOrder success",
 		slog.String("order_id", orderInfo.ID),
 		slog.Int("stores_count", len(orderInfo.Stores)),
-		slog.Int("total_items", totalItems))
+		slog.Int("total_items", totalItems),
+		slog.Bool("is_fast", orderInfo.IsFast),
+		slog.String("comment", orderInfo.Comment),
+	)
 
 	order := transport.ToOrderInfoResponse(orderInfo)
 	h.rs.Send(ctx, w, http.StatusOK, order)
@@ -221,7 +230,6 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Метрика количества запросов GetOrder
 	storesCountStr = fmt.Sprintf("%d", len(order.Stores))
 	metrics.OrdersGetTotal.WithLabelValues(storesCountStr).Inc()
 
@@ -234,7 +242,10 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 				total += len(store.Items)
 			}
 			return total
-		}()))
+		}()),
+		slog.Bool("is_fast", order.IsFast),
+		slog.String("comment", order.Comment),
+	)
 
 	orderInfo := transport.ToOrderInfoResponse(order)
 	h.rs.Send(ctx, w, http.StatusOK, orderInfo)

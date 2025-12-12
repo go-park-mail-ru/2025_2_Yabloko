@@ -65,11 +65,14 @@ func (r *OrderRepoPostgres) GetOrderUserID(ctx context.Context, orderID string) 
 	return userID, nil
 }
 
-func (r *OrderRepoPostgres) CreateOrder(ctx context.Context, userID string) (string, error) {
+func (r *OrderRepoPostgres) CreateOrder(ctx context.Context, userID string, isFast bool, comment string) (string, error) {
 	log := logger.FromContext(ctx)
-	log.DebugContext(ctx, "repo CreateOrder start", slog.String("user_id", userID))
+	log.DebugContext(ctx, "repo CreateOrder start",
+		slog.String("user_id", userID),
+		slog.Bool("is_fast", isFast),
+		slog.String("comment", comment),
+	)
 
-	// проверка есть ли товары в корзине
 	var cnt int
 	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM cart_item ci JOIN cart c ON c.id = ci.cart_id WHERE c.user_id = $1", userID).Scan(&cnt)
 	if err != nil {
@@ -88,42 +91,54 @@ func (r *OrderRepoPostgres) CreateOrder(ctx context.Context, userID string) (str
 	}
 	defer tx.Rollback(ctx)
 
-	// 1 - создаем заказ
 	orderID := uuid.New().String()
-	_, err = tx.Exec(ctx, insertEmptyOrder, orderID, userID)
+	_, err = tx.Exec(ctx, insertEmptyOrder, orderID, userID, isFast, comment)
 	if err != nil {
-		log.ErrorContext(ctx, "repo CreateOrder create order failed", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
+		log.ErrorContext(ctx, "repo CreateOrder create order failed",
+			slog.String("user_id", userID),
+			slog.String("order_id", orderID),
+			slog.Any("err", err))
 		return "", domain.ErrInternalServer
 	}
 
-	// 2 - переносим товары из корзины
 	_, err = tx.Exec(ctx, insertItemOrder, orderID, userID)
 	if err != nil {
-		log.ErrorContext(ctx, "repo CreateOrder transfer items failed", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
+		log.ErrorContext(ctx, "repo CreateOrder transfer items failed",
+			slog.String("user_id", userID),
+			slog.String("order_id", orderID),
+			slog.Any("err", err))
 		return "", domain.ErrInternalServer
 	}
 
-	// 3 - обновляем итоговую сумму
 	_, err = tx.Exec(ctx, updateOrderTotal, orderID)
 	if err != nil {
-		log.ErrorContext(ctx, "repo CreateOrder update total failed", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
+		log.ErrorContext(ctx, "repo CreateOrder update total failed",
+			slog.String("user_id", userID),
+			slog.String("order_id", orderID),
+			slog.Any("err", err))
 		return "", domain.ErrInternalServer
 	}
 
-	// 4 - очищаем корзину
 	_, err = tx.Exec(ctx, deleteCartItemsForOrder, userID)
 	if err != nil {
-		log.ErrorContext(ctx, "repo CreateOrder clear cart failed", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
+		log.ErrorContext(ctx, "repo CreateOrder clear cart failed",
+			slog.String("user_id", userID),
+			slog.String("order_id", orderID),
+			slog.Any("err", err))
 		return "", domain.ErrInternalServer
 	}
 
-	err = tx.Commit(ctx)
-	if err != nil {
-		log.ErrorContext(ctx, "repo CreateOrder transaction commit failed", slog.String("user_id", userID), slog.String("order_id", orderID), slog.Any("err", err))
+	if err = tx.Commit(ctx); err != nil {
+		log.ErrorContext(ctx, "repo CreateOrder transaction commit failed",
+			slog.String("user_id", userID),
+			slog.String("order_id", orderID),
+			slog.Any("err", err))
 		return "", domain.ErrInternalServer
 	}
 
-	log.DebugContext(ctx, "repo CreateOrder success", slog.String("user_id", userID), slog.String("order_id", orderID))
+	log.DebugContext(ctx, "repo CreateOrder success",
+		slog.String("user_id", userID),
+		slog.String("order_id", orderID))
 	return orderID, nil
 }
 
@@ -165,11 +180,15 @@ func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*doma
 			storeName    string
 			storeCardImg string
 			item         domain.OrderItemInfo
+			isFast       bool
+			comment      *string
 		)
 		err = rows.Scan(
 			&order.ID,
 			&order.Total,
 			&order.Status,
+			&isFast,
+			&comment,
 			&order.CreatedAt,
 			&storeID,
 			&storeName,
@@ -183,6 +202,11 @@ func (r *OrderRepoPostgres) GetOrder(ctx context.Context, orderID string) (*doma
 		if err != nil {
 			log.ErrorContext(ctx, "repo GetOrder scan failed", slog.String("order_id", orderID), slog.Any("err", err))
 			return nil, domain.ErrInternalServer
+		}
+
+		order.IsFast = isFast
+		if comment != nil {
+			order.Comment = *comment
 		}
 
 		if _, exists := storeMap[storeID]; !exists {
@@ -240,11 +264,14 @@ func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, filter *domain.Or
 	var orders []*domain.Order
 	for rows.Next() {
 		var order domain.Order
+		var comment *string
 		err = rows.Scan(
 			&order.ID,
 			&order.Status,
 			&order.Total,
 			&order.CreatedAt,
+			&order.IsFast,
+			&comment,
 			&order.StoreID,
 			&order.StoreName,
 		)
@@ -252,6 +279,9 @@ func (r *OrderRepoPostgres) GetOrdersUser(ctx context.Context, filter *domain.Or
 			log.ErrorContext(ctx, "repo GetOrdersUser scan failed",
 				slog.String("user_id", filter.UserID), slog.Any("err", err))
 			return nil, domain.ErrInternalServer
+		}
+		if comment != nil {
+			order.Comment = *comment
 		}
 		orders = append(orders, &order)
 	}

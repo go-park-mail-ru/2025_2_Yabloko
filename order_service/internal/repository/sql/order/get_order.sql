@@ -2,6 +2,8 @@ SELECT
     o.id as order_id,
     o.total_price as total,
     o.status as status,
+    o.is_fast as is_fast,
+    o.comment as comment,
     o.created_at as created_at,
     s.id as store_id,
     s.name as store_name,
@@ -20,4 +22,4 @@ FROM
 WHERE
     o.id = $1::uuid
 ORDER BY
-    s.id, oi.created_at
+    s.id, oi.created_at;

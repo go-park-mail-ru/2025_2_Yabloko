@@ -3,6 +3,8 @@ SELECT DISTINCT ON (o.id)
     o.status,
     o.total_price,
     o.created_at,
+    o.is_fast,
+    o.comment,
     s.id as store_id,
     s.name as store_name
 FROM orders o
