@@ -1,37 +1,34 @@
--- +goose Up
-INSERT INTO promocode (
-    id,
-    code,
-    relative_discount,
-    absolute_discount,
-    start_at,
-    end_at
-) VALUES
+INSERT INTO
+    promocode (
+        id,
+        code,
+        relative_discount,
+        absolute_discount,
+        start_at,
+        end_at
+    )
+VALUES
     (
-        gen_random_uuid(),
+        '11111111-1111-4000-8000-000000000001',
         'WELCOME10',
-        10.00,      -- 10% скидка
+        10.00,
         0,
         now(),
         now() + interval '30 days'
     ),
     (
-        gen_random_uuid(),
+        '11111111-1111-4000-8000-000000000002',
         'FIXED150',
         0,
-        150.00,     -- фиксированная скидка 150
+        150.00,
         now(),
         now() + interval '60 days'
     ),
     (
-        gen_random_uuid(),
+        '11111111-1111-4000-8000-000000000003',
         'BLACK50',
-        50.00,      -- 50% скидка
+        50.00,
         0,
         now(),
         now() + interval '1 day'
-    );
-
--- +goose Down
-DELETE FROM promocode
-WHERE code IN ('WELCOME10', 'FIXED150', 'BLACK50');
+    ) ON CONFLICT (id) DO NOTHING;
