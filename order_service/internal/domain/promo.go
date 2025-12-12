@@ -7,7 +7,6 @@ type Promocode struct {
 	Code             string
 	RelativeDiscount float64 // %
 	AbsoluteDiscount float64 // рублей
-	UserID           string
 	StartAt          time.Time
 	EndAt            time.Time
 	CreatedAt        time.Time

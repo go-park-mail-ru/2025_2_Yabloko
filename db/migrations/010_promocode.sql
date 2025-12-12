@@ -4,7 +4,6 @@ create table if not exists promocode
     code               text        not null check (length(code) < 32),
     relative_discount  numeric(4, 2) check ( relative_discount >= 0 ) check ( relative_discount <= 99 ) default 0,
     absolute_discount  numeric(8, 2) check ( absolute_discount >= 0 )                                  default 0,
-    user_id            uuid        not null references account (id) on delete cascade,
     start_at           timestamptz not null,
     end_at             timestamptz not null check ( end_at > start_at ),
     updated_at         timestamptz not null default current_timestamp,
