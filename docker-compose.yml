@@ -247,6 +247,8 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
+      SECRET_KEY: ${SECRET_KEY}
+      CSRF_SECRET: ${CSRF_SECRET}
       RECOMMENDATION_SERVICE_PORT: "${RECOMMENDATION_SERVICE_PORT}"
     restart: unless-stopped
     labels:

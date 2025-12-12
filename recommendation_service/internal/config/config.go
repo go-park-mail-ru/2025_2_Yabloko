@@ -14,6 +14,8 @@ type Config struct {
 	DBPort     string `validate:"required"`
 	DBName     string `validate:"required"`
 	AppPort    string `validate:"required"`
+	JWTSecret  string `validate:"required"`
+	RedisURL   string `validate:"required"`
 }
 
 func MustConfig() *Config {
@@ -23,6 +25,8 @@ func MustConfig() *Config {
 		DBHost:     os.Getenv("DB_HOST"),
 		DBPort:     os.Getenv("API_DB_PORT"),
 		DBName:     os.Getenv("DB_NAME"),
+		JWTSecret:  os.Getenv("SECRET_KEY"),
+		RedisURL:   getEnv("REDIS_URL", "localhost:6379"),
 		AppPort:    os.Getenv("RECOMMENDATION_SERVICE_PORT"),
 	}
 
@@ -38,4 +42,11 @@ func (c *Config) DBPath() string {
 		"postgres://%s:%s@%s:%s/%s",
 		c.DBUser, c.DBPassword, c.DBHost, c.DBPort, c.DBName,
 	)
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
