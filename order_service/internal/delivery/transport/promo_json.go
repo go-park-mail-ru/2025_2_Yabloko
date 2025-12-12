@@ -6,5 +6,5 @@ type PromoCheckRequest struct {
 
 type PromoCheckResponse struct {
 	RelativeDiscount float64 `json:"relative_discount"` // %
-	AbsoluteDiscount float64 `json:"absolute_discount`  // Рублей
+	AbsoluteDiscount float64 `json:"absolute_discount"` // Рублей
 } // @name PromoCheckResponse
