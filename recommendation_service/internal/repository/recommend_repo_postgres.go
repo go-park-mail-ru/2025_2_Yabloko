@@ -27,7 +27,7 @@ func (r *RecommendationRepoPostgres) GetHomeRecommendations(
 ) ([]*domain.RecommendedItem, error) {
 	log := logger.FromContext(ctx)
 
-	log.DebugContext(ctx, "repo GetHomeRecommendations start",
+	log.InfoContext(ctx, "repo GetHomeRecommendations start",
 		slog.String("user_id", filter.UserID),
 		slog.Int("limit", filter.Limit),
 	)
@@ -80,14 +80,14 @@ func (r *RecommendationRepoPostgres) GetHomeRecommendations(
 	}
 
 	if len(items) == 0 {
-		log.DebugContext(ctx, "repo GetHomeRecommendations no items found",
+		log.InfoContext(ctx, "repo GetHomeRecommendations no items found",
 			slog.String("user_id", filter.UserID),
 			slog.Int("limit", filter.Limit),
 		)
 		return []*domain.RecommendedItem{}, nil
 	}
 
-	log.DebugContext(ctx, "repo GetHomeRecommendations success",
+	log.InfoContext(ctx, "repo GetHomeRecommendations success",
 		slog.String("user_id", filter.UserID),
 		slog.Int("limit", filter.Limit),
 		slog.Int("items_count", len(items)),
