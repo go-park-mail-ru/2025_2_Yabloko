@@ -28,43 +28,47 @@ user_profile_embedding AS (
 ),
 candidate_items AS (
     SELECT
-        i.id,
-        si.store_id,
-        i.name,
-        si.price,
-        i.card_img,
-        (1.0 - (up.embedding <=> i.embedding)) AS score
-    FROM item i
-    JOIN store_item si ON si.item_id = i.id
-    CROSS JOIN user_profile_embedding up
-    WHERE up.embedding IS NOT NULL
-      AND i.embedding IS NOT NULL
-      AND NOT EXISTS (
-          SELECT 1
-          FROM recent_items ri2
-          WHERE ri2.store_item_id = si.id
-      )
+        *
+    FROM (
+        SELECT
+            i.id::text          AS id,
+            si.store_id::text   AS store_id,
+            i.name              AS name,
+            si.price::float8    AS price,
+            i.card_img          AS card_img,
+            (1.0 - (up.embedding <=> i.embedding)) AS score
+        FROM item i
+        JOIN store_item si ON si.item_id = i.id
+        CROSS JOIN user_profile_embedding up
+        WHERE up.embedding IS NOT NULL
+          AND i.embedding IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1
+              FROM recent_items ri2
+              WHERE ri2.store_item_id = si.id
+          )
 
-    UNION ALL
+        UNION ALL
 
-    SELECT
-        i2.id,
-        si2.store_id,
-        i2.name,
-        si2.price,
-        i2.card_img,
-        0.0 AS score
-    FROM item i2
-    JOIN store_item si2 ON si2.item_id = i2.id
-    CROSS JOIN user_profile_embedding up2
-    WHERE up2.embedding IS NULL
-      AND i2.embedding IS NOT NULL
-      AND NOT EXISTS (
-          SELECT 1
-          FROM recent_items ri3
-          WHERE ri3.store_item_id = si2.id
-      )
-    ORDER BY random()
+        SELECT
+            i2.id::text         AS id,
+            si2.store_id::text  AS store_id,
+            i2.name             AS name,
+            si2.price::float8   AS price,
+            i2.card_img         AS card_img,
+            0.0                 AS score
+        FROM item i2
+        JOIN store_item si2 ON si2.item_id = i2.id
+        CROSS JOIN user_profile_embedding up2
+        WHERE up2.embedding IS NULL
+          AND i2.embedding IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1
+              FROM recent_items ri3
+              WHERE ri3.store_item_id = si2.id
+          )
+    ) AS unioned
+    ORDER BY score DESC, price ASC, random()
     LIMIT $2
 ),
 scored AS (
@@ -76,14 +80,12 @@ scored AS (
         card_img,
         score
     FROM candidate_items
-    ORDER BY score DESC, price ASC
-    LIMIT $2
 )
 SELECT
-    id::text,
-    store_id::text,
+    id,
+    store_id,
     name,
-    price::float8,
+    price,
     card_img,
     COALESCE(score, 0)::float8 AS score
 FROM scored;
