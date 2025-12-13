@@ -1,9 +1,10 @@
 package usecase
 
 import (
+	"apple_backend/pkg/logger"
 	"apple_backend/recommendation_service/internal/domain"
 	"context"
-	"errors"
+	"log/slog"
 	"math"
 )
 
@@ -22,21 +23,16 @@ func NewRecommendationUsecase(repo RecommendationRepository) *RecommendationUsec
 }
 
 func (uc *RecommendationUsecase) GetHomeRecommendations(ctx context.Context, filter *domain.HomeRecommendFilter) ([]*domain.RecommendedItem, error) {
-	if filter == nil {
-		return nil, domain.ErrRequestParams
-	}
-	if filter.Limit <= 0 || filter.Limit > 20 {
-		return nil, domain.ErrRequestParams
-	}
-	if filter.UserID == "" {
+	if filter == nil || filter.Limit <= 0 || filter.Limit > 20 || filter.UserID == "" {
+		logger.FromContext(ctx).ErrorContext(ctx, "uc GetHomeRecommendations invalid filter",
+			slog.Any("filter", filter))
 		return nil, domain.ErrRequestParams
 	}
 
 	items, err := uc.repo.GetHomeRecommendations(ctx, filter)
 	if err != nil {
-		if errors.Is(err, domain.ErrInternalServer) {
-			return nil, domain.ErrInternalServer
-		}
+		logger.FromContext(ctx).ErrorContext(ctx, "uc GetHomeRecommendations repo failed",
+			slog.Any("err", err))
 		return nil, domain.ErrInternalServer
 	}
 
