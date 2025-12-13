@@ -80,10 +80,10 @@ scored AS (
     LIMIT $2
 )
 SELECT
-    id,
-    store_id,
+    id::text,
+    store_id::text,
     name,
-    price,
+    price::float8,
     card_img,
-    COALESCE(score, 0) AS score
+    COALESCE(score, 0)::float8 AS score
 FROM scored;
