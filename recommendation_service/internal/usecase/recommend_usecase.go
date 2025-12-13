@@ -33,7 +33,7 @@ func (uc *RecommendationUsecase) GetHomeRecommendations(ctx context.Context, fil
 	if err != nil {
 		logger.FromContext(ctx).ErrorContext(ctx, "uc GetHomeRecommendations repo failed",
 			slog.Any("err", err))
-		return nil, domain.ErrInternalServer
+		return nil, err
 	}
 
 	for _, it := range items {
