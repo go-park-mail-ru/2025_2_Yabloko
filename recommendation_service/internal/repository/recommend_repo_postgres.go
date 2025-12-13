@@ -42,7 +42,7 @@ func (r *RecommendationRepoPostgres) GetHomeRecommendations(
 			slog.String("user_id", filter.UserID),
 			slog.Int("limit", filter.Limit),
 		)
-		return nil, domain.ErrInternalServer
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -64,7 +64,7 @@ func (r *RecommendationRepoPostgres) GetHomeRecommendations(
 				slog.String("user_id", filter.UserID),
 				slog.Int("limit", filter.Limit),
 			)
-			return nil, domain.ErrInternalServer
+			return nil, err
 		}
 
 		items = append(items, &it)
@@ -76,7 +76,7 @@ func (r *RecommendationRepoPostgres) GetHomeRecommendations(
 			slog.String("user_id", filter.UserID),
 			slog.Int("limit", filter.Limit),
 		)
-		return nil, domain.ErrInternalServer
+		return nil, err
 	}
 
 	if len(items) == 0 {
