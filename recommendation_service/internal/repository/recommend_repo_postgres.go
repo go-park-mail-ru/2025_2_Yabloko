@@ -21,8 +21,12 @@ func NewRecommendationRepoPostgres(db PgxIface) *RecommendationRepoPostgres {
 	}
 }
 
-func (r *RecommendationRepoPostgres) GetHomeRecommendations(ctx context.Context, filter *domain.HomeRecommendFilter) ([]*domain.RecommendedItem, error) {
+func (r *RecommendationRepoPostgres) GetHomeRecommendations(
+	ctx context.Context,
+	filter *domain.HomeRecommendFilter,
+) ([]*domain.RecommendedItem, error) {
 	log := logger.FromContext(ctx)
+
 	log.DebugContext(ctx, "repo GetHomeRecommendations start",
 		slog.String("user_id", filter.UserID),
 		slog.Int("limit", filter.Limit),
@@ -33,39 +37,61 @@ func (r *RecommendationRepoPostgres) GetHomeRecommendations(ctx context.Context,
 		filter.Limit,
 	)
 	if err != nil {
-		log.ErrorContext(ctx, "repo GetHomeRecommendations query failed", slog.Any("err", err))
+		log.ErrorContext(ctx, "repo GetHomeRecommendations query failed",
+			slog.Any("err", err),
+			slog.String("user_id", filter.UserID),
+			slog.Int("limit", filter.Limit),
+		)
 		return nil, domain.ErrInternalServer
 	}
 	defer rows.Close()
 
 	var items []*domain.RecommendedItem
+
 	for rows.Next() {
 		var it domain.RecommendedItem
-		err = rows.Scan(
+
+		if err := rows.Scan(
 			&it.ID,
 			&it.StoreID,
 			&it.Name,
 			&it.Price,
 			&it.CardImg,
 			&it.Score,
-		)
-		if err != nil {
-			log.ErrorContext(ctx, "repo GetHomeRecommendations scan failed", slog.Any("err", err))
+		); err != nil {
+			log.ErrorContext(ctx, "repo GetHomeRecommendations scan failed",
+				slog.Any("err", err),
+				slog.String("user_id", filter.UserID),
+				slog.Int("limit", filter.Limit),
+			)
 			return nil, domain.ErrInternalServer
 		}
+
 		items = append(items, &it)
 	}
 
-	if err = rows.Err(); err != nil {
-		log.ErrorContext(ctx, "repo GetHomeRecommendations rows error", slog.Any("err", err))
+	if err := rows.Err(); err != nil {
+		log.ErrorContext(ctx, "repo GetHomeRecommendations rows error",
+			slog.Any("err", err),
+			slog.String("user_id", filter.UserID),
+			slog.Int("limit", filter.Limit),
+		)
 		return nil, domain.ErrInternalServer
 	}
 
 	if len(items) == 0 {
-		log.DebugContext(ctx, "repo GetHomeRecommendations no items found")
+		log.DebugContext(ctx, "repo GetHomeRecommendations no items found",
+			slog.String("user_id", filter.UserID),
+			slog.Int("limit", filter.Limit),
+		)
 		return []*domain.RecommendedItem{}, nil
 	}
 
-	log.DebugContext(ctx, "repo GetHomeRecommendations success", slog.Int("items_count", len(items)))
+	log.DebugContext(ctx, "repo GetHomeRecommendations success",
+		slog.String("user_id", filter.UserID),
+		slog.Int("limit", filter.Limit),
+		slog.Int("items_count", len(items)),
+	)
+
 	return items, nil
 }
