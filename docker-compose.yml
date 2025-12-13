@@ -243,7 +243,7 @@ services:
       - backend
     environment:
       DB_HOST: ${DB_HOST}
-      API_DB_PORT: ${DB_PORT}
+      API_DB_PORT: ${API_DB_PORT}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
