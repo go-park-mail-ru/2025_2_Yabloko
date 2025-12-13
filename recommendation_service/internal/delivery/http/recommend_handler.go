@@ -9,7 +9,6 @@ import (
 	"apple_backend/recommendation_service/internal/domain"
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -80,7 +79,6 @@ func (h *RecommendationHandler) GetHomeRecommendations(w http.ResponseWriter, r 
 	}
 
 	items, err := h.uc.GetHomeRecommendations(ctx, filter)
-	fmt.Println(err)
 	if err != nil {
 		log.ErrorContext(ctx, "handler GetHomeRecommendations failed", slog.Any("err", err))
 
