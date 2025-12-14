@@ -45,7 +45,7 @@ func LoadConfig() *Config {
 	}
 
 	// Build public BaseURL
-	baseURL := fmt.Sprintf("http://%s:%s", appHost, appPort)
+	baseURL := fmt.Sprintf("https://%s", appHost)
 
 	// Upload
 	uploadPath := os.Getenv("UPLOAD_DIR")
