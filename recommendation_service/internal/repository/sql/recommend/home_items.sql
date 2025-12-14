@@ -2,7 +2,7 @@ WITH recent_orders AS (
     SELECT o.id
     FROM "orders" o
     WHERE o.user_id = $1
-      AND o.status IN ('paid', 'delivered')
+      AND o.status IN ('paid', 'pending', 'delivered')
     ORDER BY o.created_at DESC
     LIMIT 20
 ),
