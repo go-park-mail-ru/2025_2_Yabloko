@@ -14,7 +14,8 @@ type StoreRepository interface {
 	GetStore(ctx context.Context, id string) (*domain.StoreAgg, error)
 	CreateStore(ctx context.Context, store *domain.Store) error
 
-	GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error) // TODO Вынести
+	GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error)
+	CreateStoreReview(ctx context.Context, storeID string, userID *string, rating float64, comment string) error
 
 	GetTags(ctx context.Context) ([]*domain.StoreTag, error)
 	GetCategories(ctx context.Context) ([]*domain.Category, error)
@@ -118,4 +119,21 @@ func (uc *StoreUsecase) GetTags(ctx context.Context) ([]*domain.StoreTag, error)
 
 func (uc *StoreUsecase) GetCategories(ctx context.Context) ([]*domain.Category, error) {
 	return uc.repo.GetCategories(ctx)
+}
+
+func (uc *StoreUsecase) CreateStoreReview(
+	ctx context.Context,
+	storeID string,
+	userID *string,
+	rating float64,
+	comment string,
+) error {
+	if rating < 0 || rating > 5 {
+		return domain.ErrRequestParams
+	}
+	if len(comment) > 5000 {
+		return domain.ErrRequestParams
+	}
+
+	return uc.repo.CreateStoreReview(ctx, storeID, userID, rating, comment)
 }

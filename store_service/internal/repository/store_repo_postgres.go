@@ -37,6 +37,9 @@ var createStoreQuery string
 //go:embed sql/store/get_review.sql
 var getStoreReviewQuery string
 
+//go:embed sql/store/create_review.sql
+var createStoreReviewQuery string
+
 //go:embed sql/store/update_embedding.sql
 var updateStoreEmbeddingQuery string
 
@@ -786,4 +789,39 @@ func (r *StoreRepoPostgres) GetStoresWithoutEmbedding(ctx context.Context) ([]*d
 
 	log.DebugContext(ctx, "GetStoresWithoutEmbedding completed", slog.Int("count", len(stores)))
 	return stores, nil
+}
+
+func (r *StoreRepoPostgres) CreateStoreReview(
+	ctx context.Context,
+	storeID string,
+	userID *string,
+	rating float64,
+	comment string,
+) error {
+	log := logger.FromContext(ctx)
+	log.DebugContext(ctx, "CreateStoreReview",
+		slog.String("store_id", storeID),
+	)
+
+	var userUUID *uuid.UUID
+	if userID != nil {
+		u, err := uuid.Parse(*userID)
+		if err != nil {
+			return domain.ErrRequestParams
+		}
+		userUUID = &u
+	}
+
+	storeUUID, err := uuid.Parse(storeID)
+	if err != nil {
+		return domain.ErrRequestParams
+	}
+
+	_, err = r.db.Exec(ctx, createStoreReviewQuery, userUUID, storeUUID, rating, comment)
+	if err != nil {
+		log.ErrorContext(ctx, "CreateStoreReview exec failed", slog.Any("err", err))
+		return err
+	}
+
+	return nil
 }

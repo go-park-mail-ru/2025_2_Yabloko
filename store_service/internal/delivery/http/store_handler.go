@@ -25,7 +25,8 @@ type StoreUsecaseInterface interface {
 	GetStores(ctx context.Context, filter *domain.StoreFilter) ([]*domain.StoreAgg, error)
 	CreateStore(ctx context.Context, name, description, cityID, address, cardImg, openAt, closedAt string, rating float64) error
 
-	GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error) // TODO Вынести
+	GetStoreReview(ctx context.Context, id string) ([]*domain.StoreReview, error)
+	CreateStoreReview(ctx context.Context, storeID string, userID *string, rating float64, comment string) error
 
 	GetTags(ctx context.Context) ([]*domain.StoreTag, error)
 	GetCategories(ctx context.Context) ([]*domain.Category, error)
@@ -62,7 +63,8 @@ func NewStoreRouter(
 	mux.HandleFunc(apiPrefix+"stores/cities", storeHandler.GetCities)
 	mux.HandleFunc(apiPrefix+"stores/tags", storeHandler.GetTags)
 	mux.HandleFunc(apiPrefix+"stores/categories", storeHandler.GetCategories)
-	mux.HandleFunc(apiPrefix+"stores/{id}/reviews", storeHandler.GetStoreReview) // TODO: Вынести
+	mux.HandleFunc(apiPrefix+"stores/{id}/reviews", storeHandler.GetStoreReview)
+	mux.HandleFunc(apiPrefix+"stores/{id}/reviews/add", storeHandler.CreateStoreReview)
 	mux.HandleFunc(apiPrefix+"stores/{id}", storeHandler.GetStore)
 	mux.HandleFunc(apiPrefix+"stores", storeHandler.GetStores)
 }
@@ -410,4 +412,63 @@ func (h *StoreHandler) GetCategories(w http.ResponseWriter, r *http.Request) {
 	log.InfoContext(ctx, "handler GetCategories success", slog.Int("count", len(categories)))
 	responseCategories := transport.ToCategoryResponses(categories)
 	h.rs.Send(ctx, w, http.StatusOK, responseCategories)
+}
+
+func (h *StoreHandler) CreateStoreReview(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.FromContext(ctx)
+	log.InfoContext(ctx, "handler CreateStoreReview start")
+
+	if r.Method != http.MethodPost {
+		log.WarnContext(ctx, "handler CreateStoreReview wrong method")
+		h.rs.Error(ctx, w, http.StatusMethodNotAllowed, "CreateStoreReview", domain.ErrHTTPMethod, nil)
+		return
+	}
+
+	storeID := r.PathValue("id")
+	if _, err := uuid.Parse(storeID); err != nil {
+		log.WarnContext(ctx, "handler CreateStoreReview invalid store id", slog.String("id", storeID))
+		h.rs.Error(ctx, w, http.StatusBadRequest, "CreateStoreReview", domain.ErrRequestParams, nil)
+		return
+	}
+
+	var req domain.CreateReviewRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.WarnContext(ctx, "handler CreateStoreReview decode failed", slog.Any("err", err))
+		h.rs.Error(ctx, w, http.StatusBadRequest, "CreateStoreReview", domain.ErrRequestParams, err)
+		return
+	}
+
+	if req.Rating < 0 || req.Rating > 5 {
+		h.rs.Error(ctx, w, http.StatusBadRequest, "CreateStoreReview", domain.ErrRequestParams, errors.New("invalid rating"))
+		return
+	}
+
+	var userIDPtr *string
+	if req.UserID != "" {
+		if _, err := uuid.Parse(req.UserID); err != nil {
+			log.WarnContext(ctx, "handler CreateStoreReview invalid user id", slog.String("user_id", req.UserID))
+			h.rs.Error(ctx, w, http.StatusBadRequest, "CreateStoreReview", domain.ErrRequestParams, nil)
+			return
+		}
+		userIDPtr = &req.UserID
+	}
+
+	if len(req.Comment) > 5000 {
+		h.rs.Error(ctx, w, http.StatusBadRequest, "CreateStoreReview", domain.ErrRequestParams, errors.New("comment too long"))
+		return
+	}
+
+	if err := h.uc.CreateStoreReview(ctx, storeID, userIDPtr, req.Rating, req.Comment); err != nil {
+		log.ErrorContext(ctx, "handler CreateStoreReview usecase failed", slog.Any("err", err))
+		if errors.Is(err, domain.ErrRequestParams) {
+			h.rs.Error(ctx, w, http.StatusBadRequest, "CreateStoreReview", domain.ErrRequestParams, nil)
+			return
+		}
+		h.rs.Error(ctx, w, http.StatusInternalServerError, "CreateStoreReview", domain.ErrInternalServer, err)
+		return
+	}
+
+	log.InfoContext(ctx, "handler CreateStoreReview success", slog.String("store_id", storeID))
+	w.WriteHeader(http.StatusCreated)
 }

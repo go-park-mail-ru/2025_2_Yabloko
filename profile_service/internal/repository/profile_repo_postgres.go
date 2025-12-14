@@ -12,6 +12,15 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+//go:embed sql/profile/get_profile.sql
+var getProfileQuery string
+
+//go:embed sql/profile/update_profile.sql
+var updateProfileQuery string
+
+//go:embed sql/profile/delete_profile.sql
+var deleteProfileQuery string
+
 type ProfileRepoPostgres struct {
 	db PgxIface
 }
@@ -19,9 +28,6 @@ type ProfileRepoPostgres struct {
 func NewProfileRepoPostgres(db PgxIface) *ProfileRepoPostgres {
 	return &ProfileRepoPostgres{db: db}
 }
-
-//go:embed sql/profile/get_profile.sql
-var getProfileQuery string
 
 func (r *ProfileRepoPostgres) GetProfile(ctx context.Context, id string) (*domain.Profile, error) {
 	log := logger.FromContext(ctx)
@@ -42,7 +48,6 @@ func (r *ProfileRepoPostgres) GetProfile(ctx context.Context, id string) (*domai
 		&p.CreatedAt,
 		&p.UpdatedAt,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			log.WarnContext(ctx, "repo GetProfile profile not found", slog.String("id", id))
@@ -63,14 +68,11 @@ func (r *ProfileRepoPostgres) GetProfile(ctx context.Context, id string) (*domai
 	return p, nil
 }
 
-//go:embed sql/profile/update_profile.sql
-var updateProfileQuery string
-
 func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, p *domain.Profile) error {
 	log := logger.FromContext(ctx)
 	log.InfoContext(ctx, "repo UpdateProfile start", slog.String("id", p.ID))
 
-	var histJSON []byte
+	var histJSON any
 	if p.AddressesHistory != nil {
 		b, err := json.Marshal(p.AddressesHistory)
 		if err != nil {
@@ -91,7 +93,6 @@ func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, p *domain.Profi
 		p.AvatarURL,
 		p.ID,
 	)
-
 	if err != nil {
 		log.ErrorContext(ctx, "repo UpdateProfile db error", slog.String("id", p.ID), slog.Any("err", err))
 		return err
@@ -105,9 +106,6 @@ func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, p *domain.Profi
 	log.InfoContext(ctx, "repo UpdateProfile success", slog.String("id", p.ID))
 	return nil
 }
-
-//go:embed sql/profile/delete_profile.sql
-var deleteProfileQuery string
 
 func (r *ProfileRepoPostgres) DeleteProfile(ctx context.Context, id string) error {
 	log := logger.FromContext(ctx)

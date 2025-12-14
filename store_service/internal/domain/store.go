@@ -60,6 +60,12 @@ type StoreReview struct {
 	CreatedAt string
 }
 
+type CreateReviewRequest struct {
+	UserID  string  `json:"user_id"`
+	Rating  float64 `json:"rating"`
+	Comment string  `json:"comment"`
+}
+
 type StoreSearchFilter struct {
 	Search      string
 	TagIDs      []string

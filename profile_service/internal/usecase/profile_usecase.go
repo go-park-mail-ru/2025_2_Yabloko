@@ -1,4 +1,3 @@
-//go:generate mockgen -source=profile_usecase.go -destination=mock/profile_repository_mock.go -package=mock
 package usecase
 
 import (
