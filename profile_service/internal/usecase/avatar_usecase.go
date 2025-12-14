@@ -93,7 +93,7 @@ func (uc *AvatarUsecase) UploadAvatar(ctx context.Context, userID string, src io
 		}
 	}
 
-	avatarURL := uc.baseURL + "/" + filename
+	avatarURL := uc.baseURL + "/avatars/" + filename
 	profile.AvatarURL = &avatarURL
 
 	if err := uc.repo.UpdateProfile(ctx, profile); err != nil {
