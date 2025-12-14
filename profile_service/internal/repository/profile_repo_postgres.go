@@ -72,14 +72,14 @@ func (r *ProfileRepoPostgres) UpdateProfile(ctx context.Context, p *domain.Profi
 	log := logger.FromContext(ctx)
 	log.InfoContext(ctx, "repo UpdateProfile start", slog.String("id", p.ID))
 
-	var histJSON any
+	var histJSON interface{}
 	if p.AddressesHistory != nil {
 		b, err := json.Marshal(p.AddressesHistory)
 		if err != nil {
 			log.ErrorContext(ctx, "repo UpdateProfile marshal history error", slog.Any("err", err))
 			return err
 		}
-		histJSON = b
+		histJSON = string(b)
 	} else {
 		histJSON = nil
 	}

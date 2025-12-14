@@ -64,9 +64,7 @@ func (uc *ProfileUsecase) UpdateProfile(ctx context.Context, in *domain.Profile)
 		existing.AvatarURL = in.AvatarURL
 	}
 
-	if in.AddressesHistory != nil {
-		existing.AddressesHistory = in.AddressesHistory
-	}
+	existing.AddressesHistory = in.AddressesHistory
 
 	return uc.repo.UpdateProfile(ctx, existing)
 }

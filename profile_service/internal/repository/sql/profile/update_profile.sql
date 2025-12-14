@@ -22,7 +22,7 @@ SET
                     END
             END
 
-        WHEN $5::text = 'null' THEN
+        WHEN $5::text = 'clearAddressHistory' THEN
             '[]'::jsonb
 
         ELSE
