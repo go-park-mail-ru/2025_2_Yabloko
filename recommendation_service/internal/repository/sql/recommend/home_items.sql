@@ -31,7 +31,7 @@ candidate_items AS (
         *
     FROM (
         SELECT
-            i.id::text          AS id,
+            si.id::text         AS id,
             si.store_id::text   AS store_id,
             i.name              AS name,
             si.price::float8    AS price,
@@ -51,7 +51,7 @@ candidate_items AS (
         UNION ALL
 
         SELECT
-            i2.id::text         AS id,
+            si2.id::text        AS id,
             si2.store_id::text  AS store_id,
             i2.name             AS name,
             si2.price::float8   AS price,
