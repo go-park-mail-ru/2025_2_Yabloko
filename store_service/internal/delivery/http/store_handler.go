@@ -432,6 +432,13 @@ func (h *StoreHandler) CreateStoreReview(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	userID, ok := ctx.Value("user_id").(string)
+	if !ok || userID == "" {
+		log.WarnContext(ctx, "handler CreateStoreReview user not authenticated")
+		h.rs.Error(ctx, w, http.StatusUnauthorized, "CreateStoreReview", domain.ErrUnauthorized, nil)
+		return
+	}
+
 	var req domain.CreateReviewRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.WarnContext(ctx, "handler CreateStoreReview decode failed", slog.Any("err", err))
@@ -444,22 +451,12 @@ func (h *StoreHandler) CreateStoreReview(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var userIDPtr *string
-	if req.UserID != "" {
-		if _, err := uuid.Parse(req.UserID); err != nil {
-			log.WarnContext(ctx, "handler CreateStoreReview invalid user id", slog.String("user_id", req.UserID))
-			h.rs.Error(ctx, w, http.StatusBadRequest, "CreateStoreReview", domain.ErrRequestParams, nil)
-			return
-		}
-		userIDPtr = &req.UserID
-	}
-
 	if len(req.Comment) > 5000 {
 		h.rs.Error(ctx, w, http.StatusBadRequest, "CreateStoreReview", domain.ErrRequestParams, errors.New("comment too long"))
 		return
 	}
 
-	if err := h.uc.CreateStoreReview(ctx, storeID, userIDPtr, req.Rating, req.Comment); err != nil {
+	if err := h.uc.CreateStoreReview(ctx, storeID, &userID, req.Rating, req.Comment); err != nil {
 		log.ErrorContext(ctx, "handler CreateStoreReview usecase failed", slog.Any("err", err))
 		if errors.Is(err, domain.ErrRequestParams) {
 			h.rs.Error(ctx, w, http.StatusBadRequest, "CreateStoreReview", domain.ErrRequestParams, nil)

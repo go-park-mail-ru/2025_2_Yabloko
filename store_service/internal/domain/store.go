@@ -61,7 +61,6 @@ type StoreReview struct {
 }
 
 type CreateReviewRequest struct {
-	UserID  string  `json:"user_id"`
 	Rating  float64 `json:"rating"`
 	Comment string  `json:"comment"`
 }
