@@ -3,6 +3,7 @@ package http
 import (
 	"apple_backend/pkg/http_response"
 	"apple_backend/pkg/logger"
+	"apple_backend/store_service/internal/delivery/middlewares"
 	"apple_backend/store_service/internal/delivery/transport"
 	"apple_backend/store_service/internal/domain"
 	"apple_backend/store_service/internal/repository"
@@ -64,9 +65,24 @@ func NewStoreRouter(
 	mux.HandleFunc(apiPrefix+"stores/tags", storeHandler.GetTags)
 	mux.HandleFunc(apiPrefix+"stores/categories", storeHandler.GetCategories)
 	mux.HandleFunc(apiPrefix+"stores/{id}/reviews", storeHandler.GetStoreReview)
-	mux.HandleFunc(apiPrefix+"stores/{id}/reviews/add", storeHandler.CreateStoreReview)
 	mux.HandleFunc(apiPrefix+"stores/{id}", storeHandler.GetStore)
 	mux.HandleFunc(apiPrefix+"stores", storeHandler.GetStores)
+}
+
+func NewProtectedStoreRouter(
+	mux *http.ServeMux,
+	db repository.PgxIface,
+	embeddingClient interface {
+		GetEmbedding(ctx context.Context, text string) ([]float32, error)
+		GetEmbeddingBatch(ctx context.Context, texts []string) ([][]float32, error)
+	},
+	apiPrefix string,
+) {
+	storeRepo := repository.NewStoreRepoPostgres(db)
+	storeUC := usecase.NewStoreUsecase(storeRepo, embeddingClient)
+	storeHandler := NewStoreHandler(storeUC)
+
+	mux.HandleFunc(apiPrefix+"stores/{id}/reviews/add", storeHandler.CreateStoreReview)
 }
 
 func (h *StoreHandler) CreateStore(w http.ResponseWriter, r *http.Request) {
@@ -432,7 +448,7 @@ func (h *StoreHandler) CreateStoreReview(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userID, ok := ctx.Value("user_id").(string)
+	userID, ok := middlewares.UserIDFromContext(ctx)
 	if !ok || userID == "" {
 		log.WarnContext(ctx, "handler CreateStoreReview user not authenticated")
 		h.rs.Error(ctx, w, http.StatusUnauthorized, "CreateStoreReview", domain.ErrUnauthorized, nil)

@@ -45,12 +45,16 @@ func Run() {
 
 	openMux := http.NewServeMux()
 	protectedMux := http.NewServeMux()
+	protectedStoreMux := http.NewServeMux()
 
 	shttp.NewStoreRouter(openMux, dbPool, embeddingClient, apiV0Prefix)
 	shttp.NewItemRouter(openMux, dbPool, apiV0Prefix)
 	shttp.NewCartRouter(protectedMux, dbPool, apiV0Prefix)
 
+	shttp.NewProtectedStoreRouter(protectedStoreMux, dbPool, embeddingClient, apiV0Prefix)
+
 	protectedHandler := middlewares.AuthMiddleware(protectedMux, conf.JWTSecret)
+	protectedStoreHandler := middlewares.AuthMiddleware(protectedStoreMux, conf.JWTSecret)
 
 	mux := http.NewServeMux()
 
@@ -73,6 +77,7 @@ func Run() {
 	})))
 
 	mux.Handle(apiV0Prefix+"cart", protectedHandler)
+	mux.Handle(apiV0Prefix+"stores/{id}/reviews/add", protectedStoreHandler)
 	mux.Handle(apiV0Prefix, openMux)
 
 	handler := middlewares.AccessLog(
