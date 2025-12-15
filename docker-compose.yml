@@ -7,7 +7,7 @@ services:
       - "443:443"
     volumes:
       - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ../frontend/build:/site:ro
+      - ../2025_2_yabloko_front/dist:/site:ro
       - ./data/certbot/conf:/etc/letsencrypt:ro
       - ./data/certbot/www:/var/www/certbot:ro
     networks:
