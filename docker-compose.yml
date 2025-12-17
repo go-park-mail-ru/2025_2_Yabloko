@@ -294,6 +294,15 @@ services:
     environment:
       - DOZZLE_NO_ANALYTICS=true
 
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: node_exporter
+    networks:
+      - backend
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+
   nginx-exporter:
     image: nginx/nginx-prometheus-exporter:latest
     container_name: nginx-exporter
