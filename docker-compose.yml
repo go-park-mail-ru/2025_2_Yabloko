@@ -294,14 +294,16 @@ services:
     environment:
       - DOZZLE_NO_ANALYTICS=true
 
-  node_exporter:
-    image: prom/node-exporter:latest
-    container_name: node_exporter
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    container_name: nginx-exporter
     networks:
       - backend
-    restart: unless-stopped
     ports:
-      - "9100:9100"
+      - "8113:9113" 
+    command:
+      - '-nginx.scrape-uri=http://nginx:80/stub_status'
+    restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
