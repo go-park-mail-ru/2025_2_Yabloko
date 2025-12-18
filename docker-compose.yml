@@ -41,6 +41,7 @@ services:
     ports:
       - "${DB_PORT}:5432"
     volumes:
+      - ./config/postgresql.conf:/etc/postgresql/postgresql.conf
       - db_data:/var/lib/postgresql
     networks:
       - backend
