@@ -1,4 +1,4 @@
-GRANT CONNECT ON DATABASE db TO apple_user;
+GRANT CONNECT ON DATABASE postgres TO apple_user;
 
 GRANT USAGE ON SCHEMA public TO apple_user;
 
