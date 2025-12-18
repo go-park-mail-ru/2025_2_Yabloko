@@ -1,0 +1,14 @@
+[
+    {
+        "method": "GET",
+        "url": "http://localhost:8085/api/v0/recommend/home?limit=10",
+        "header": {
+            "Cookie": [
+                "jwt_token=j"
+            ],
+            "Content-Type": [
+                "application/json"
+            ]
+        }
+    }
+]
