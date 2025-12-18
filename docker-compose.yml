@@ -41,6 +41,7 @@ services:
     ports:
       - "${DB_PORT}:5432"
     volumes:
+      - ./config/postgresql.conf:/etc/postgresql/postgresql.conf
       - db_data:/var/lib/postgresql
     networks:
       - backend
@@ -302,6 +303,17 @@ services:
     restart: unless-stopped
     ports:
       - "9100:9100"
+
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    container_name: nginx-exporter
+    networks:
+      - backend
+    ports:
+      - "8113:9113" 
+    command:
+      - '-nginx.scrape-uri=http://nginx:80/stub_status'
+    restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
