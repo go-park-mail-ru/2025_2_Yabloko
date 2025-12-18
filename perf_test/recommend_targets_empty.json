@@ -1,14 +1,1 @@
-[
-    {
-        "method": "GET",
-        "url": "http://localhost:8085/api/v0/recommend/home?limit=10",
-        "header": {
-            "Cookie": [
-                "jwt_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkaWtAYWRpay5ydSIsImV4cCI6MTc2NjEzOTk0OSwiaWF0IjoxNzY2MDUzNTQ5LCJ1c2VyX2lkIjoiZjVjNjQwYmMtODY4ZC00OTMzLWIxYjgtMjhmNzFiYjdhMDViIn0.3-xq6KdMI3DizZj6UoilHJQ-LHZ8XxkUW0UVpQZiiWw"
-            ],
-            "Content-Type": [
-                "application/json"
-            ]
-        }
-    }
-]
+{"method":"GET","url":"http://localhost:8085/api/v0/recommend/home?limit=10","header":{"Cookie":["jwt_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImVtcHR5QGV4YW1wbGUuY29tIiwiZXhwIjoxNzY2MTQ0ODA5LCJpYXQiOjE3NjYwNTg0MDksInVzZXJfaWQiOiIxMTExMTExMS0xMTExLTExMTEtMTExMS0xMTExMTExMTExMTEifQ.m4A_8JMn-0qfC1tKo7608FwhixsqkhYts1phf76WUs4"],"Content-Type":["application/json"]}}

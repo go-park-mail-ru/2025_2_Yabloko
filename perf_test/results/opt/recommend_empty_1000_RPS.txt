@@ -1,0 +1,9 @@
+Requests      [total, rate, throughput]         59998, 1000.05, 999.11
+Duration      [total, attack, wait]             59.998s, 59.995s, 2.735ms
+Latencies     [min, mean, 50, 90, 95, 99, max]  509.1µs, 30.258ms, 2.848ms, 3.703ms, 3.988ms, 5.643ms, 30.006s
+Bytes In      [total, mean]                     779272, 12.99
+Bytes Out     [total, mean]                     0, 0.00
+Success       [ratio]                           99.91%
+Status Codes  [code:count]                      0:54  200:59944  
+Error Set:
+Get "http://localhost:8085/api/v0/recommend/home?limit=10": context deadline exceeded (Client.Timeout exceeded while awaiting headers)

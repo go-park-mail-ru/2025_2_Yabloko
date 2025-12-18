@@ -11,11 +11,11 @@ echo Running Vegeta recommend test for EMPTY user at 1000 RPS...
 type ".\recommend_targets_empty.json" ^
   | vegeta attack -format=json -rate=1000 -duration=60s ^
     -connections=100 -max-connections=1000 -max-workers=1000 ^
-    -output="results\recommend_empty_1000_RPS.bin"
+    -output="results\opt\recommend_empty_1000_RPS.bin"
 
-vegeta report -type=text "results\recommend_empty_1000_RPS.bin" > "results\recommend_empty_1000_RPS.txt"
-vegeta plot "results\recommend_empty_1000_RPS.bin" > "results\recommend_empty_1000_RPS.html"
+vegeta report -type=text "results\opt\recommend_empty_1000_RPS.bin" > "results\opt\recommend_empty_1000_RPS.txt"
+vegeta plot "results\opt\recommend_empty_1000_RPS.bin" > "results\opt\recommend_empty_1000_RPS.html"
 
-echo Done. Open results\recommend_empty_1000_RPS.html in your browser.
+echo Done. Open results\opt\recommend_empty_1000_RPS.html in your browser.
 
 endlocal

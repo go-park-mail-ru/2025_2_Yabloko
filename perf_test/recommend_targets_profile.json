@@ -1,14 +1,1 @@
-[
-    {
-        "method": "GET",
-        "url": "http://localhost:8085/api/v0/recommend/home?limit=10",
-        "header": {
-            "Cookie": [
-                "jwt_token=j"
-            ],
-            "Content-Type": [
-                "application/json"
-            ]
-        }
-    }
-]
+{"method":"GET","url":"http://localhost:8085/api/v0/recommend/home?limit=10","header":{"Cookie":["jwt_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFjdGl2ZUBleGFtcGxlLmNvbSIsImV4cCI6MTc2NjE0NDczOSwiaWF0IjoxNzY2MDU4MzM5LCJ1c2VyX2lkIjoiMjIyMjIyMjItMjIyMi0yMjIyLTIyMjItMjIyMjIyMjIyMjIyIn0.6DFsiNVOnnO6WmQS9fl5mywJ5qSlZNPYsFwHCwurj-w"],"Content-Type":["application/json"]}}

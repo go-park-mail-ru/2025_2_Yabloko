@@ -53,6 +53,7 @@ services:
     restart: unless-stopped
     command: >
       postgres
+        -c config_file=/etc/postgresql/postgresql.conf
         -c log_destination=stderr
         -c logging_collector=off
         -c log_statement=all
@@ -310,7 +311,7 @@ services:
     networks:
       - backend
     ports:
-      - "8113:9113" 
+      - "8113:9113"
     command:
       - '-nginx.scrape-uri=http://nginx:80/stub_status'
     restart: unless-stopped

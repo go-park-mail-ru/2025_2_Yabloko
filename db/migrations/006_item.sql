@@ -8,9 +8,11 @@ create table if not exists item (
     created_at timestamptz not null default current_timestamp
 );
 
-CREATE TRIGGER trg_update_item_updated_at BEFORE
-UPDATE
-    ON item FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER trg_update_item_updated_at
+BEFORE UPDATE ON item
+FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE INDEX IF NOT EXISTS idx_item_name ON item (name);
 
 create table if not exists item_type (
     id uuid primary key,
@@ -21,11 +23,13 @@ create table if not exists item_type (
     unique (item_id, type_id)
 );
 
-CREATE TRIGGER trg_update_item_type_updated_at BEFORE
-UPDATE
-    ON item_type FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER trg_update_item_type_updated_at
+BEFORE UPDATE ON item_type
+FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE INDEX IF NOT EXISTS idx_item_type_item_id ON item_type (item_id);
+CREATE INDEX IF NOT EXISTS idx_item_type_type_id ON item_type (type_id);
 
 ---- create above / drop below ----
 drop table if exists item;
-
 drop table if exists item_type;

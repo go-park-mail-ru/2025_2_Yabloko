@@ -2,7 +2,11 @@
   "id": null,
   "uid": "postgresql-dashboard",
   "title": "PostgreSQL + Services Dashboard",
-  "tags": ["postgresql", "monitoring", "services"],
+  "tags": [
+    "postgresql",
+    "monitoring",
+    "services"
+  ],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
@@ -11,17 +15,33 @@
     {
       "type": "row",
       "title": "PostgreSQL Connections",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "collapsed": false
     },
     {
       "id": 1,
       "type": "timeseries",
       "title": "Active Connections",
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
       "fieldConfig": {
-        "defaults": { "unit": "short", "min": 0 },
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
         "overrides": []
       },
       "targets": [
@@ -36,10 +56,23 @@
       "id": 2,
       "type": "stat",
       "title": "Max Connections",
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
       "fieldConfig": {
-        "defaults": { "unit": "short", "color": { "mode": "thresholds" } },
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          }
+        },
         "overrides": []
       },
       "targets": [
@@ -53,17 +86,34 @@
     {
       "type": "row",
       "title": "PostgreSQL Performance",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
       "collapsed": false
     },
     {
       "id": 3,
       "type": "timeseries",
       "title": "Cache Hit Ratio",
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 10 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 10
+      },
       "fieldConfig": {
-        "defaults": { "unit": "percentunit", "min": 0, "max": 1 },
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
         "overrides": []
       },
       "targets": [
@@ -78,9 +128,22 @@
       "id": 4,
       "type": "timeseries",
       "title": "Tuples Read/Returned",
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 10 },
-      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
       "targets": [
         {
           "expr": "rate(pg_stat_database_tup_returned{datname=\"$db_name\"}[$__rate_interval])",
@@ -98,9 +161,22 @@
       "id": 5,
       "type": "timeseries",
       "title": "Transactions",
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 10 },
-      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
       "targets": [
         {
           "expr": "rate(pg_stat_database_xact_commit{datname=\"$db_name\"}[$__rate_interval])",
@@ -117,17 +193,34 @@
     {
       "type": "row",
       "title": "Services CPU/RAM",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
       "collapsed": false
     },
     {
       "id": 6,
       "type": "timeseries",
       "title": "CPU Usage by Service",
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 19
+      },
       "fieldConfig": {
-        "defaults": { "unit": "percentunit", "min": 0, "max": 1 },
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
         "overrides": []
       },
       "targets": [
@@ -142,9 +235,22 @@
       "id": 7,
       "type": "timeseries",
       "title": "RAM Usage by Service",
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
-      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 19
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
       "targets": [
         {
           "expr": "container_memory_working_set_bytes{container_label_service_type=~\"$service\"}",
@@ -156,19 +262,37 @@
     {
       "type": "row",
       "title": "Slow Queries & Locks",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
       "collapsed": false
     },
     {
       "id": 8,
       "type": "timeseries",
       "title": "Slow Queries (>500ms)",
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
       "targets": [
         {
-          "expr": "increase(pg_stat_statements_calls{query!~\"^(COMMIT|BEGIN|SET)\"}[5m])",
+          "expr": "increase(pg_stat_statements_calls{query!~\"^(COMMIT|BEGIN|SET)\"}[5m]) and on (query) (pg_stat_statements_mean_time_seconds{query!~\"^(COMMIT|BEGIN|SET)\"} > 0.5)",
           "legendFormat": "{{query}}",
           "refId": "A"
         }
@@ -178,9 +302,22 @@
       "id": 9,
       "type": "timeseries",
       "title": "Lock Waits",
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
       "targets": [
         {
           "expr": "pg_stat_database_deadlocks{datname=\"$db_name\"}",
@@ -192,16 +329,34 @@
     {
       "type": "row",
       "title": "HTTP Traffic",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
       "collapsed": false
     },
     {
       "id": 10,
       "type": "timeseries",
       "title": "Requests per Second",
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 37 },
-      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 37
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
       "targets": [
         {
           "expr": "sum(rate(http_requests_total{service=~\"$service\"}[$__rate_interval])) by (service)",
@@ -214,9 +369,22 @@
       "id": 11,
       "type": "timeseries",
       "title": "Response Time",
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 37 },
-      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 37
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=~\"$service\"}[$__rate_interval])) by (le, service))",
@@ -231,22 +399,39 @@
       {
         "name": "service",
         "type": "query",
-        "datasource": { "type": "prometheus", "uid": "Prometheus" },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
         "query": "label_values(container_memory_working_set_bytes, container_label_service_type)",
         "includeAll": true,
         "multi": true,
-        "current": { "selected": false, "text": "All", "value": "$__all" }
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        }
       },
       {
         "name": "db_name",
         "type": "query",
-        "datasource": { "type": "prometheus", "uid": "Prometheus" },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
         "query": "label_values(pg_stat_database_tup_returned, datname)",
         "includeAll": false,
         "multi": false,
-        "current": { "selected": true, "text": "db", "value": "db" }
+        "current": {
+          "selected": true,
+          "text": "db",
+          "value": "db"
+        }
       }
     ]
   },
-  "time": { "from": "now-1h", "to": "now" }
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  }
 }

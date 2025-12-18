@@ -18,6 +18,12 @@ CREATE TRIGGER trg_update_order_updated_at
     FOR EACH ROW
 EXECUTE FUNCTION update_updated_at();
 
+CREATE INDEX IF NOT EXISTS idx_orders_user_status_created_at
+ON "orders" (user_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_orders_user_id
+ON "orders" (user_id);
+
 create table if not exists order_item
 (
     id            uuid primary key,
@@ -35,6 +41,12 @@ CREATE TRIGGER trg_update_order_item_updated_at
     ON order_item
     FOR EACH ROW
 EXECUTE FUNCTION update_updated_at();
+
+CREATE INDEX IF NOT EXISTS idx_order_item_order_id
+ON order_item (order_id);
+
+CREATE INDEX IF NOT EXISTS idx_order_item_store_item_id
+ON order_item (store_item_id);
 
 ---- create above / drop below ----
 drop table if exists "orders";
