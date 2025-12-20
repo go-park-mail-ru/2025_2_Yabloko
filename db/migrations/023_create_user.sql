@@ -5,6 +5,7 @@ BEGIN
         RAISE NOTICE 'User apple_user created';
     ELSE
         RAISE NOTICE 'User apple_user already exists';
+        ALTER USER apple_user WITH PASSWORD 'postgres';
     END IF;
 END
 $$;
